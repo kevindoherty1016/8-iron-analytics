@@ -1,0 +1,10 @@
+Date,Course,Hole,Par,Score,FIR,GIR,Scrambling,Putts,Putter Used
+2025-05-12,Test Detailed Course,1,4,4,TRUE,TRUE,2
+2025-05-12,Test Detailed Course,2,5,5,TRUE,TRUE,2
+2025-05-12,Test Detailed Course,3,3,3,FALSE,TRUE,2
+2025-05-12,Test Detailed Course,4,4,5,FALSE,FALSE,2
+2025-05-12,Test Detailed Course,5,4,4,TRUE,TRUE,2
+2025-05-12,Test Detailed Course,6,5,4,TRUE,TRUE,1
+2025-05-12,Test Detailed Course,7,3,4,FALSE,FALSE,2
+2025-05-12,Test Detailed Course,8,4,4,TRUE,TRUE,2
+2025-05-12,Test Detailed Course,9,4,4,TRUE,TRUE,2

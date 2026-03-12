@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>DB Test</title>
+</head>
+
+<body>
+    <h1>Loading App...</h1>
+    <script type="module" src="app.js"></script>
+    <script>
+        setTimeout(() => {
+            if (window.app && window.app.rounds) {
+                const rounds = window.app.rounds;
+                let missingHoles = 0;
+                let only18 = 0;
+                let has9 = 0;
+                let other = 0;
+                let total = rounds.length;
+                let nullOriginalHoles = 0;
+                let validOriginalHoles = 0;
+
+                rounds.forEach(r => {
+                    const h = parseInt(r.holes);
+                    if (isNaN(h)) {
+                        missingHoles++;
+                    } else if (h === 18) {
+                        only18++;
+                    } else if (h === 9) {
+                        has9++;
+                    } else {
+                        other++;
+                    }
+
+                    if (r.originalHoles === undefined || r.originalHoles === null) {
+                        nullOriginalHoles++;
+                    } else {
+                        validOriginalHoles++;
+                    }
+                });
+
+                console.log("DB_ANALYSIS_RESULT", {
+                    totalRounds: total,
+                    missingHolesProperty: missingHoles,
+                    roundsWith18Holes: only18,
+                    roundsWith9Holes: has9,
+                    otherHoles: other,
+                    nullOriginalHoles: nullOriginalHoles,
+                    validOriginalHoles: validOriginalHoles,
+                    sampleRound: rounds[0] || null
+                });
+            } else {
+                console.log("WAITING for app or user to load...");
+            }
+        }, 3000);
+    </script>
+</body>
+
+</html>

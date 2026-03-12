@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Fix Rounds Data</title>
+</head>
+
+<body>
+    <h1>Fixing your Scrambling Data...</h1>
+    <div id="status" style="font-family: monospace; white-space: pre-wrap; margin-top: 20px;"></div>
+
+    <script>
+        function log(msg) {
+            document.getElementById('status').innerText += msg + '\n';
+        }
+
+        async function fix() {
+            try {
+                // Fetch basic CSV raw data mapping
+                const response = await fetch('csv_data.json');
+                const rawCsvData = await response.json();
+
+                log(`Loaded ${rawCsvData.length} records from basic CSV data.`);
+
+                const dataRaw = localStorage.getItem('8iron_rounds');
+                if (!dataRaw) {
+                    log("No rounds found in local storage.");
+                    return;
+                }
+
+                let rounds = JSON.parse(dataRaw);
+                log(`Found ${rounds.length} rounds in local storage to process...`);
+
+                let fixedCount = 0;
+
+                rounds.forEach(r => {
+                    let needsFix = false;
+                    let newC = r.upDownChances || 0;
+                    let newS = r.upDownSuccesses || 0;
+
+                    // Case 1: Detailed Hole Data
+                    if (r.holeData && r.holeData.length > 0) {
+                        let calcC = 0;
+                        let calcS = 0;
+                        r.holeData.forEach(h => {
+                            // Bug in importer cast True to false. We can mathematically reconstruct it.
+                            if (!h.gir && h.score > 0 && h.par > 0) {
+                                calcC++;
+                                if (h.score <= h.par) {
+                                    calcS++;
+                                    h.scrambling = true;
+                                } else {
+                                    h.scrambling = false;
+                                }
+                            }
+                        });
+
+                        if (calcC !== newC || calcS !== newS) {
+                            newC = calcC;
+                            newS = calcS;
+                            needsFix = true;
+                            log(`Fixed Detailed Round ${r.id} (${r.date} ${r.course}) -> ${newS}/${newC}`);
+                        }
+                    } else {
+                        // Case 2: Basic CSV / Quick Entry
+                        // Try to match with raw CSV data
+                        for (let i = 0; i < rawCsvData.length; i++) {
+                            const raw = rawCsvData[i];
+                            // Match by date and course prefix
+                            if (r.date.includes(raw.date) || raw.date.includes(r.date)) {
+                                if (r.course.toLowerCase().includes(raw.course.toLowerCase())) {
+                                    if (raw.c !== newC || raw.s !== newS) {
+                                        newC = raw.c;
+                                        newS = raw.s;
+                                        needsFix = true;
+                                        log(`Fixed Basic Round ${r.id} (${r.date} ${r.course}) -> ${newS}/${newC}`);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (needsFix) {
+                        r.upDownChances = newC;
+                        r.upDownSuccesses = newS;
+                        fixedCount++;
+                    }
+                });
+
+                if (fixedCount > 0) {
+                    localStorage.setItem('8iron_rounds', JSON.stringify(rounds));
+                    log(`\nSuccessfully fixed ${fixedCount} rounds! Saved to local storage.`);
+                } else {
+                    log(`\nNo rounds needed fixing.`);
+                }
+
+                log("\nDONE. You can close this window.");
+            } catch (e) {
+                log(`Error: ${e.message}`);
+            }
+        }
+
+        fix();
+    </script>
+</body>
+
+</html>

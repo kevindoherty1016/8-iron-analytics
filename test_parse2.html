@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Parse</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+    <input type="file" id="csv-file" accept=".csv" />
+    <div id="output"></div>
+    <script>
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let headerIndex = 0;
+                for (let i = 0; i < Math.min(10, lines.length); i++) {
+                    if (lines[i].toLowerCase().includes('date') && lines[i].toLowerCase().includes('course')) {
+                        headerIndex = i;
+                        break;
+                    }
+                }
+                const cleanText = lines.slice(headerIndex).join('\n');
+                document.getElementById('output').innerHTML += "<br>Clean Text starts with: " + cleanText.substring(0, 100);
+
+                Papa.parse(cleanText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: header => header.trim(),
+                    complete: function(results) {
+                        const rows = results.data;
+                        document.getElementById('output').innerHTML += "<br>Parsed rows count: " + rows.length;
+                        
+                        if (rows.length > 0) {
+                            document.getElementById('output').innerHTML += "<br>First row keys: " + JSON.stringify(Object.keys(rows[0]));
+                        }
+
+                        const roundsMap = {};
+                        rows.forEach((row, i) => {
+                            const getVal = (possibleKeys) => {
+                                const foundKey = Object.keys(row).find(k => {
+                                    const cleanK = k.replace(/^[\uFEFF\s]+|[\s]+$/g, '').toLowerCase();
+                                    return possibleKeys.includes(cleanK);
+                                });
+                                return foundKey ? row[foundKey] : undefined;
+                            };
+
+                            const date = getVal(['date']);
+                            const course = getVal(['course']);
+                            if (!date || !course || date.toLowerCase() === 'date') return;
+                            
+                            const key = `${date}_${course}`;
+                            if (!roundsMap[key]) {
+                                roundsMap[key] = { date: date, course: course, holeData: [] };
+                            }
+                            roundsMap[key].holeData.push({ hole: getVal(['hole']) });
+                        });
+                        
+                        document.getElementById('output').innerHTML += "<br>Found detailed rounds: " + Object.keys(roundsMap).length;
+                        if (Object.keys(roundsMap).length === 0 && rows.length > 0) {
+                            document.getElementById('output').innerHTML += "<br>Error: Found 0 matching rounds. Headers were: " + JSON.stringify(Object.keys(rows[0]));
+                        }
+                    },
+                    error: function(err) {
+                        document.getElementById('output').innerHTML += "<br>PapaParse Error: " + err.message;
+                    }
+                });
+            };
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>

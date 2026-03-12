@@ -1,0 +1,9 @@
+Date,Course,Hole,Par,Score,FIR,GIR,Putts
+2025-05-12,Test Double Round Course,1,4,4,TRUE,TRUE,2
+2025-05-12,Test Double Round Course,2,5,5,TRUE,TRUE,2
+2025-05-12,Test Double Round Course,3,3,3,FALSE,TRUE,2
+2025-05-12,Test Double Round Course,4,4,5,FALSE,FALSE,2
+2025-05-12,Test Double Round Course,1,4,3,TRUE,TRUE,1
+2025-05-12,Test Double Round Course,2,5,4,TRUE,TRUE,1
+2025-05-12,Test Double Round Course,3,3,4,FALSE,FALSE,2
+2025-05-12,Test Double Round Course,4,4,4,TRUE,TRUE,2
