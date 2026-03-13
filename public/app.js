@@ -176,6 +176,22 @@ class App {
                             r.course = this.normalizeCourse(r.course);
                             needsSave = true;
                         }
+
+                        // FIR Migration: Set previous FIR to N/A for rounds before 2026
+                        if (!r.firMigrated) {
+                            const roundDate = this.getEST(r.date);
+                            if (roundDate.y < 2026) {
+                                r.fir = 0;
+                                r.firChances = 0;
+                                if (r.holeData) {
+                                    r.holeData.forEach(h => {
+                                        h.fir = false;
+                                    });
+                                }
+                                r.firMigrated = true;
+                                needsSave = true;
+                            }
+                        }
                     });
                     if (needsSave) this.saveData();
                 }
@@ -225,6 +241,22 @@ class App {
                     r.originalHoles = 9;
                     r.course = this.normalizeCourse(r.course);
                     changed = true;
+                }
+
+                // FIR Migration: Set previous FIR to N/A for rounds before 2026
+                if (!r.firMigrated) {
+                    const roundDate = this.getEST(r.date);
+                    if (roundDate.y < 2026) {
+                        r.fir = 0;
+                        r.firChances = 0;
+                        if (r.holeData) {
+                            r.holeData.forEach(h => {
+                                h.fir = false;
+                            });
+                        }
+                        r.firMigrated = true;
+                        changed = true;
+                    }
                 }
                 if (changed) {
                     updates.push(this.syncRoundToCloud(r));
