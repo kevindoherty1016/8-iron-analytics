@@ -31,6 +31,7 @@ class App {
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
         this.filterCourses = []; // Array of selected courses. Empty means all.
+        this.filterEvents = []; // Array of selected events. Empty means all.
         this.filterHoles = []; // Array of selected holes [9, 18]. Empty means all.
         this.filterPars = []; // Array of selected pars [3, 4, 5]. Empty means all for hole analytics. <!-- id: filterPars -->
         this.profile = {
@@ -1347,6 +1348,7 @@ class App {
         const years = [...new Set(this.rounds.map(r => this.getEST(r.date).y))].sort((a, b) => b - a);
         const holes = [18, 9];
         const courses = [...new Set(this.rounds.map(r => this.normalizeCourse(r.course)))].sort();
+        const events = [...new Set(this.rounds.map(r => (r.event || '').trim()).filter(e => e !== ''))].sort();
         const pars = [3, 4, 5];
 
         // Only render structure if empty
@@ -1379,6 +1381,13 @@ class App {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
                     <div class="multi-select-dropdown" id="${containerId}-course-options"></div>
+                </div>
+                <div class="multi-select-container" id="${containerId}-events" style="min-width: 140px;">
+                    <div class="multi-select-trigger" onclick="this.parentElement.classList.toggle('active')">
+                        <span class="selected-events-display">All Events</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                    <div class="multi-select-dropdown" id="${containerId}-event-options"></div>
                 </div>
                 ${containerId === 'hole-dash-filters' ? `
                 <div class="multi-select-container" id="${containerId}-pars" style="min-width: 140px;">
@@ -1428,6 +1437,10 @@ class App {
         const isNoneC = this.filterCourses.includes('none');
         this.updateDisplay(container, '.selected-courses-display', isAllC ? 'All Courses' : (isNoneC ? '0 Selected' : (this.filterCourses.length === 1 ? clean(this.filterCourses[0]) : 'Multiple')));
 
+        const isAllE = this.filterEvents.length === 0 || this.filterEvents.length === events.length;
+        const isNoneE = this.filterEvents.includes('none');
+        this.updateDisplay(container, '.selected-events-display', isAllE ? 'All Events' : (isNoneE ? '0 Selected' : (this.filterEvents.length === 1 ? this.filterEvents[0] : 'Multiple')));
+
         const isAllP = this.filterPars.length === 0 || this.filterPars.length === 3;
         const isNoneP = this.filterPars.includes('none');
         this.updateDisplay(container, '.selected-pars-display', isAllP ? 'All Pars' : (isNoneP ? '0 Selected' : (this.filterPars.length === 1 ? 'Par ' + this.filterPars[0] : 'Multiple')));
@@ -1458,6 +1471,10 @@ class App {
         const cOpts = document.getElementById(`${containerId}-course-options`);
         cOpts.innerHTML = `<div class="course-option select-all ${isAllC ? 'selected' : ''}" data-value="all"><input type="checkbox" ${isAllC ? 'checked' : ''}><strong>Select All</strong></div>` +
             courses.map(c => `<div class="course-option ${(this.filterCourses.includes(c) || isAllC) ? 'selected' : ''}" data-value="${c}"><input type="checkbox" ${(this.filterCourses.includes(c) || isAllC) ? 'checked' : ''}><span>${clean(c)}</span></div>`).join('');
+
+        const eOpts = document.getElementById(`${containerId}-event-options`);
+        eOpts.innerHTML = `<div class="event-option select-all ${isAllE ? 'selected' : ''}" data-value="all"><input type="checkbox" ${isAllE ? 'checked' : ''}><strong>Select All</strong></div>` +
+            events.map(e => `<div class="event-option ${(this.filterEvents.includes(e) || isAllE) ? 'selected' : ''}" data-value="${e}"><input type="checkbox" ${(this.filterEvents.includes(e) || isAllE) ? 'checked' : ''}><span>${e}</span></div>`).join('');
 
         if (containerId === 'hole-dash-filters') {
             const pOpts = document.getElementById(`${containerId}-par-options`);
@@ -1548,6 +1565,22 @@ class App {
                 if (this.filterCourses.length === 0) this.filterCourses = ['none'];
             }
         });
+        bind(eOpts, '.event-option', (v) => {
+            const isAll = this.filterEvents.length === 0 || this.filterEvents.length === events.length;
+            if (v === 'all') {
+                this.filterEvents = isAll ? ['none'] : [];
+            } else {
+                if (isAll || this.filterEvents.includes('none')) {
+                    this.filterEvents = [v];
+                } else if (this.filterEvents.includes(v)) {
+                    this.filterEvents = this.filterEvents.filter(x => x !== v);
+                } else {
+                    this.filterEvents.push(v);
+                }
+                if (this.filterEvents.length === events.length) this.filterEvents = [];
+                if (this.filterEvents.length === 0) this.filterEvents = ['none'];
+            }
+        });
 
         if (containerId === 'hole-dash-filters') {
             const pOpts = document.getElementById(`${containerId}-par-options`);
@@ -1614,11 +1647,13 @@ class App {
                 const mo = est.m;
                 const normalizedRCourse = this.normalizeCourse(r.course);
                 const origHoles = this.getRoundOriginalHoles(r);
+                const rEvent = (r.event || '').trim();
 
                 return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
-                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse));
+                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
             });
 
 
@@ -1694,6 +1729,9 @@ class App {
                 let s = Number(r.upDownSuccesses) || 0;
                 return acc + (s * scalingFactor(r));
             }, 0);
+
+            const totalCost = filteredRounds.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
+            const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
 
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
@@ -1826,14 +1864,19 @@ class App {
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">(${maxCourseCount} rounds • ${Math.round((maxCourseCount / count) * 100)}%)</div>
                 </div>
                 <div class="card stat-card">
+                    <div class="stat-title">Total Cost</div>
+                    <div class="stat-value" style="color: var(--text-primary);">$${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">For Filtered Rounds</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-title">Total Winnings</div>
+                    <div class="stat-value" style="color: ${totalWinnings >= 0 ? 'var(--primary-green)' : '#ef4444'};">$${totalWinnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">For Filtered Rounds</div>
+                </div>
+                <div class="card stat-card">
                     <div class="stat-title">Total Holes</div>
                     <div class="stat-value" style="color: var(--text-primary);">${physicalTotalHoles.toLocaleString()}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Played</div>
-                </div>
-                <div class="card stat-card">
-                    <div class="stat-title">Avg Rounds/Mo</div>
-                    <div class="stat-value" style="color: var(--text-primary);">${avgRoundsPerMonth}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Over ${monthSpan} month span</div>
                 </div>
             `;
 
@@ -1874,11 +1917,13 @@ class App {
                 const mo = est.m;
                 const normalizedRCourse = this.normalizeCourse(r.course);
                 const origHoles = this.getRoundOriginalHoles(r);
+                const rEvent = (r.event || '').trim();
 
                 return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
-                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse));
+                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
             });
 
             if (filteredRounds.length === 0) {
