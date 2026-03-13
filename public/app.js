@@ -68,6 +68,14 @@ class App {
                 this.auth = window.firebaseAuth.getAuth(firebaseApp);
                 this.db = window.firebaseDB.getFirestore(firebaseApp);
 
+                // Initialize Firebase App Check with reCAPTCHA Enterprise
+                if (window.firebaseAppCheck) {
+                    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
+                        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMUreVHom'),
+                        isTokenAutoRefreshEnabled: true
+                    });
+                }
+
                 const warning = document.getElementById('firebase-config-warning');
                 if (warning) {
                     warning.style.display = 'none';
