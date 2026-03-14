@@ -28,7 +28,7 @@ class App {
         this.filterStartDate = null;
         this.filterEndDate = null;
         this.chartGroupBy = 'round'; // Default group by
-        this.chartSortDir = 'asc'; // Default chart sort direction <!-- id: chartSortDir -->
+        this.chartSortDir = 'chrono-asc'; // Default chart sort direction <!-- id: chartSortDir -->
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
         this.filterCourses = []; // Array of selected courses. Empty means all.
@@ -2090,6 +2090,16 @@ class App {
         }
     }
 
+    getSortLabel() {
+        switch (this.chartSortDir) {
+            case 'chrono-asc': return 'Oldest First';
+            case 'chrono-desc': return 'Newest First';
+            case 'val-asc': return 'Low to High';
+            case 'val-desc': return 'High to Low';
+            default: return 'Sort Order';
+        }
+    }
+
     renderHoleCharts(activeHoles, parStats) {
         const container = document.getElementById('hole-dash-charts');
         if (!container) return;
@@ -2453,13 +2463,13 @@ class App {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
                     <h3 style="margin:0; font-size: 1.1rem; color: var(--text-light);">Trend Indicator</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                        <button id="chart-sort-toggle" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-light); border-radius: 4px;">
-                            ${this.chartSortDir === 'asc' ? 'Oldest First' : 'Newest First'}
+                        <button id="chart-sort-toggle" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; min-width: 100px;">
+                            ${this.getSortLabel()}
                         </button>
-                        <select id="stat-filter" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <select id="stat-filter" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                             ${optionsHtml}
                         </select>
-                        <select id="stat-filter-secondary" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <select id="stat-filter-secondary" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                             ${optionsHtmlSecondary}
                         </select>
                     </div>
@@ -2492,7 +2502,14 @@ class App {
         const sortToggle = document.getElementById('chart-sort-toggle');
         if (sortToggle) {
             sortToggle.onclick = () => {
-                this.chartSortDir = this.chartSortDir === 'asc' ? 'desc' : 'asc';
+                const modes = ['chrono-asc', 'chrono-desc', 'val-asc', 'val-desc'];
+                // Ensure initial state is one of the modes
+                let current = modes.indexOf(this.chartSortDir);
+                if (current === -1) {
+                    // Migration from old 'asc'/'desc'
+                    current = this.chartSortDir === 'desc' ? 1 : 0;
+                }
+                this.chartSortDir = modes[(current + 1) % modes.length];
                 this.renderCharts(filteredRounds);
             };
         }
@@ -2590,10 +2607,13 @@ class App {
             };
         });
 
-        // Apply Chart Sorting (Asc/Desc by Time)
-        // Groups were built from sortedRounds (asc), so Object.values(groups) is asc.
-        if (this.chartSortDir === 'desc') {
-            chartData.reverse();
+        // Apply Chart Sorting (Asc/Desc by Time or Value)
+        if (this.chartSortDir === 'val-asc') {
+            chartData.sort((a, b) => (getVal(a, this.currentChartStat) || 0) - (getVal(b, this.currentChartStat) || 0));
+        } else if (this.chartSortDir === 'val-desc') {
+            chartData.sort((a, b) => (getVal(b, this.currentChartStat) || 0) - (getVal(a, this.currentChartStat) || 0));
+        } else if (this.chartSortDir === 'chrono-desc' || this.chartSortDir === 'desc') {
+            chartData.reverse(); // Groups are initially asc
         }
 
         const labels = chartData.map(g => g.label);
