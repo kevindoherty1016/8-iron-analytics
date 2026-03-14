@@ -19,3 +19,4 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_IRONANALYTICS_CDA1D }}
           projectId: ironanalytics-cda1d
+          channelId: 8iron-dev  #
