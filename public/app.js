@@ -2607,6 +2607,8 @@ class App {
             };
         });
 
+        const getVal = (r, stat) => Math.round((r[stat] || 0) * 10) / 10;
+
         // Apply Chart Sorting (Asc/Desc by Time or Value)
         if (this.chartSortDir === 'val-asc') {
             chartData.sort((a, b) => (getVal(a, this.currentChartStat) || 0) - (getVal(b, this.currentChartStat) || 0));
@@ -2620,8 +2622,6 @@ class App {
 
         if (this.primaryChartInstance) this.primaryChartInstance.destroy();
         if (this.distChartInstance) this.distChartInstance.destroy();
-
-        const getVal = (r, stat) => Math.round((r[stat] || 0) * 10) / 10;
 
         const datasets = [{
             label: statOptions.find(o => o.value === this.currentChartStat).label,
