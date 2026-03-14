@@ -28,6 +28,7 @@ class App {
         this.filterStartDate = null;
         this.filterEndDate = null;
         this.chartGroupBy = 'round'; // Default group by
+        this.chartSortDir = 'asc'; // Default chart sort direction <!-- id: chartSortDir -->
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
         this.filterCourses = []; // Array of selected courses. Empty means all.
@@ -1390,7 +1391,7 @@ class App {
                     </div>
                     <div class="multi-select-dropdown" id="${containerId}-course-options"></div>
                 </div>
-                <div class="multi-select-container" id="${containerId}-events" style="min-width: 140px;">
+                <div class="multi-select-container" id="${containerId}-events" style="min-width: 160px;">
                     <div class="multi-select-trigger" onclick="this.parentElement.classList.toggle('active')">
                         <span class="selected-events-display">All Events</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -1398,7 +1399,7 @@ class App {
                     <div class="multi-select-dropdown" id="${containerId}-event-options"></div>
                 </div>
                 ${containerId === 'hole-dash-filters' ? `
-                <div class="multi-select-container" id="${containerId}-pars" style="min-width: 140px;">
+                <div class="multi-select-container" id="${containerId}-pars" style="min-width: 160px;">
                     <div class="multi-select-trigger" onclick="this.parentElement.classList.toggle('active')">
                         <span class="selected-pars-display">All Pars</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -1406,7 +1407,7 @@ class App {
                     <div class="multi-select-dropdown" id="${containerId}-par-options"></div>
                 </div>
                 ` : ''}
-                <div class="multi-select-container" id="${containerId}-group-by" style="min-width: 140px;">
+                <div class="multi-select-container" id="${containerId}-group-by" style="min-width: 160px;">
                     <div class="multi-select-trigger" onclick="this.parentElement.classList.toggle('active')">
                         <span class="selected-groupby-display">Group: Round</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -2433,6 +2434,8 @@ class App {
             { value: 'threePutts', label: '3 Putts' },
             { value: 'lostBalls', label: 'Lost Balls' },
             { value: 'penaltyStrokes', label: 'Penalty Strokes' },
+            { value: 'cost', label: 'Total Cost' },
+            { value: 'winnings', label: 'Total Winnings' },
             { value: 'roundCount', label: '# of Rounds' }
         ];
 
@@ -2449,11 +2452,14 @@ class App {
             <div class="card chart-wrapper" style="grid-column: 1 / -1; height: auto;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
                     <h3 style="margin:0; font-size: 1.1rem; color: var(--text-light);">Trend Indicator</h3>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <select id="stat-filter" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                        <button id="chart-sort-toggle" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-light); border-radius: 4px;">
+                            ${this.chartSortDir === 'asc' ? 'Oldest First' : 'Newest First'}
+                        </button>
+                        <select id="stat-filter" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
                             ${optionsHtml}
                         </select>
-                        <select id="stat-filter-secondary" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px;">
+                        <select id="stat-filter-secondary" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
                             ${optionsHtmlSecondary}
                         </select>
                     </div>
@@ -2479,6 +2485,14 @@ class App {
         if (secondaryFilter) {
             secondaryFilter.onchange = (e) => {
                 this.secondaryChartStat = e.target.value;
+                this.renderCharts(filteredRounds);
+            };
+        }
+
+        const sortToggle = document.getElementById('chart-sort-toggle');
+        if (sortToggle) {
+            sortToggle.onclick = () => {
+                this.chartSortDir = this.chartSortDir === 'asc' ? 'desc' : 'asc';
                 this.renderCharts(filteredRounds);
             };
         }
@@ -2519,7 +2533,8 @@ class App {
                     label: label, count: 0, holes: 0, score: 0, putts: 0, gir: 0, fir: 0,
                     eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubleBogeys: 0, tripleBogeys: 0,
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
-                    threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0, courses: []
+                    threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
+                    cost: 0, winnings: 0, courses: []
                 };
             }
 
@@ -2544,6 +2559,8 @@ class App {
             g.lostBalls += (r.lostBalls || 0);
             g.penaltyStrokes += (r.penaltyStrokes || 0);
             g.scoreToPar += (r.scoreToPar || 0);
+            g.cost += (r.cost || 0);
+            g.winnings += (r.winnings || 0);
             if (r.course && !g.courses.includes(r.course)) {
                 g.courses.push(r.course);
             }
@@ -2553,7 +2570,6 @@ class App {
         const is9HoleOnly = this.filterHoles.length === 1 && Number(this.filterHoles[0]) === 9;
         const benchmarkHoles = is9HoleOnly ? 9 : 18;
 
-        const labels = Object.values(groups).map(g => g.label);
         const chartData = Object.values(groups).map(g => {
             const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
             return {
@@ -2568,9 +2584,19 @@ class App {
                 firPercent: g.firChances > 0 ? (g.fir / g.firChances) * 100 : 0,
                 upDownPercent: g.upDownChances > 0 ? (g.upDownSuccesses / g.upDownChances) * 100 : 0,
                 puttsPerHole: g.holes > 0 ? (g.putts / g.holes) : 0,
+                cost: g.cost,
+                winnings: g.winnings,
                 courses: g.courses
             };
         });
+
+        // Apply Chart Sorting (Asc/Desc by Time)
+        // Groups were built from sortedRounds (asc), so Object.values(groups) is asc.
+        if (this.chartSortDir === 'desc') {
+            chartData.reverse();
+        }
+
+        const labels = chartData.map(g => g.label);
 
         if (this.primaryChartInstance) this.primaryChartInstance.destroy();
         if (this.distChartInstance) this.distChartInstance.destroy();
@@ -2616,11 +2642,18 @@ class App {
                                 // Only add the course info to the primary dataset tooltip (index 0) to avoid duplication
                                 if (context.datasetIndex !== 0) return null;
                                 const dataIndex = context.dataIndex;
-                                const courses = chartData[dataIndex].courses;
+                                const item = chartData[dataIndex];
+                                const courses = item.courses;
                                 if (!courses || courses.length === 0) return '';
                                 const cleanedCourses = courses.map(c => c.replace(' (9 Holes x2)', '').trim());
-                                if (cleanedCourses.length === 1) return 'Course: ' + cleanedCourses[0];
-                                return 'Courses: ' + cleanedCourses.join(', ');
+
+                                let extraInfo = '';
+                                if (item.cost !== 0 || item.winnings !== 0) {
+                                    extraInfo = ` | Cost: $${(item.cost || 0).toFixed(2)} | Winnings: $${(item.winnings || 0).toFixed(2)}`;
+                                }
+
+                                const courseText = cleanedCourses.length === 1 ? 'Course: ' + cleanedCourses[0] : 'Courses: ' + cleanedCourses.join(', ');
+                                return courseText + extraInfo;
                             }
                         }
                     }
