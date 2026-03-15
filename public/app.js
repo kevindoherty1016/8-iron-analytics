@@ -2463,9 +2463,12 @@ class App {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
                     <h3 style="margin:0; font-size: 1.1rem; color: var(--text-light);">Trend Indicator</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                        <button id="chart-sort-toggle" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; min-width: 100px;">
-                            ${this.getSortLabel()}
-                        </button>
+                        <select id="chart-sort-select" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; min-width: 120px;">
+                            <option value="chrono-asc" ${this.chartSortDir === 'chrono-asc' ? 'selected' : ''}>Oldest First</option>
+                            <option value="chrono-desc" ${this.chartSortDir === 'chrono-desc' ? 'selected' : ''}>Newest First</option>
+                            <option value="val-asc" ${this.chartSortDir === 'val-asc' ? 'selected' : ''}>Low to High</option>
+                            <option value="val-desc" ${this.chartSortDir === 'val-desc' ? 'selected' : ''}>High to Low</option>
+                        </select>
                         <select id="stat-filter" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                             ${optionsHtml}
                         </select>
@@ -2499,17 +2502,10 @@ class App {
             };
         }
 
-        const sortToggle = document.getElementById('chart-sort-toggle');
-        if (sortToggle) {
-            sortToggle.onclick = () => {
-                const modes = ['chrono-asc', 'chrono-desc', 'val-asc', 'val-desc'];
-                // Ensure initial state is one of the modes
-                let current = modes.indexOf(this.chartSortDir);
-                if (current === -1) {
-                    // Migration from old 'asc'/'desc'
-                    current = this.chartSortDir === 'desc' ? 1 : 0;
-                }
-                this.chartSortDir = modes[(current + 1) % modes.length];
+        const sortSelect = document.getElementById('chart-sort-select');
+        if (sortSelect) {
+            sortSelect.onchange = (e) => {
+                this.chartSortDir = e.target.value;
                 this.renderCharts(filteredRounds);
             };
         }
