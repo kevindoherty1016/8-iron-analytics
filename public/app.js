@@ -1190,7 +1190,8 @@ class App {
             'profile': 'My Profile',
             'home': 'Home',
             'data-dictionary': 'Data Dictionary',
-            'courses': 'Course Management'
+            'courses': 'Course Management',
+            'import': 'Import Data'
         };
         const titleEl = document.getElementById('page-title');
         if (titleEl) titleEl.textContent = titles[viewId] || '8 Iron Analytics';
@@ -1455,11 +1456,15 @@ class App {
 
         const holes = [];
         for (let i = 1; i <= 18; i++) {
+            const par = parseInt(document.getElementById(`mgmt-par-${i}`).value);
+            const yds = parseInt(document.getElementById(`mgmt-yardage-${i}`).value);
+            const hcp = parseInt(document.getElementById(`mgmt-handicap-${i}`).value);
+
             holes.push({
                 num: i,
-                par: parseInt(document.getElementById(`mgmt-par-${i}`).value) || 4,
-                yardage: parseInt(document.getElementById(`mgmt-yardage-${i}`).value) || 0,
-                handicap: parseInt(document.getElementById(`mgmt-handicap-${i}`).value) || 0
+                par: isNaN(par) ? 4 : par,
+                yardage: isNaN(yds) ? 0 : yds,
+                handicap: isNaN(hcp) ? 0 : hcp
             });
         }
 
@@ -1511,6 +1516,66 @@ class App {
 
         const teeForm = document.getElementById('add-tee-form');
         if (teeForm) teeForm.addEventListener('submit', (e) => this.handleAddTee(e));
+    }
+
+    async handleBulkCourseUpload() {
+        const textarea = document.getElementById('bulk-course-json');
+        const status = document.getElementById('bulk-course-status');
+        if (!textarea || !status) return;
+
+        const raw = textarea.value.trim();
+        if (!raw) {
+            status.textContent = "Please paste JSON data first.";
+            status.style.display = 'block';
+            status.style.background = 'rgba(239, 68, 68, 0.1)';
+            status.style.color = 'var(--primary-red)';
+            return;
+        }
+
+        try {
+            const data = JSON.parse(raw);
+            if (!Array.isArray(data)) throw new Error("JSON must be an array of courses.");
+
+            status.textContent = `Importing ${data.length} courses...`;
+            status.style.display = 'block';
+            status.style.background = 'rgba(59, 130, 246, 0.1)';
+            status.style.color = 'var(--primary-blue)';
+
+            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+
+            for (const course of data) {
+                if (!course.name) continue;
+                const courseId = course.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+                // Add/Update in local state
+                const existingIndex = this.courseLayouts.findIndex(c => c.name === course.name);
+                if (existingIndex !== -1) {
+                    this.courseLayouts[existingIndex] = { ...this.courseLayouts[existingIndex], ...course, id: courseId, updatedAt: new Date().toISOString() };
+                } else {
+                    this.courseLayouts.push({ ...course, id: courseId, updatedAt: new Date().toISOString() });
+                }
+
+                // Sync to cloud
+                if (window.db) {
+                    await setDoc(doc(window.db, "courses", courseId), course, { merge: true });
+                }
+            }
+
+            status.textContent = `Successfully imported ${data.length} courses!`;
+            status.style.background = 'rgba(16, 185, 129, 0.1)';
+            status.style.color = 'var(--primary-green)';
+            textarea.value = '';
+
+            // Refresh Course view data
+            this.renderCourseManagement();
+            this.renderCourseDatalist();
+
+        } catch (e) {
+            console.error("Bulk upload failed:", e);
+            status.textContent = "Error: " + e.message;
+            status.style.background = 'rgba(239, 68, 68, 0.1)';
+            status.style.color = 'var(--primary-red)';
+        }
     }
 
     normalizeCourse(name) {

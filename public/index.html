@@ -926,77 +926,95 @@
                     </div>
                 </div>
             </div>
-            <div class="dashboard-header">
-                <h2>Import Data</h2>
-                <p class="subtitle">Upload your hole-by-hole spreadsheet data to build your dashboard.</p>
-            </div>
-
-            <div class="card form-container" style="max-width: 600px;">
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label>Select Import Type</label>
-                    <select id="import-type-select" class="form-control"
-                        style="background: var(--bg-dark); color: var(--text-primary); padding: 10px; width: 100%; box-sizing: border-box;"
-                        onchange="window.app.toggleImportInstructions()">
-                        <option value="basic">Basic Round Totals (Free Tier)</option>
-                        <option value="detailed">Detailed Hole-by-Hole (Premium Tier)</option>
-                    </select>
+            <div class="view-container hidden" id="view-import">
+                <div class="dashboard-header">
+                    <h2>Import Data</h2>
+                    <p class="subtitle">Upload your hole-by-hole spreadsheet data to build your dashboard.</p>
                 </div>
 
-                <!-- Instructions for Basic Import -->
-                <div id="import-instructions-basic"
-                    style="margin-bottom: 20px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-left: 4px solid var(--primary-green); border-radius: 4px;">
-                    <h4 style="margin: 0 0 10px 0; color: var(--primary-green);">Basic Format Requirements</h4>
-                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
-                        Import your aggregate round totals. Your file must contain these exact headers:<br>
-                        <code>Date, Course, Course Par, Score, Holes, GIR , Putts, Eagles, Birdies, Pars, Bogeys, Double Bogeys, Triple Bogeys, Penalty Strokes, Up/Down Chances, Up/Down Successes, Putter Used, Cost, Winnings, Event, Group</code><br><br>
-                        Ensure exactly <strong>one row per round</strong>.
-                    </p>
-                    <a href="data:text/csv;charset=utf-8,Date,Course,Course Par,Score,Holes,GIR ,Putts,Eagles,Birdies,Pars,Bogeys,Double Bogeys,Triple Bogeys,Penalty Strokes,Up/Down Chances,Up/Down Successes,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,72,85,18,6,34,0,1,8,6,2,1,0,3,1,Odyssey 7,50,0,Saturday Skins,The Boys"
-                        download="Basic_Round_Template.csv"
-                        style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; text-decofireon: none; font-size: 0.85rem;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2"
-                            style="vertical-align: middle; margin-right: 4px; display: inline-block; margin-bottom: 2px;">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg> Download CSV Template
-                    </a>
+                <div class="card form-container" style="max-width: 600px; margin-bottom: 30px;">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label>Select Import Type</label>
+                        <select id="import-type-select" class="form-control"
+                            style="background: var(--bg-dark); color: var(--text-primary); padding: 10px; width: 100%; box-sizing: border-box;"
+                            onchange="window.app.toggleImportInstructions()">
+                            <option value="basic">Basic Round Totals (Free Tier)</option>
+                            <option value="detailed">Detailed Hole-by-Hole (Premium Tier)</option>
+                        </select>
+                    </div>
+
+                    <!-- Instructions for Basic Import -->
+                    <div id="import-instructions-basic"
+                        style="margin-bottom: 20px; padding: 15px; background: rgba(16, 185, 129, 0.1); border-left: 4px solid var(--primary-green); border-radius: 4px;">
+                        <h4 style="margin: 0 0 10px 0; color: var(--primary-green);">Basic Format Requirements</h4>
+                        <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+                            Import your aggregate round totals. Your file must contain these exact headers:<br>
+                            <code>Date, Course, Course Par, Score, Holes, GIR , Putts, Eagles, Birdies, Pars, Bogeys, Double Bogeys, Triple Bogeys, Penalty Strokes, Up/Down Chances, Up/Down Successes, Putter Used, Cost, Winnings, Event, Group</code><br><br>
+                            Ensure exactly <strong>one row per round</strong>.
+                        </p>
+                        <a href="data:text/csv;charset=utf-8,Date,Course,Course Par,Score,Holes,GIR ,Putts,Eagles,Birdies,Pars,Bogeys,Double Bogeys,Triple Bogeys,Penalty Strokes,Up/Down Chances,Up/Down Successes,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,72,85,18,6,34,0,1,8,6,2,1,0,3,1,Odyssey 7,50,0,Saturday Skins,The Boys"
+                            download="Basic_Round_Template.csv"
+                            style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; text-decoration: none; font-size: 0.85rem;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2"
+                                style="vertical-align: middle; margin-right: 4px; display: inline-block; margin-bottom: 2px;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg> Download CSV Template
+                        </a>
+                    </div>
+
+                    <!-- Instructions for Detailed Import -->
+                    <div id="import-instructions-detailed"
+                        style="display: none; margin-bottom: 20px; padding: 15px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--primary-blue); border-radius: 4px;">
+                        <h4 style="margin: 0 0 10px 0; color: var(--primary-blue);">Detailed Format Requirements</h4>
+                        <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+                            Import granular, hole-by-hole analytics. Your file must contain these exact headers:<br>
+                            <code>Date, Course, Hole, Par, Score, FIR, GIR, Scrambling, Putts, Putter Used, Cost, Winnings, Event, Group</code><br><br>
+                            Ensure you have exactly <strong>one row per hole</strong> (e.g., 18 rows for a full
+                            round).
+                        </p>
+                        <a href="data:text/csv;charset=utf-8,Date,Course,Hole,Par,Score,FIR,GIR,Scrambling,Putts,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,1,4,5,TRUE,FALSE,FALSE,2,Odyssey 7,65,20,May Monthly,Saturday Crew%0A2025-05-12,Sample Course,2,5,5,TRUE,TRUE,FALSE,2,,,,,"
+                            download="Detailed_Hole_Template_v2.csv"
+                            style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; text-decoration: none; font-size: 0.85rem;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2"
+                                style="vertical-align: middle; margin-right: 4px; display: inline-block; margin-bottom: 2px;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg> Download CSV Template
+                        </a>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="csv-upload">Select CSV File</label>
+                        <input type="file" id="csv-upload" accept=".csv" class="form-control"
+                            style="background: var(--bg-dark); color: var(--text-primary); padding: 10px; width: 100%; box-sizing: border-box;">
+                    </div>
+
+                    <button class="btn btn-primary" style="width: 100%;" onclick="window.app.handleCSVUpload()">Parse &
+                        Import Data</button>
+
+                    <div id="import-status"
+                        style="margin-top: 20px; font-size: 0.9rem; display: none; padding: 15px; border-radius: 4px;">
+                    </div>
                 </div>
 
-                <!-- Instructions for Detailed Import -->
-                <div id="import-instructions-detailed"
-                    style="display: none; margin-bottom: 20px; padding: 15px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--primary-blue); border-radius: 4px;">
-                    <h4 style="margin: 0 0 10px 0; color: var(--primary-blue);">Detailed Format Requirements
-                    </h4>
-                    <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
-                        Import granular, hole-by-hole analytics. Your file must contain these exact headers:<br>
-                        <code>Date, Course, Hole, Par, Score, FIR, GIR, Scrambling, Putts, Putter Used, Cost, Winnings, Event, Group</code><br><br>
-                        Ensure you have exactly <strong>one row per hole</strong> (e.g., 18 rows for a full
-                        round).
-                        The <code>Putter Used</code>, <code>Cost</code>, <code>Winnings</code>, <code>Event</code>,
-                        and <code>Group</code> only need to be filled on the first row of each round.
-                    </p>
-                    <a href="data:text/csv;charset=utf-8,Date,Course,Hole,Par,Score,FIR,GIR,Scrambling,Putts,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,1,4,5,TRUE,FALSE,FALSE,2,Odyssey 7,65,20,May Monthly,Saturday Crew%0A2025-05-12,Sample Course,2,5,5,TRUE,TRUE,FALSE,2,,,,,"
-                        download="Detailed_Hole_Template_v2.csv"
-                        style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; text-decoration: none; font-size: 0.85rem;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2"
-                            style="vertical-align: middle; margin-right: 4px; display: inline-block; margin-bottom: 2px;">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg> Download CSV Template
-                    </a>
+                <div class="dashboard-header">
+                    <h2>Bulk Course Layout Upload</h2>
+                    <p class="subtitle">Paste a JSON array of golf courses to bulk import layouts, tees, and holes.</p>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="csv-upload">Select CSV File</label>
-                    <input type="file" id="csv-upload" accept=".csv" class="form-control"
-                        style="background: var(--bg-dark); color: var(--text-primary); padding: 10px; width: 100%; box-sizing: border-box;">
-                </div>
-
-                <button class="btn btn-primary" style="width: 100%;" onclick="window.app.handleCSVUpload()">Parse &
-                    Import Data</button>
-
-                <div id="import-status"
-                    style="margin-top: 20px; font-size: 0.9rem; display: none; padding: 15px; border-radius: 4px;">
+                <div class="card form-container" style="max-width: 800px;">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="bulk-course-json">JSON Data</label>
+                        <textarea id="bulk-course-json" rows="10" class="form-control"
+                            style="background: var(--bg-dark); color: var(--text-primary); padding: 10px; width: 100%; box-sizing: border-box; font-family: monospace; resize: vertical;"
+                            placeholder='[{"name": "Course Name", "location": "...", "tees": {...}}]'></textarea>
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%;"
+                        onclick="window.app.handleBulkCourseUpload()">Bulk Import Courses</button>
+                    <div id="bulk-course-status"
+                        style="margin-top: 20px; font-size: 0.9rem; display: none; padding: 15px; border-radius: 4px;">
+                    </div>
                 </div>
             </div>
     </div>
