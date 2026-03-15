@@ -53,12 +53,15 @@ class App {
         this.historySearch = '';
         this.filtersInitialized = false;
         this.courseLayouts = [];
+        this.selectedMgmtCourse = null;
+        this.selectedMgmtTee = null;
 
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.bindCourseMgmtEvents();
 
         // Initialize Firebase if config is placed AND SDK is loaded
         const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -1186,7 +1189,8 @@ class App {
             'forgot-password': 'Reset Password',
             'profile': 'My Profile',
             'home': 'Home',
-            'data-dictionary': 'Data Dictionary'
+            'data-dictionary': 'Data Dictionary',
+            'courses': 'Course Management'
         };
         const titleEl = document.getElementById('page-title');
         if (titleEl) titleEl.textContent = titles[viewId] || '8 Iron Analytics';
@@ -1249,6 +1253,8 @@ class App {
             this.renderHoleDash();
         } else if (this.currentView === 'data-dictionary') {
             // No dynamic rendering needed yet, just static HTML
+        } else if (this.currentView === 'courses') {
+            this.renderCourseManagement();
         }
     }
 
@@ -1261,6 +1267,229 @@ class App {
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
         setVal('profile-handicap', this.profile.handicap);
+    }
+
+    renderCourseManagement() {
+        const tbody = document.getElementById('mgmt-course-list');
+        if (!tbody) return;
+
+        // Get unique courses from current data models
+        const courses = [...new Set([
+            ...this.courseLayouts.map(c => c.name),
+            ...this.rounds.map(r => this.normalizeCourse(r.course))
+        ])].sort();
+
+        tbody.innerHTML = courses.map(courseName => {
+            const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
+            const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
+
+            return `
+                <tr onclick="window.app.selectMgmtCourse('${courseName.replace(/'/g, "\\'")}')" style="cursor: pointer;">
+                    <td><strong>${courseName}</strong></td>
+                    <td>${layout.location || 'N/A'}</td>
+                    <td><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    selectMgmtCourse(courseName) {
+        this.selectedMgmtCourse = courseName;
+        const section = document.getElementById('mgmt-tee-section');
+        const title = document.getElementById('mgmt-selected-course-name');
+        const list = document.getElementById('mgmt-tee-list');
+        const holeSection = document.getElementById('mgmt-hole-section');
+
+        if (!section || !title || !list) return;
+
+        section.style.display = 'block';
+        if (holeSection) holeSection.style.display = 'none';
+        title.textContent = `${courseName} - Tees`;
+
+        const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
+        const tees = layout.tees || {};
+
+        if (Object.keys(tees).length === 0) {
+            list.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No tees defined.</td></tr>';
+        } else {
+            list.innerHTML = Object.entries(tees).map(([teeName, data]) => `
+                <tr onclick="window.app.selectMgmtTee('${courseName.replace(/'/g, "\\'")}', '${teeName}')" style="cursor: pointer;">
+                    <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
+                    <td>${data.rating || 'N/A'}</td>
+                    <td>${data.slope || 'N/A'}</td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseName}', '${teeName}')">Delete</button></td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    selectMgmtTee(courseName, teeName) {
+        const section = document.getElementById('mgmt-hole-section');
+        const title = document.getElementById('mgmt-selected-tee-name');
+        const header = document.getElementById('mgmt-hole-header');
+        const body = document.getElementById('mgmt-hole-body');
+
+        if (!section || !title || !header || !body) return;
+
+        section.style.display = 'block';
+        title.textContent = `${courseName} - ${teeName} Tees (Hole Breakdown)`;
+
+        const layout = this.courseLayouts.find(c => c.name === courseName);
+        const teeData = layout.tees[teeName];
+        const holes = teeData.holes || [];
+
+        header.innerHTML = `
+            <tr>
+                <th>Detail</th>
+                ${[...Array(18)].map((_, i) => `<th>${i + 1}</th>`).join('')}
+                <th>Total</th>
+            </tr>
+        `;
+
+        const renderRow = (label, key, total) => {
+            return `
+                <tr>
+                    <td><strong>${label}</strong></td>
+                    ${[...Array(18)].map((_, i) => `<td>${holes[i] ? holes[i][key] : '-'}</td>`).join('')}
+                    <td><strong>${total || ''}</strong></td>
+                </tr>
+            `;
+        };
+
+        const totalPar = holes.reduce((a, b) => a + (b.par || 0), 0);
+        const totalYardage = holes.reduce((a, b) => a + (b.yardage || 0), 0);
+
+        body.innerHTML = `
+            ${renderRow('Par', 'par', totalPar)}
+            ${renderRow('Yardage', 'yardage', totalYardage)}
+            ${renderRow('Handicap', 'handicap')}
+        `;
+    }
+
+    openAddCourseModal() {
+        const modal = document.getElementById('add-course-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    closeAddCourseModal() {
+        const modal = document.getElementById('add-course-modal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('add-course-form').reset();
+    }
+
+    async handleAddCourse(e) {
+        e.preventDefault();
+        const name = document.getElementById('mgmt-course-name').value.trim();
+        const location = document.getElementById('mgmt-course-location').value.trim();
+
+        if (!name) return;
+
+        const courseId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const courseData = {
+            id: courseId,
+            name: name,
+            location: location,
+            tees: {},
+            updatedAt: new Date().toISOString()
+        };
+
+        // Add to local state
+        const existingIndex = this.courseLayouts.findIndex(c => c.name === name);
+        if (existingIndex !== -1) {
+            this.courseLayouts[existingIndex] = { ...this.courseLayouts[existingIndex], ...courseData };
+        } else {
+            this.courseLayouts.push(courseData);
+        }
+
+        // Sync to cloud
+        if (window.db) {
+            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            await setDoc(doc(window.db, "courses", courseId), courseData, { merge: true });
+        }
+
+        this.closeAddCourseModal();
+        this.renderCourseManagement();
+        this.selectMgmtCourse(name);
+    }
+
+    openAddTeeModal() {
+        const modal = document.getElementById('add-tee-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    closeAddTeeModal() {
+        const modal = document.getElementById('add-tee-modal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('add-tee-form').reset();
+    }
+
+    async handleAddTee(e) {
+        e.preventDefault();
+        const courseName = this.selectedMgmtCourse;
+        const teeName = document.getElementById('mgmt-tee-color').value.trim();
+        const rating = parseFloat(document.getElementById('mgmt-tee-rating').value);
+        const slope = parseInt(document.getElementById('mgmt-tee-slope').value);
+
+        if (!courseName || !teeName) return;
+
+        const holes = [];
+        for (let i = 1; i <= 18; i++) {
+            holes.push({
+                num: i,
+                par: parseInt(document.getElementById(`mgmt-par-${i}`).value) || 4,
+                yardage: parseInt(document.getElementById(`mgmt-yardage-${i}`).value) || 0,
+                handicap: parseInt(document.getElementById(`mgmt-handicap-${i}`).value) || 0
+            });
+        }
+
+        const teeData = {
+            rating: rating,
+            slope: slope,
+            holes: holes
+        };
+
+        const course = this.courseLayouts.find(c => c.name === courseName);
+        if (!course) return;
+
+        if (!course.tees) course.tees = {};
+        course.tees[teeName] = teeData;
+        course.updatedAt = new Date().toISOString();
+
+        // Sync to cloud
+        if (window.db) {
+            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            const courseId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            await setDoc(doc(window.db, "courses", courseId), course, { merge: true });
+        }
+
+        this.closeAddTeeModal();
+        this.selectMgmtCourse(courseName);
+        this.selectMgmtTee(courseName, teeName);
+    }
+
+    async deleteMgmtTee(courseName, teeName) {
+        if (!confirm(`Are you sure you want to delete the ${teeName} tee set for ${courseName}?`)) return;
+
+        const course = this.courseLayouts.find(c => c.name === courseName);
+        if (course && course.tees) {
+            delete course.tees[teeName];
+
+            if (window.db) {
+                const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                const courseId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                await setDoc(doc(window.db, "courses", courseId), course);
+            }
+
+            this.selectMgmtCourse(courseName);
+        }
+    }
+
+    bindCourseMgmtEvents() {
+        const courseForm = document.getElementById('add-course-form');
+        if (courseForm) courseForm.addEventListener('submit', (e) => this.handleAddCourse(e));
+
+        const teeForm = document.getElementById('add-tee-form');
+        if (teeForm) teeForm.addEventListener('submit', (e) => this.handleAddTee(e));
     }
 
     normalizeCourse(name) {
