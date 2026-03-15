@@ -1414,7 +1414,28 @@ class App {
 
     openAddTeeModal() {
         const modal = document.getElementById('add-tee-modal');
-        if (modal) modal.classList.remove('hidden');
+        if (!modal) return;
+
+        // Populate Hole Grid
+        const header = document.getElementById('mgmt-input-hole-header');
+        const parRow = document.getElementById('mgmt-input-par-row');
+        const yardRow = document.getElementById('mgmt-input-yardage-row');
+        const hcpRow = document.getElementById('mgmt-input-handicap-row');
+
+        if (header && parRow && yardRow && hcpRow) {
+            header.innerHTML = `<tr><th>Hole</th>${[...Array(18)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
+
+            parRow.innerHTML = `<td><strong>Par</strong></td>` +
+                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+
+            yardRow.innerHTML = `<td><strong>Yardage</strong></td>` +
+                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 45px; padding: 4px; text-align: center;"></td>`).join('');
+
+            hcpRow.innerHTML = `<td><strong>Handicap</strong></td>` +
+                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+        }
+
+        modal.classList.remove('hidden');
     }
 
     closeAddTeeModal() {

@@ -395,30 +395,18 @@
                         <h3 style="margin-bottom: 15px;">Hole-by-Hole Details</h3>
                         <div class="table-container" style="overflow-x: auto;">
                             <table class="data-table" style="min-width: 1000px;">
-                                <thead>
-                                    <tr>
-                                        <th>Hole</th>
-                                        ${[...Array(18)].map((_, i) => `<th>${i + 1}</th>`).join('')}
-                                    </tr>
+                                <thead id="mgmt-input-hole-header">
+                                    <!-- Dynamic -->
                                 </thead>
                                 <tbody>
                                     <tr id="mgmt-input-par-row">
-                                        <td><strong>Par</strong></td>
-                                        ${[...Array(18)].map((_, i) => `<td><input type="number" class="grid-input"
-                                                id="mgmt-par-${i+1}" value="4"
-                                                style="width: 40px; padding: 4px; text-align: center;"></td>`).join('')}
+                                        <!-- Dynamic -->
                                     </tr>
                                     <tr id="mgmt-input-yardage-row">
-                                        <td><strong>Yardage</strong></td>
-                                        ${[...Array(18)].map((_, i) => `<td><input type="number" class="grid-input"
-                                                id="mgmt-yardage-${i+1}" placeholder="Yds"
-                                                style="width: 45px; padding: 4px; text-align: center;"></td>`).join('')}
+                                        <!-- Dynamic -->
                                     </tr>
                                     <tr id="mgmt-input-handicap-row">
-                                        <td><strong>Handicap</strong></td>
-                                        ${[...Array(18)].map((_, i) => `<td><input type="number" class="grid-input"
-                                                id="mgmt-handicap-${i+1}" placeholder="HCP"
-                                                style="width: 40px; padding: 4px; text-align: center;"></td>`).join('')}
+                                        <!-- Dynamic -->
                                     </tr>
                                 </tbody>
                             </table>
