@@ -774,6 +774,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .month-option,
 .year-option,
 .course-option,
+.event-option,
 .hole-option,
 .par-option {
     padding: 4px 12px;
@@ -796,6 +797,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .month-option input,
 .year-option input,
 .course-option input,
+.event-option input,
 .hole-option input,
 .par-option input {
     cursor: pointer;
@@ -807,6 +809,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .month-option.selected,
 .year-option.selected,
 .course-option.selected,
+.event-option.selected,
 .hole-option.selected,
 .par-option.selected {
     color: var(--primary-green);
