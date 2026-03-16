@@ -985,8 +985,19 @@ class App {
     }
 
     handleDetailedHoleChange(val) {
-        const numHoles = parseInt(val, 10);
-        this.generateDetailedScorecard(numHoles);
+        const courseInput = document.getElementById('course');
+        const teeSelect = document.getElementById('round-tee-set');
+        if (!courseInput || !teeSelect) {
+            this.generateDetailedScorecard(val);
+            return;
+        }
+
+        const courseVal = courseInput.value;
+        const teeName = teeSelect.value;
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(courseVal));
+        const tee = (layout && layout.tees) ? layout.tees[teeName] : null;
+
+        this.generateDetailedScorecard(val, tee ? tee.holes : null);
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
