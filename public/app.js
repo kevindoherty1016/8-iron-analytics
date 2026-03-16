@@ -667,14 +667,26 @@ class App {
         const entryMode = document.getElementById('entry-mode-select') ? document.getElementById('entry-mode-select').value : 'quick';
 
         const courseName = formData.get('course') || document.getElementById('course').value;
+        const teeName = formData.get('teeName');
         const normalizedTarget = this.normalizeCourse(courseName);
         const courseLayout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === normalizedTarget);
+
+        if (!courseLayout) {
+            alert("Please select a registered course from the list.");
+            return;
+        }
+
+        if (!teeName) {
+            alert("Please select a Tee Set.");
+            return;
+        }
 
         let newRound = {
             id: existingId || Date.now().toString(),
             date: formData.get('date'),
             course: courseName,
-            courseId: courseLayout ? courseLayout.courseId : null,
+            courseId: courseLayout.courseId,
+            teeName: teeName,
             timestamp: new Date().toISOString(),
             putter: formData.get('putter') || ''
         };
@@ -858,10 +870,6 @@ class App {
             this.saveData();
         } else {
             this.syncRoundToCloud(newRound); // save without blocking UI
-            // If they provided detailed data, save the course layout to the global db for auto-fill later
-            if (entryMode === 'detailed' && newRound.course && newRound.holeData && newRound.holeData.length === 18) {
-                this.syncCourseLayout(newRound);
-            }
         }
 
         // Reset form completely
@@ -872,33 +880,6 @@ class App {
         this.switchView('dashboard');
     }
 
-    async syncCourseLayout(roundObj) {
-        if (!window.db) return;
-        const db = window.db;
-
-        // Use dynamic import for ESM modules inside a function
-        const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-
-        // Standardize course name id (e.g. "Pebble Beach" -> "pebble_beach")
-        const courseId = roundObj.course.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
-
-        // Extract just the par values
-        const pars = roundObj.holeData.map(h => h.par);
-
-        const coursePayload = {
-            id: courseId,
-            name: roundObj.course.trim(),
-            pars: pars,
-            updatedAt: new Date().toISOString()
-        };
-
-        try {
-            await setDoc(doc(db, "courses", courseId), coursePayload, { merge: true });
-            console.log("Course layout synced to global database:", coursePayload.name);
-        } catch (e) {
-            console.error("Failed to sync course layout", e);
-        }
-    }
 
     toggleDataEntryMode() {
         const mode = document.getElementById('entry-mode-select').value;
@@ -947,7 +928,7 @@ class App {
         this.generateDetailedScorecard(numHoles);
     }
 
-    generateDetailedScorecard(numHoles = 18) {
+    generateDetailedScorecard(numHoles = 18, prefilledHoles = null) {
         const tbody = document.getElementById('detailed-scorecard-body');
         tbody.innerHTML = '';
 
@@ -956,9 +937,11 @@ class App {
             tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
             tr.id = `hole-row-${i}`;
 
+            const preHole = prefilledHoles ? prefilledHoles[i - 1] : null;
+
             tr.innerHTML = `
                 <td style="padding: 10px 5px; font-weight: bold;">${i}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${i}" min="3" max="6" value="4" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${i})"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${i}" min="3" max="6" value="${preHole ? preHole.par : 4}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${i})" ${preHole ? 'readonly' : ''}></td>
                 <td style="padding: 10px 5px;"><input type="number" id="detail-score-${i}" min="1" max="15" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
                 <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${i}" min="0" max="10" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
                 <td style="padding: 10px 5px;" id="detail-fir-container-${i}">
@@ -1093,6 +1076,13 @@ class App {
             }
 
             document.getElementById('date').valueAsDate = new Date();
+
+            // Reset course-related readonly fields
+            const cp = document.getElementById('coursePar');
+            if (cp) cp.readOnly = false;
+
+            const ts = document.getElementById('round-tee-set');
+            if (ts) ts.innerHTML = '<option value="">Select Course First</option>';
         }
         this.closeAddRoundModal(); // Close modal on cancel
     }
@@ -1132,6 +1122,10 @@ class App {
 
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
+        this.handleCourseChangeRoundModal();
+        setVal('round-tee-set', round.teeName || '');
+        this.handleTeeChangeRoundModal();
+
         setVal('coursePar', (round.coursePar / divisor) || 72);
 
         // If legacy doubled, it should physically be set back to 9 going forward
@@ -1295,6 +1289,54 @@ class App {
         const modal = document.getElementById('add-round-modal');
         if (modal) modal.classList.add('hidden');
         document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    handleCourseChangeRoundModal() {
+        const courseInput = document.getElementById('course');
+        const teeSelect = document.getElementById('round-tee-set');
+        if (!courseInput || !teeSelect) return;
+
+        const val = courseInput.value;
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(val));
+
+        teeSelect.innerHTML = '<option value="">Select Tee Set</option>';
+        if (layout && layout.tees) {
+            Object.keys(layout.tees).sort().forEach(teeName => {
+                const opt = document.createElement('option');
+                opt.value = teeName;
+                opt.textContent = teeName;
+                teeSelect.appendChild(opt);
+            });
+        }
+    }
+
+    handleTeeChangeRoundModal() {
+        const courseInput = document.getElementById('course');
+        const teeSelect = document.getElementById('round-tee-set');
+        if (!courseInput || !teeSelect) return;
+
+        const val = courseInput.value;
+        const teeName = teeSelect.value;
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(val));
+
+        if (layout && layout.tees && layout.tees[teeName]) {
+            const teeData = layout.tees[teeName];
+            const courseParInput = document.getElementById('coursePar');
+            if (courseParInput) {
+                courseParInput.value = teeData.totalPar || 72;
+                courseParInput.readOnly = true; // Protect pre-defined data
+            }
+
+            // Update detailed scorecard if it exists
+            const entryMode = document.getElementById('entry-mode-select')?.value;
+            if (entryMode === 'detailed') {
+                const holesCount = teeData.holes ? teeData.holes.length : (this.profile?.defaultHoles || 18);
+                const holesSelect = document.getElementById('detail-holes-select');
+                if (holesSelect) holesSelect.value = holesCount;
+
+                this.generateDetailedScorecard(holesCount, teeData.holes);
+            }
+        }
     }
 
     togglePasswordVisibility(inputId, btn) {

@@ -452,16 +452,18 @@
                                 <div class="form-group">
                                     <label for="course">Course Name</label>
                                     <div style="position: relative; display: flex; align-items: center;">
-                                        <input type="text" id="course" name="course" placeholder="e.g. Pebble Beach"
-                                            list="course-list" required style="flex: 1;">
-                                        <span id="course-status-badge"
-                                            style="position: absolute; right: 45px; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: var(--secondary-green); color: var(--primary-green); display: none;">New
-                                            Course</span>
+                                        <input type="text" id="course" name="course" placeholder="Select a course..."
+                                            list="course-list" required style="flex: 1;"
+                                            onchange="window.app.handleCourseChangeRoundModal()">
                                     </div>
                                     <datalist id="course-list"></datalist>
-                                    <div id="add-course-hint"
-                                        style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: none;">
-                                        Course not found. Enter pars below to add it to the database.</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="round-tee-set">Tee Set</label>
+                                    <select id="round-tee-set" name="teeName" class="form-control" style="width: 100%;"
+                                        onchange="window.app.handleTeeChangeRoundModal()">
+                                        <option value="">Select Course First</option>
+                                    </select>
                                 </div>
                             </div>
 
