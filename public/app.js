@@ -740,12 +740,19 @@ class App {
         };
 
         if (entryMode === 'quick') {
-            const holes = parseInt(formData.get('holes') || 18, 10);
-            const isNineHoles = holes === 9;
+            const holesValue = formData.get('holes') || "18";
+            let holesCount = 18;
+            let segment = "18";
 
-            newRound.coursePar = parseInt(formData.get('coursePar') || (isNineHoles ? 36 : 72), 10);
-            newRound.holes = holes;
-            newRound.originalHoles = holes;
+            if (holesValue === "front9" || holesValue === "back9") {
+                holesCount = 9;
+                segment = holesValue;
+            }
+
+            newRound.coursePar = parseInt(formData.get('coursePar') || (holesCount === 9 ? 36 : 72), 10);
+            newRound.holes = holesCount;
+            newRound.segment = segment;
+            newRound.originalHoles = holesCount;
             newRound.score = parseInt(formData.get('score') || 0, 10);
             newRound.putts = parseInt(formData.get('putts') || 0, 10);
             newRound.gir = parseInt(formData.get('gir') || 0, 10);
@@ -763,9 +770,13 @@ class App {
         } else {
             // DETAILED SCORECARD MODE
             const holesSelect = document.getElementById('detail-holes-select');
-            const numHoles = holesSelect ? parseInt(holesSelect.value) : 18;
-            newRound.holes = numHoles;
-            newRound.originalHoles = numHoles;
+            const segment = holesSelect ? holesSelect.value : "18";
+            let holesCount = 18;
+            if (segment === "front9" || segment === "back9") holesCount = 9;
+
+            newRound.holes = holesCount;
+            newRound.segment = segment;
+            newRound.originalHoles = holesCount;
             newRound.holeData = [];
 
             let totalScore = 0;
@@ -785,7 +796,11 @@ class App {
             let tripleBogeys = 0;
             let threePutts = 0;
 
-            for (let i = 1; i <= numHoles; i++) {
+            const tbody = document.getElementById('detailed-scorecard-body');
+            const rows = tbody ? tbody.querySelectorAll('tr') : [];
+
+            rows.forEach(row => {
+                const i = row.id.split('-').pop(); // Hole number
                 const parEl = document.getElementById(`detail-par-${i}`);
                 const scoreEl = document.getElementById(`detail-score-${i}`);
                 const puttsEl = document.getElementById(`detail-putts-${i}`);
@@ -797,18 +812,18 @@ class App {
                 let fir = false;
                 if (par === 4) {
                     const firEl = document.getElementById(`detail-fir-${i}`);
-                    fir = firEl ? firEl.checked : false;
+                    fir = firEl ? (firEl.checked) : false;
                     firChances += 1;
                     if (fir) firCount += 1;
                 } else if (par === 5) {
                     const fir1El = document.getElementById(`detail-fir-${i}-1`);
                     const fir2El = document.getElementById(`detail-fir-${i}-2`);
-                    const fir1 = fir1El ? fir1El.checked : false;
-                    const fir2 = fir2El ? fir2El.checked : false;
+                    const f1 = fir1El ? fir1El.checked : false;
+                    const f2 = fir2El ? fir2El.checked : false;
                     firChances += 2;
-                    if (fir1) firCount += 1;
-                    if (fir2) firCount += 1;
-                    fir = [fir1, fir2];
+                    if (f1) firCount += 1;
+                    if (f2) firCount += 1;
+                    fir = [f1, f2];
                 }
 
                 const girEl = document.getElementById(`detail-gir-${i}`);
@@ -817,13 +832,11 @@ class App {
                 // Auto-calculate scrambling
                 let scr = false;
                 if (!gir && score > 0 && par > 0) {
-                    if (score <= par) {
-                        scr = true;
-                    }
+                    if (score <= par) scr = true;
                 }
 
                 const holeObj = {
-                    hole: i,
+                    hole: parseInt(i),
                     par: par,
                     score: score,
                     scoreToPar: score - par,
@@ -857,7 +870,7 @@ class App {
                 }
 
                 if (putts >= 3) threePutts++;
-            }
+            });
 
             newRound.coursePar = totalPar;
             newRound.score = totalScore;
@@ -976,29 +989,50 @@ class App {
         this.generateDetailedScorecard(numHoles);
     }
 
-    generateDetailedScorecard(numHoles = 18, prefilledHoles = null) {
+    generateDetailedScorecard(segment = "18", prefilledHoles = null) {
         const tbody = document.getElementById('detailed-scorecard-body');
+        if (!tbody) return;
         tbody.innerHTML = '';
 
-        for (let i = 1; i <= numHoles; i++) {
+        let startIdx = 0;
+        let endIdx = 18;
+
+        if (segment === "front9") {
+            startIdx = 0;
+            endIdx = 9;
+        } else if (segment === "back9") {
+            startIdx = 9;
+            endIdx = 18;
+        }
+
+        // Adjust endIdx if prefilledHoles is only 9
+        if (prefilledHoles && prefilledHoles.length === 9) {
+            startIdx = 0;
+            endIdx = 9;
+        } else if (prefilledHoles) {
+            endIdx = prefilledHoles.length;
+        }
+
+        for (let i = startIdx; i < endIdx; i++) {
+            const holeNum = i + 1;
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            tr.id = `hole-row-${i}`;
+            tr.id = `hole-row-${holeNum}`;
 
-            const preHole = prefilledHoles ? prefilledHoles[i - 1] : null;
+            const preHole = prefilledHoles ? prefilledHoles[i] : null;
 
             tr.innerHTML = `
-                <td style="padding: 10px 5px; font-weight: bold;">${i}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${i}" min="3" max="6" value="${preHole ? preHole.par : 4}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${i})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${i}" min="1" max="15" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${i}" min="0" max="10" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;" id="detail-fir-container-${i}">
-                    <input type="checkbox" id="detail-fir-${i}" style="width: 16px; height: 16px; accent-color: var(--primary-green);">
+                <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : 4}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
+                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);">
                 </td>
-                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${i}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()"></td>
             `;
             tbody.appendChild(tr);
-            this.updateHoleFIR(i); // Initial setup
+            this.updateHoleFIR(holeNum); // Initial setup
         }
         this.calculateDetailedTotals();
     }
@@ -1034,13 +1068,16 @@ class App {
         let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
         let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
 
-        const numHoles = document.getElementById('detailed-scorecard-body').children.length;
+        const tbody = document.getElementById('detailed-scorecard-body');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
 
-        for (let i = 1; i <= numHoles; i++) {
-            const parVal = parseInt(document.getElementById(`detail-par-${i}`)?.value) || 0;
-            const scoreVal = parseInt(document.getElementById(`detail-score-${i}`)?.value) || 0;
-            const puttsVal = parseInt(document.getElementById(`detail-putts-${i}`)?.value) || 0;
-            const girEl = document.getElementById(`detail-gir-${i}`);
+        rows.forEach(row => {
+            const holeNum = row.id.split('-').pop(); // e.g. "hole-row-10" -> "10"
+            const parVal = parseInt(document.getElementById(`detail-par-${holeNum}`)?.value) || 0;
+            const scoreVal = parseInt(document.getElementById(`detail-score-${holeNum}`)?.value) || 0;
+            const puttsVal = parseInt(document.getElementById(`detail-putts-${holeNum}`)?.value) || 0;
+            const girEl = document.getElementById(`detail-gir-${holeNum}`);
             const gir = girEl ? girEl.checked : false;
 
             totalPar += parVal;
@@ -1051,13 +1088,13 @@ class App {
 
             // FIR
             if (parVal === 4) {
-                const firEl = document.getElementById(`detail-fir-${i}`);
+                const firEl = document.getElementById(`detail-fir-${holeNum}`);
                 firChances += 1;
                 if (firEl && firEl.checked) firCount++;
             } else if (parVal === 5) {
                 firChances += 2;
-                const f1 = document.getElementById(`detail-fir-${i}-1`);
-                const f2 = document.getElementById(`detail-fir-${i}-2`);
+                const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
+                const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
                 if (f1 && f1.checked) firCount++;
                 if (f2 && f2.checked) firCount++;
             }
@@ -1078,7 +1115,7 @@ class App {
                 else if (diff === 2) doubleBogeys++;
                 else if (diff >= 3) tripleBogeys++;
             }
-        }
+        });
 
         // Update scorecard footer display
         document.getElementById('calc-total-par').innerText = totalPar;
@@ -1171,13 +1208,13 @@ class App {
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
         this.handleCourseChangeRoundModal();
+        const segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+        setVal('holes', segment);
+        setVal('detail-holes-select', segment);
         setVal('round-tee-set', round.teeName || '');
         this.handleTeeChangeRoundModal();
 
         setVal('coursePar', (round.coursePar / divisor) || 72);
-
-        // If legacy doubled, it should physically be set back to 9 going forward
-        setVal('holes', isLegacyDoubledEntry ? 9 : (round.holes || round.originalHoles || 18));
 
         setVal('score', (round.score / divisor) || 0);
         setVal('putts', (round.putts / divisor) || 0);
@@ -1361,6 +1398,10 @@ class App {
     handleTeeChangeRoundModal() {
         const courseInput = document.getElementById('course');
         const teeSelect = document.getElementById('round-tee-set');
+        const holesSelect = document.getElementById('holes');
+        const detailHolesSelect = document.getElementById('detail-holes-select');
+        const courseParInput = document.getElementById('coursePar');
+
         if (!courseInput || !teeSelect) return;
 
         const val = courseInput.value;
@@ -1368,21 +1409,47 @@ class App {
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(val));
 
         if (layout && layout.tees && layout.tees[teeName]) {
-            const teeData = layout.tees[teeName];
-            const courseParInput = document.getElementById('coursePar');
+            const tee = layout.tees[teeName];
+            const holeCount = tee.holes ? tee.holes.length : 18;
+
+            // Handle segments options based on holeCount
+            const updateSegments = (select) => {
+                if (!select) return;
+                const currentVal = select.value;
+                select.innerHTML = '';
+                if (holeCount === 18) {
+                    select.innerHTML = `
+                        <option value="18">18 Holes</option>
+                        <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
+                        <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
+                    `;
+                } else {
+                    select.innerHTML = `<option value="front9" selected>Front 9</option>`;
+                }
+            };
+
+            updateSegments(holesSelect);
+            updateSegments(detailHolesSelect);
+
+            // Auto-populate par for quick entry
             if (courseParInput) {
-                courseParInput.value = teeData.totalPar || 72;
-                courseParInput.readOnly = true; // Protect pre-defined data
+                const segment = holesSelect ? holesSelect.value : "18";
+                let totalPar = 0;
+                if (segment === "front9") {
+                    totalPar = tee.holes.slice(0, 9).reduce((sum, h) => sum + h.par, 0);
+                } else if (segment === "back9" && holeCount === 18) {
+                    totalPar = tee.holes.slice(9, 18).reduce((sum, h) => sum + h.par, 0);
+                } else {
+                    totalPar = tee.holes.reduce((sum, h) => sum + (h.par || 0), 0);
+                }
+                courseParInput.value = totalPar;
+                courseParInput.readOnly = true;
             }
 
-            // Update detailed scorecard if it exists
+            // Sync Detailed Scorecard if in detailed mode
             const entryMode = document.getElementById('entry-mode-select')?.value;
             if (entryMode === 'detailed') {
-                const holesCount = teeData.holes ? teeData.holes.length : (this.profile?.defaultHoles || 18);
-                const holesSelect = document.getElementById('detail-holes-select');
-                if (holesSelect) holesSelect.value = holesCount;
-
-                this.generateDetailedScorecard(holesCount, teeData.holes);
+                this.generateDetailedScorecard(detailHolesSelect.value, tee.holes);
             }
         }
     }
@@ -1708,28 +1775,37 @@ class App {
 
     openAddTeeModal() {
         const modal = document.getElementById('add-tee-modal');
+        const holeSelect = document.getElementById('mgmt-tee-holes');
         if (!modal) return;
 
-        // Populate Hole Grid
+        // Reset hole count select to 18
+        if (holeSelect) holeSelect.value = '18';
+
+        // Initial Grid Render (18 holes)
+        this.renderHoleGridInTeeModal(18);
+
+        modal.classList.remove('hidden');
+    }
+
+    renderHoleGridInTeeModal(count) {
+        count = parseInt(count);
         const header = document.getElementById('mgmt-input-hole-header');
         const parRow = document.getElementById('mgmt-input-par-row');
         const yardRow = document.getElementById('mgmt-input-yardage-row');
         const hcpRow = document.getElementById('mgmt-input-handicap-row');
 
         if (header && parRow && yardRow && hcpRow) {
-            header.innerHTML = `<tr><th>Hole</th>${[...Array(18)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
+            header.innerHTML = `<tr><th>Hole</th>${[...Array(count)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
 
             parRow.innerHTML = `<td><strong>Par</strong></td>` +
-                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
 
             yardRow.innerHTML = `<td><strong>Yardage</strong></td>` +
-                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 45px; padding: 4px; text-align: center;"></td>`).join('');
+                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 45px; padding: 4px; text-align: center;"></td>`).join('');
 
             hcpRow.innerHTML = `<td><strong>Handicap</strong></td>` +
-                [...Array(18)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
         }
-
-        modal.classList.remove('hidden');
     }
 
     closeAddTeeModal() {
@@ -1747,8 +1823,9 @@ class App {
 
         if (!courseId || !teeName) return;
 
+        const holeCount = parseInt(document.getElementById('mgmt-tee-holes').value) || 18;
         const holes = [];
-        for (let i = 1; i <= 18; i++) {
+        for (let i = 1; i <= holeCount; i++) {
             const par = parseInt(document.getElementById(`mgmt-par-${i}`).value);
             const yds = parseInt(document.getElementById(`mgmt-yardage-${i}`).value);
             const hcp = parseInt(document.getElementById(`mgmt-handicap-${i}`).value);

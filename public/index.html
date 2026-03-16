@@ -395,6 +395,14 @@
                                 <label for="mgmt-tee-slope">Slope Rating</label>
                                 <input type="number" id="mgmt-tee-slope" required placeholder="e.g. 144">
                             </div>
+                            <div class="form-group">
+                                <label for="mgmt-tee-holes">Hole Count</label>
+                                <select id="mgmt-tee-holes" class="form-control"
+                                    onchange="window.app.renderHoleGridInTeeModal(this.value)">
+                                    <option value="18" selected>18 Holes</option>
+                                    <option value="9">9 Holes</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="form-divider"></div>
@@ -502,10 +510,11 @@
 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="holes">Holes Played</label>
+                                        <label for="holes">Format</label>
                                         <select id="holes" name="holes" class="form-control" style="width: 100%;">
                                             <option value="18">18 Holes</option>
-                                            <option value="9">9 Holes</option>
+                                            <option value="front9">Front 9</option>
+                                            <option value="back9">Back 9</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
@@ -526,7 +535,8 @@
                                         <select id="detail-holes-select" class="form-control"
                                             onchange="window.app.handleDetailedHoleChange(this.value)">
                                             <option value="18" selected>18 Holes</option>
-                                            <option value="9">9 Holes</option>
+                                            <option value="front9">Front 9</option>
+                                            <option value="back9">Back 9</option>
                                         </select>
                                         <span
                                             style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">Totals
