@@ -868,7 +868,10 @@
                         <h2>Course Management</h2>
                         <p class="subtitle">Manage courses, tee sets, and hole layouts.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="window.app.openAddCourseModal()">+ Add Course</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-secondary" onclick="window.app.exportCoursesCSV()">Export CSV</button>
+                        <button class="btn btn-primary" onclick="window.app.openAddCourseModal()">+ Add Course</button>
+                    </div>
                 </div>
 
                 <div class="dashboard-charts" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">

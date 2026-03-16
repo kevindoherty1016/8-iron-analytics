@@ -3540,6 +3540,39 @@ class App {
         URL.revokeObjectURL(url);
     }
 
+    exportCoursesCSV() {
+        if (this.courseLayouts.length === 0) {
+            alert('No courses found to export.');
+            return;
+        }
+
+        const escape = (val) => {
+            const s = String(val ?? '');
+            return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+
+        const header = ['ID', 'Name', 'State', 'Country', 'Tee Count'].join(',');
+        const rows = this.courseLayouts.map(c => {
+            const teeCount = c.tees ? Object.keys(c.tees).length : 0;
+            return [
+                escape(c.courseId || '---'),
+                escape(c.name),
+                escape(c.state || ''),
+                escape(c.country || ''),
+                teeCount
+            ].join(',');
+        });
+
+        const csvContent = [header, ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `8iron_courses_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     exportHoleDataCSV() {
         const startDate = document.getElementById('export-start-date')?.value;
         const endDate = document.getElementById('export-end-date')?.value;
