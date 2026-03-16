@@ -357,9 +357,15 @@
                             <label for="mgmt-course-name">Course Name</label>
                             <input type="text" id="mgmt-course-name" required placeholder="e.g. Pebble Beach">
                         </div>
-                        <div class="form-group" style="margin-bottom: 20px;">
-                            <label for="mgmt-course-location">Location (City, State)</label>
-                            <input type="text" id="mgmt-course-location" placeholder="e.g. Monterey, CA">
+                        <div class="form-row">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="mgmt-course-state">State/Province</label>
+                                <input type="text" id="mgmt-course-state" placeholder="e.g. CA or Ontario">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="mgmt-course-country">Country</label>
+                                <input type="text" id="mgmt-course-country" placeholder="e.g. USA">
+                            </div>
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button type="submit" class="btn btn-primary" style="flex: 1;">Save Course</button>
@@ -873,8 +879,10 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Name</th>
-                                        <th>Location</th>
+                                        <th>State</th>
+                                        <th>Country</th>
                                         <th>Tees</th>
                                     </tr>
                                 </thead>

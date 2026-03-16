@@ -289,6 +289,26 @@ class App {
                 this.courseLayouts.push({ id: doc.id, ...doc.data() });
             });
 
+            // Migration: Assign C### IDs to courses that don't have them
+            let migratedCount = 0;
+            for (const course of this.courseLayouts) {
+                if (!course.courseId) {
+                    course.courseId = this.generateCourseId();
+                    // Split legacy location if it exists
+                    if (course.location && !course.state) {
+                        const parts = course.location.split(',').map(s => s.trim());
+                        course.state = parts[1] || parts[0] || '';
+                        course.country = parts[2] || 'USA';
+                    }
+                    if (window.db) {
+                        const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                        await setDoc(doc(window.db, "courses", course.id), course, { merge: true });
+                    }
+                    migratedCount++;
+                }
+            }
+            if (migratedCount > 0) console.log(`Migrated ${migratedCount} courses with new schema.`);
+
             this.renderCourseDatalist();
             this.renderPutterDatalist();
             this.render(); // Ensure UI updates once data arrives from cloud
@@ -1283,11 +1303,16 @@ class App {
         tbody.innerHTML = courses.map(courseName => {
             const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
             const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
+            const id = layout.courseId || '---';
+            const state = layout.state || '';
+            const country = layout.country || '';
 
             return `
                 <tr onclick="window.app.selectMgmtCourse('${courseName.replace(/'/g, "\\'")}')" style="cursor: pointer;">
+                    <td style="color: var(--text-muted); font-family: monospace;">${id}</td>
                     <td><strong>${courseName}</strong></td>
-                    <td>${layout.location || 'N/A'}</td>
+                    <td>${state}</td>
+                    <td>${country}</td>
                     <td><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
                 </tr>
             `;
@@ -1378,34 +1403,63 @@ class App {
         document.getElementById('add-course-form').reset();
     }
 
+    generateCourseId() {
+        // Find the maximum numeric ID among existing layouts
+        let maxNum = 0;
+        this.courseLayouts.forEach(c => {
+            if (c.courseId && c.courseId.startsWith('C')) {
+                const num = parseInt(c.courseId.substring(1));
+                if (!isNaN(num) && num > maxNum) maxNum = num;
+            }
+        });
+        const nextId = maxNum + 1;
+        // Format as C### (padding with zeros for at least 3 digits)
+        return `C${nextId.toString().padStart(3, '0')}`;
+    }
+
     async handleAddCourse(e) {
         e.preventDefault();
         const name = document.getElementById('mgmt-course-name').value.trim();
-        const location = document.getElementById('mgmt-course-location').value.trim();
+        const state = document.getElementById('mgmt-course-state').value.trim();
+        const country = document.getElementById('mgmt-course-country').value.trim();
 
         if (!name) return;
 
-        const courseId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        const courseData = {
-            id: courseId,
-            name: name,
-            location: location,
-            tees: {},
-            updatedAt: new Date().toISOString()
-        };
-
         // Add to local state
         const existingIndex = this.courseLayouts.findIndex(c => c.name === name);
+        let courseData;
+
         if (existingIndex !== -1) {
-            this.courseLayouts[existingIndex] = { ...this.courseLayouts[existingIndex], ...courseData };
+            // Update existing
+            courseData = {
+                ...this.courseLayouts[existingIndex],
+                name: name,
+                state: state || this.courseLayouts[existingIndex].state || '',
+                country: country || this.courseLayouts[existingIndex].country || '',
+                updatedAt: new Date().toISOString()
+            };
+            // Ensure even existing has a C### ID if it's missing
+            if (!courseData.courseId) courseData.courseId = this.generateCourseId();
+            this.courseLayouts[existingIndex] = courseData;
         } else {
+            // Create new
+            const newId = this.generateCourseId();
+            courseData = {
+                courseId: newId,
+                name: name,
+                state: state,
+                country: country,
+                tees: {},
+                updatedAt: new Date().toISOString()
+            };
             this.courseLayouts.push(courseData);
         }
 
         // Sync to cloud
         if (window.db) {
             const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(window.db, "courses", courseId), courseData, { merge: true });
+            const docId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            await setDoc(doc(window.db, "courses", docId), courseData, { merge: true });
         }
 
         this.closeAddCourseModal();
