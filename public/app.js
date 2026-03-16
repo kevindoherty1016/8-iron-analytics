@@ -1488,16 +1488,20 @@ class App {
         }
     }
 
-    editMgmtCourse(courseId) {
-        const layout = this.courseLayouts.find(c => c.courseId === courseId);
-        if (!layout) return;
+    editMgmtCourse(courseId, fallbackName) {
+        let layout = courseId ? this.courseLayouts.find(c => c.courseId === courseId) : null;
 
-        document.getElementById('mgmt-course-name').value = layout.name || '';
-        document.getElementById('mgmt-course-state').value = layout.state || '';
-        document.getElementById('mgmt-course-country').value = layout.country || '';
+        // If no ID provided but we have a name (registration flow), try to find by name 
+        if (!layout && fallbackName) {
+            layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(fallbackName));
+        }
 
-        // Store ID as we're editing an existing record
-        this.editingCourseId = courseId;
+        document.getElementById('mgmt-course-name').value = layout ? layout.name : (fallbackName || '');
+        document.getElementById('mgmt-course-state').value = layout ? (layout.state || '') : '';
+        document.getElementById('mgmt-course-country').value = layout ? (layout.country || '') : '';
+
+        // Store ID as we're editing an existing record, or null if registering a new course 
+        this.editingCourseId = layout ? layout.courseId : null;
 
         this.openAddCourseModal();
     }
