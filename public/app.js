@@ -1518,8 +1518,43 @@ class App {
         this.editingCourseId = null;
     }
 
+    async getNextCourseIdGlobal() {
+        if (!this.db || !window.firebaseDB) return this.generateCourseId();
+
+        const { doc, runTransaction } = window.firebaseDB;
+        const metaRef = doc(this.db, 'metadata', 'courses');
+
+        try {
+            const nextId = await runTransaction(this.db, async (transaction) => {
+                const metaDoc = await transaction.get(metaRef);
+                if (!metaDoc.exists()) {
+                    // Initialize from current local max
+                    let currentMax = 0;
+                    this.courseLayouts.forEach(c => {
+                        if (c.courseId && c.courseId.startsWith('C')) {
+                            const num = parseInt(c.courseId.substring(1));
+                            if (!isNaN(num) && num > currentMax) currentMax = num;
+                        }
+                    });
+                    const startId = currentMax + 1;
+                    transaction.set(metaRef, { lastId: startId });
+                    return startId;
+                } else {
+                    const newId = (metaDoc.data().lastId || 0) + 1;
+                    transaction.update(metaRef, { lastId: newId });
+                    return newId;
+                }
+            });
+
+            return `C${nextId.toString().padStart(3, '0')}`;
+        } catch (e) {
+            console.error("Global ID generation failed, falling back:", e);
+            return this.generateCourseId();
+        }
+    }
+
     generateCourseId() {
-        // Find the maximum numeric ID among existing layouts
+        // Find the maximum numeric ID among existing layouts (Local Fallback)
         let maxNum = 0;
         this.courseLayouts.forEach(c => {
             if (c.courseId && c.courseId.startsWith('C')) {
@@ -1555,15 +1590,16 @@ class App {
             };
             this.courseLayouts[index] = courseData;
         } else {
-            // Create new
-            const newId = this.generateCourseId();
+            // Create new (Global Registry)
+            const newId = await this.getNextCourseIdGlobal();
             courseData = {
                 courseId: newId,
                 name: name,
                 state: state,
                 country: country,
                 tees: {},
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                createdBy: this.user ? this.user.uid : 'anonymous'
             };
             this.courseLayouts.push(courseData);
         }
@@ -3677,13 +3713,15 @@ class App {
                             };
                             this.courseLayouts[existingIndex] = courseData;
                         } else {
+                            const newId = await this.getNextCourseIdGlobal();
                             courseData = {
-                                courseId: idFromCsv && idFromCsv.startsWith('C') ? idFromCsv : this.generateCourseId(),
+                                courseId: idFromCsv && idFromCsv.startsWith('C') ? idFromCsv : newId,
                                 name: name,
                                 state: state,
                                 country: country,
                                 tees: {},
-                                updatedAt: new Date().toISOString()
+                                updatedAt: new Date().toISOString(),
+                                createdBy: this.user ? this.user.uid : 'anonymous'
                             };
                             this.courseLayouts.push(courseData);
                         }
