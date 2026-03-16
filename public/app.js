@@ -1478,29 +1478,30 @@ class App {
 
         header.innerHTML = `
             <tr>
-                <th>Detail</th>
-                ${[...Array(18)].map((_, i) => `<th>${i + 1}</th>`).join('')}
-                <th>Total</th>
+                <th style="width: 80px;">Hole</th>
+                <th>Par</th>
+                <th>Yards</th>
+                <th>Handicap</th>
             </tr>
         `;
 
-        const renderRow = (label, key, total) => {
-            return `
-                <tr>
-                    <td><strong>${label}</strong></td>
-                    ${[...Array(18)].map((_, i) => `<td>${holes[i] ? holes[i][key] : '-'}</td>`).join('')}
-                    <td><strong>${total || ''}</strong></td>
-                </tr>
-            `;
-        };
+        const totalPar = holes.reduce((a, b) => a + (Number(b.par) || 0), 0);
+        const totalYardage = holes.reduce((a, b) => a + (Number(b.yardage) || 0), 0);
 
-        const totalPar = holes.reduce((a, b) => a + (b.par || 0), 0);
-        const totalYardage = holes.reduce((a, b) => a + (b.yardage || 0), 0);
-
-        body.innerHTML = `
-            ${renderRow('Par', 'par', totalPar)}
-            ${renderRow('Yardage', 'yardage', totalYardage)}
-            ${renderRow('Handicap', 'handicap')}
+        body.innerHTML = holes.map((hole, i) => `
+            <tr>
+                <td><strong>${hole.num || (i + 1)}</strong></td>
+                <td>${hole.par || '-'}</td>
+                <td>${hole.yardage || '-'}</td>
+                <td>${hole.handicap || '-'}</td>
+            </tr>
+        `).join('') + `
+            <tr style="background: rgba(255,255,255,0.05); font-weight: bold; border-top: 2px solid var(--border-color);">
+                <td>TOTAL</td>
+                <td>${totalPar}</td>
+                <td>${totalYardage}</td>
+                <td>-</td>
+            </tr>
         `;
     }
 
