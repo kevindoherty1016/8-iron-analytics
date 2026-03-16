@@ -21,7 +21,7 @@ const devConfig = {
 };
 // 2. Your PRODUCTION project configuration 
 // (Replace these placeholders with your original project keys)
-const firebaseConfig = {
+const prodConfig = {
     apiKey: "AIzaSyC7KiIYFW8KdDpdZEe42x6xxJZ16m5UPyo",
     authDomain: "ironanalytics-cda1d.firebaseapp.com",
     projectId: "ironanalytics-cda1d",
