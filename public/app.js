@@ -1006,9 +1006,9 @@ class App {
             document.getElementById('putts').required = false;
 
             // Generate the scorecard if it hasn't been generated yet
-            const holeCount = parseInt(document.getElementById('detail-holes-select')?.value || 18, 10);
+            const segment = document.getElementById('detail-holes-select')?.value || "18";
             if (document.getElementById('detailed-scorecard-body').children.length === 0) {
-                this.generateDetailedScorecard(holeCount);
+                this.handleDetailedHoleChange(segment);
             }
         }
     }
@@ -1045,11 +1045,13 @@ class App {
             endIdx = 18;
         }
 
-        // Adjust endIdx if prefilledHoles is only 9
+        // If the tee only has 9 holes, we can only ever show 9
         if (prefilledHoles && prefilledHoles.length === 9) {
             startIdx = 0;
             endIdx = 9;
-        } else if (prefilledHoles) {
+        }
+        // If we are showing "18", but the tee has a different number, use that
+        else if (segment === "18" && prefilledHoles) {
             endIdx = prefilledHoles.length;
         }
 
