@@ -301,7 +301,7 @@ class App {
                 if (needsId || needsKeyChange) {
                     if (needsId) {
                         course.courseId = this.generateCourseId();
-                        // Split legacy location if it exists
+                        // Add to list so next iteration sees the new ID for "nextId" calculation
                         if (course.location && !course.state) {
                             const parts = course.location.split(',').map(s => s.trim());
                             course.state = parts[1] || parts[0] || '';
@@ -310,12 +310,17 @@ class App {
                     }
 
                     if (window.db) {
-                        // 1. Create new record with C### as doc ID
-                        await setDoc(doc(window.db, "courses", course.courseId), course, { merge: true });
+                        try {
+                            const { doc, setDoc, deleteDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                            // 1. Create new record with C### as doc ID
+                            await setDoc(doc(window.db, "courses", course.courseId), course, { merge: true });
 
-                        // 2. Delete old record if the doc ID wasn't already C###
-                        if (course.id !== course.courseId) {
-                            await deleteDoc(doc(window.db, "courses", course.id));
+                            // 2. Delete old record if the doc ID wasn't already C###
+                            if (course.id && course.id !== course.courseId) {
+                                await deleteDoc(doc(window.db, "courses", course.id));
+                            }
+                        } catch (err) {
+                            console.error("Migration error for course:", course.name, err);
                         }
                     }
                     migratedCount++;
@@ -1338,29 +1343,28 @@ class App {
         const tbody = document.getElementById('mgmt-course-list');
         if (!tbody) return;
 
-        // Get unique courses from current data models
-        const courses = [...new Set([
-            ...this.courseLayouts.map(c => c.name),
-            ...this.rounds.map(r => this.normalizeCourse(r.course))
-        ])].sort();
+        // ONLY show courses that are explicitly registered in layouts
+        const courses = [...this.courseLayouts].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-        tbody.innerHTML = courses.map(courseName => {
-            const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
+        tbody.innerHTML = courses.map(layout => {
             const id = layout.courseId || '---';
+            const courseName = layout.name || 'Unknown Course';
             const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
             const state = layout.state || '';
             const country = layout.country || '';
 
             return `
-                <tr onclick="window.app.selectMgmtCourse('${id}')" style="cursor: pointer;">
-                    <td style="color: var(--text-muted); font-family: monospace;">${id}</td>
-                    <td><strong>${courseName}</strong></td>
-                    <td>${state}</td>
-                    <td>${country}</td>
-                    <td><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
-                    <td style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.editMgmtCourse('${id}')">Edit</button>
-                        <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${id}')">Delete</button>
+                <tr onclick="window.app.selectMgmtCourse('${id}')" style="cursor: pointer; vertical-align: middle;">
+                    <td style="color: var(--text-muted); font-family: monospace; font-size: 0.85rem; padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${id}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);"><strong>${courseName}</strong></td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${state}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${country}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);"><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 170px; white-space: nowrap;">
+                        <div style="display: flex; gap: 6px; align-items: center; justify-content: flex-start;">
+                            <button class="btn btn-secondary btn-sm" style="padding: 5px 10px; font-size: 0.7rem; border-radius: 4px;" onclick="event.stopPropagation(); window.app.editMgmtCourse('${id}')">Edit</button>
+                            <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2); padding: 5px 10px; font-size: 0.7rem; border-radius: 4px;" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${id}')">Delete</button>
+                        </div>
                     </td>
                 </tr>
             `;
