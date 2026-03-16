@@ -11,7 +11,7 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.1/firebase
 
 // WARNING: TO MAKE THE APP PUBLIC, PASTE YOUR FIREBASE WEB CONFIG OBJECT HERE
 // Check if the current URL is a dev/test environment
-const isDev = window.location.hostname.includes('8iron-dev') ||
+const isDev = window.location.hostname.includes('dev-permanent') ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
 
