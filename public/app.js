@@ -1343,27 +1343,41 @@ class App {
         const tbody = document.getElementById('mgmt-course-list');
         if (!tbody) return;
 
-        // ONLY show courses that are explicitly registered in layouts
-        const courses = [...this.courseLayouts].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        // Get all unique course names from both layouts and rounds
+        const allCourseNames = [...new Set([
+            ...this.courseLayouts.map(c => c.name),
+            ...this.rounds.map(r => r.course)
+        ])].filter(n => n && n.trim()).sort((a, b) => a.localeCompare(b));
 
-        tbody.innerHTML = courses.map(layout => {
-            const id = layout.courseId || '---';
-            const courseName = layout.name || 'Unknown Course';
-            const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
-            const state = layout.state || '';
-            const country = layout.country || '';
+        tbody.innerHTML = allCourseNames.map(courseName => {
+            const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(courseName));
+            const id = layout ? (layout.courseId || '---') : '---';
+            const teeCount = layout && layout.tees ? Object.keys(layout.tees).length : 0;
+            const state = layout ? (layout.state || '') : '';
+            const country = layout ? (layout.country || '') : '';
+            const isRegistered = id !== '---';
 
             return `
-                <tr onclick="window.app.selectMgmtCourse('${id}')" style="cursor: pointer; vertical-align: middle;">
-                    <td style="color: var(--text-muted); font-family: monospace; font-size: 0.85rem; padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${id}</td>
-                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);"><strong>${courseName}</strong></td>
-                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${state}</td>
-                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">${country}</td>
-                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);"><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
-                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 170px; white-space: nowrap;">
-                        <div style="display: flex; gap: 6px; align-items: center; justify-content: flex-start;">
-                            <button class="btn btn-secondary btn-sm" style="padding: 5px 10px; font-size: 0.7rem; border-radius: 4px;" onclick="event.stopPropagation(); window.app.editMgmtCourse('${id}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2); padding: 5px 10px; font-size: 0.7rem; border-radius: 4px;" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${id}')">Delete</button>
+                <tr onclick="window.app.selectMgmtCourse('${id}')" style="cursor: pointer; vertical-align: middle; ${!isRegistered ? 'background: rgba(239, 68, 68, 0.02);' : ''}">
+                    <td style="color: ${isRegistered ? 'var(--text-muted)' : 'var(--danger)'}; font-family: monospace; font-size: 0.85rem; padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 120px;">
+                        ${isRegistered ? id : '<span style="font-size: 0.65rem; font-weight: 800; letter-spacing: 0.05em;">UNREGISTERED</span>'}
+                    </td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">
+                        <strong>${courseName}</strong>
+                    </td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 80px;">${state}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 100px;">${country}</td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 100px;">
+                        <span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span>
+                    </td>
+                    <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); width: 180px; white-space: nowrap; text-align: right;">
+                        <div style="display: flex; gap: 6px; align-items: center; justify-content: flex-end;">
+                            ${isRegistered ? `
+                                <button class="btn btn-secondary btn-sm" style="padding: 5px 12px; font-size: 0.75rem; border-radius: 6px;" onclick="event.stopPropagation(); window.app.editMgmtCourse('${id}')">Edit</button>
+                                <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2); padding: 5px 12px; font-size: 0.75rem; border-radius: 6px;" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${id}')">Delete</button>
+                            ` : `
+                                <button class="btn btn-primary btn-sm" style="padding: 5px 14px; font-size: 0.75rem; border-radius: 6px; background: var(--primary-green); color: white;" onclick="event.stopPropagation(); window.app.editMgmtCourse(null, '${courseName.replace(/'/g, "\\'")}')">Register</button>
+                            `}
                         </div>
                     </td>
                 </tr>
@@ -3630,29 +3644,37 @@ class App {
                     let importedCount = 0;
 
                     for (const row of rows) {
+                        const idFromCsv = (row['ID'] || row['id'] || '').trim();
                         const name = (row['Name'] || row['name'] || '').trim();
-                        if (!name) continue;
+                        if (!name && !idFromCsv) continue;
 
                         const state = (row['State'] || row['state'] || '').trim();
                         const country = (row['Country'] || row['country'] || '').trim();
 
-                        // Check if exists
-                        const existingIndex = this.courseLayouts.findIndex(c => c.name === name);
-                        let courseData;
+                        // Match by ID first, then by normalized Name
+                        let existingIndex = -1;
+                        if (idFromCsv && idFromCsv.startsWith('C')) {
+                            existingIndex = this.courseLayouts.findIndex(c => c.courseId === idFromCsv);
+                        }
+                        if (existingIndex === -1 && name) {
+                            const normalizedName = this.normalizeCourse(name);
+                            existingIndex = this.courseLayouts.findIndex(c => this.normalizeCourse(c.name) === normalizedName);
+                        }
 
+                        let courseData;
                         if (existingIndex !== -1) {
                             const existing = this.courseLayouts[existingIndex];
                             courseData = {
                                 ...existing,
+                                name: name || existing.name, // Support renaming via ID match if name changed
                                 state: state || existing.state || '',
                                 country: country || existing.country || '',
-                                courseId: existing.courseId || this.generateCourseId(),
                                 updatedAt: new Date().toISOString()
                             };
                             this.courseLayouts[existingIndex] = courseData;
                         } else {
                             courseData = {
-                                courseId: this.generateCourseId(),
+                                courseId: idFromCsv && idFromCsv.startsWith('C') ? idFromCsv : this.generateCourseId(),
                                 name: name,
                                 state: state,
                                 country: country,
