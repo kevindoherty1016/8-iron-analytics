@@ -285,29 +285,51 @@ class App {
             // Load Global Courses
             const courseSnapshot = await getDocs(collection(this.db, 'courses'));
             this.courseLayouts = [];
+            const legacyDocs = [];
             courseSnapshot.forEach((doc) => {
                 this.courseLayouts.push({ id: doc.id, ...doc.data() });
             });
 
-            // Migration: Assign C### IDs to courses that don't have them
+            // Migration: Assign C### IDs and switch Firestore keys to C### format
             let migratedCount = 0;
-            for (const course of this.courseLayouts) {
-                if (!course.courseId) {
-                    course.courseId = this.generateCourseId();
-                    // Split legacy location if it exists
-                    if (course.location && !course.state) {
-                        const parts = course.location.split(',').map(s => s.trim());
-                        course.state = parts[1] || parts[0] || '';
-                        course.country = parts[2] || 'USA';
+            const { doc, setDoc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+
+            for (const course of [...this.courseLayouts]) {
+                const needsId = !course.courseId;
+                const needsKeyChange = course.id !== course.courseId;
+
+                if (needsId || needsKeyChange) {
+                    if (needsId) {
+                        course.courseId = this.generateCourseId();
+                        // Split legacy location if it exists
+                        if (course.location && !course.state) {
+                            const parts = course.location.split(',').map(s => s.trim());
+                            course.state = parts[1] || parts[0] || '';
+                            course.country = parts[2] || 'USA';
+                        }
                     }
+
                     if (window.db) {
-                        const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                        await setDoc(doc(window.db, "courses", course.id), course, { merge: true });
+                        // 1. Create new record with C### as doc ID
+                        await setDoc(doc(window.db, "courses", course.courseId), course, { merge: true });
+
+                        // 2. Delete old record if the doc ID wasn't already C###
+                        if (course.id !== course.courseId) {
+                            await deleteDoc(doc(window.db, "courses", course.id));
+                        }
                     }
                     migratedCount++;
                 }
             }
-            if (migratedCount > 0) console.log(`Migrated ${migratedCount} courses with new schema.`);
+            if (migratedCount > 0) {
+                console.log(`Migrated ${migratedCount} courses to ID-based storage.`);
+                // Refresh list to pick up new doc IDs
+                const freshSnapshot = await getDocs(collection(this.db, 'courses'));
+                this.courseLayouts = [];
+                freshSnapshot.forEach((doc) => {
+                    this.courseLayouts.push({ id: doc.id, ...doc.data() });
+                });
+            }
 
             this.renderCourseDatalist();
             this.renderPutterDatalist();
@@ -1302,29 +1324,32 @@ class App {
 
         tbody.innerHTML = courses.map(courseName => {
             const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
-            const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
             const id = layout.courseId || '---';
+            const teeCount = layout.tees ? Object.keys(layout.tees).length : 0;
             const state = layout.state || '';
             const country = layout.country || '';
 
             return `
-                <tr onclick="window.app.selectMgmtCourse('${courseName.replace(/'/g, "\\'")}')" style="cursor: pointer;">
+                <tr onclick="window.app.selectMgmtCourse('${id}')" style="cursor: pointer;">
                     <td style="color: var(--text-muted); font-family: monospace;">${id}</td>
                     <td><strong>${courseName}</strong></td>
                     <td>${state}</td>
                     <td>${country}</td>
                     <td><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
                     <td style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.editMgmtCourse('${courseName.replace(/'/g, "\\'")}')">Edit</button>
-                        <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${courseName.replace(/'/g, "\\'")}')">Delete</button>
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.editMgmtCourse('${id}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${id}')">Delete</button>
                     </td>
                 </tr>
             `;
         }).join('');
     }
 
-    selectMgmtCourse(courseName) {
-        this.selectedMgmtCourse = courseName;
+    selectMgmtCourse(courseId) {
+        const layout = this.courseLayouts.find(c => c.courseId === courseId);
+        if (!layout) return;
+
+        this.selectedMgmtCourseId = courseId;
         const section = document.getElementById('mgmt-tee-section');
         const title = document.getElementById('mgmt-selected-course-name');
         const list = document.getElementById('mgmt-tee-list');
@@ -1334,26 +1359,28 @@ class App {
 
         section.style.display = 'block';
         if (holeSection) holeSection.style.display = 'none';
-        title.textContent = `${courseName} - Tees`;
+        title.textContent = `${layout.name} - Tees`;
 
-        const layout = this.courseLayouts.find(c => c.name === courseName) || { tees: {} };
         const tees = layout.tees || {};
 
         if (Object.keys(tees).length === 0) {
             list.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No tees defined.</td></tr>';
         } else {
             list.innerHTML = Object.entries(tees).map(([teeName, data]) => `
-                <tr onclick="window.app.selectMgmtTee('${courseName.replace(/'/g, "\\'")}', '${teeName}')" style="cursor: pointer;">
+                <tr onclick="window.app.selectMgmtTee('${courseId}', '${teeName}')" style="cursor: pointer;">
                     <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
                     <td>${data.rating || 'N/A'}</td>
                     <td>${data.slope || 'N/A'}</td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseName}', '${teeName}')">Delete</button></td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseId}', '${teeName}')">Delete</button></td>
                 </tr>
             `).join('');
         }
     }
 
-    selectMgmtTee(courseName, teeName) {
+    selectMgmtTee(courseId, teeName) {
+        const layout = this.courseLayouts.find(c => c.courseId === courseId);
+        if (!layout) return;
+
         const section = document.getElementById('mgmt-hole-section');
         const title = document.getElementById('mgmt-selected-tee-name');
         const header = document.getElementById('mgmt-hole-header');
@@ -1362,9 +1389,8 @@ class App {
         if (!section || !title || !header || !body) return;
 
         section.style.display = 'block';
-        title.textContent = `${courseName} - ${teeName} Tees (Hole Breakdown)`;
+        title.textContent = `${layout.name} - ${teeName} Tees (Hole Breakdown)`;
 
-        const layout = this.courseLayouts.find(c => c.name === courseName);
         const teeData = layout.tees[teeName];
         const holes = teeData.holes || [];
 
@@ -1396,43 +1422,42 @@ class App {
         `;
     }
 
-    async deleteMgmtCourse(courseName) {
-        if (!confirm(`Are you sure you want to delete ${courseName}? This will remove all associated tees and data.`)) return;
+    async deleteMgmtCourse(courseId) {
+        const index = this.courseLayouts.findIndex(c => c.courseId === courseId);
+        if (index === -1) return;
 
-        const index = this.courseLayouts.findIndex(c => c.name === courseName);
-        if (index !== -1) {
-            const course = this.courseLayouts[index];
-            this.courseLayouts.splice(index, 1);
+        const course = this.courseLayouts[index];
+        if (!confirm(`Are you sure you want to delete ${course.name}? This will remove all associated tees and data.`)) return;
 
-            // Sync to cloud
-            if (window.db) {
-                const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                const docId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                await deleteDoc(doc(window.db, "courses", docId));
-            }
+        this.courseLayouts.splice(index, 1);
 
-            this.renderCourseManagement();
-            this.renderCourseDatalist();
+        // Sync to cloud
+        if (window.db) {
+            const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            await deleteDoc(doc(window.db, "courses", courseId));
+        }
 
-            // Clear selection if deleted
-            if (this.selectedMgmtCourse === courseName) {
-                this.selectedMgmtCourse = null;
-                document.getElementById('mgmt-tee-section').style.display = 'none';
-                document.getElementById('mgmt-hole-section').style.display = 'none';
-            }
+        this.renderCourseManagement();
+        this.renderCourseDatalist();
+
+        // Clear selection if deleted
+        if (this.selectedMgmtCourseId === courseId) {
+            this.selectedMgmtCourseId = null;
+            document.getElementById('mgmt-tee-section').style.display = 'none';
+            document.getElementById('mgmt-hole-section').style.display = 'none';
         }
     }
 
-    editMgmtCourse(courseName) {
-        const layout = this.courseLayouts.find(c => c.name === courseName);
+    editMgmtCourse(courseId) {
+        const layout = this.courseLayouts.find(c => c.courseId === courseId);
         if (!layout) return;
 
         document.getElementById('mgmt-course-name').value = layout.name || '';
         document.getElementById('mgmt-course-state').value = layout.state || '';
         document.getElementById('mgmt-course-country').value = layout.country || '';
 
-        // Store current name to handle potential rename vs create
-        this.editingCourseOriginalName = courseName;
+        // Store ID as we're editing an existing record
+        this.editingCourseId = courseId;
 
         this.openAddCourseModal();
     }
@@ -1472,31 +1497,19 @@ class App {
         if (!name) return;
 
         let courseData;
-        const originalName = this.editingCourseOriginalName;
+        const editingId = this.editingCourseId;
 
-        // If we're editing an existing course by name
-        const existingIndex = this.courseLayouts.findIndex(c => c.name === (originalName || name));
-
-        if (existingIndex !== -1) {
+        if (editingId) {
             // Update existing
+            const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
             courseData = {
-                ...this.courseLayouts[existingIndex],
+                ...this.courseLayouts[index],
                 name: name,
                 state: state || '',
                 country: country || '',
                 updatedAt: new Date().toISOString()
             };
-            // Ensure ID exists
-            if (!courseData.courseId) courseData.courseId = this.generateCourseId();
-
-            // Handle rename: delete old doc if name changed
-            if (originalName && originalName !== name && window.db) {
-                const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                const oldDocId = originalName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                await deleteDoc(doc(window.db, "courses", oldDocId));
-            }
-
-            this.courseLayouts[existingIndex] = courseData;
+            this.courseLayouts[index] = courseData;
         } else {
             // Create new
             const newId = this.generateCourseId();
@@ -1514,13 +1527,12 @@ class App {
         // Sync to cloud
         if (window.db) {
             const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            const docId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-            await setDoc(doc(window.db, "courses", docId), courseData, { merge: true });
+            await setDoc(doc(window.db, "courses", courseData.courseId), courseData, { merge: true });
         }
 
         this.closeAddCourseModal();
         this.renderCourseManagement();
-        this.selectMgmtCourse(name);
+        this.selectMgmtCourse(courseData.courseId);
     }
 
     openAddTeeModal() {
@@ -1557,12 +1569,12 @@ class App {
 
     async handleAddTee(e) {
         e.preventDefault();
-        const courseName = this.selectedMgmtCourse;
+        const courseId = this.selectedMgmtCourseId;
         const teeName = document.getElementById('mgmt-tee-color').value.trim();
         const rating = parseFloat(document.getElementById('mgmt-tee-rating').value);
         const slope = parseInt(document.getElementById('mgmt-tee-slope').value);
 
-        if (!courseName || !teeName) return;
+        if (!courseId || !teeName) return;
 
         const holes = [];
         for (let i = 1; i <= 18; i++) {
@@ -1584,7 +1596,7 @@ class App {
             holes: holes
         };
 
-        const course = this.courseLayouts.find(c => c.name === courseName);
+        const course = this.courseLayouts.find(c => c.courseId === courseId);
         if (!course) return;
 
         if (!course.tees) course.tees = {};
@@ -1594,29 +1606,29 @@ class App {
         // Sync to cloud
         if (window.db) {
             const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            const courseId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
             await setDoc(doc(window.db, "courses", courseId), course, { merge: true });
         }
 
         this.closeAddTeeModal();
-        this.selectMgmtCourse(courseName);
-        this.selectMgmtTee(courseName, teeName);
+        this.selectMgmtCourse(courseId);
+        this.selectMgmtTee(courseId, teeName);
     }
 
-    async deleteMgmtTee(courseName, teeName) {
-        if (!confirm(`Are you sure you want to delete the ${teeName} tee set for ${courseName}?`)) return;
+    async deleteMgmtTee(courseId, teeName) {
+        const course = this.courseLayouts.find(c => c.courseId === courseId);
+        if (!course) return;
 
-        const course = this.courseLayouts.find(c => c.name === courseName);
-        if (course && course.tees) {
+        if (!confirm(`Are you sure you want to delete the ${teeName} tee set for ${course.name}?`)) return;
+
+        if (course.tees) {
             delete course.tees[teeName];
 
             if (window.db) {
                 const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                const courseId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
                 await setDoc(doc(window.db, "courses", courseId), course);
             }
 
-            this.selectMgmtCourse(courseName);
+            this.selectMgmtCourse(courseId);
         }
     }
 
@@ -3603,13 +3615,14 @@ class App {
                         let courseData;
 
                         if (existingIndex !== -1) {
+                            const existing = this.courseLayouts[existingIndex];
                             courseData = {
-                                ...this.courseLayouts[existingIndex],
-                                state: state || this.courseLayouts[existingIndex].state || '',
-                                country: country || this.courseLayouts[existingIndex].country || '',
+                                ...existing,
+                                state: state || existing.state || '',
+                                country: country || existing.country || '',
+                                courseId: existing.courseId || this.generateCourseId(),
                                 updatedAt: new Date().toISOString()
                             };
-                            if (!courseData.courseId) courseData.courseId = this.generateCourseId();
                             this.courseLayouts[existingIndex] = courseData;
                         } else {
                             courseData = {
@@ -3626,8 +3639,7 @@ class App {
                         // Sync to cloud
                         if (window.db) {
                             const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                            const docId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                            await setDoc(doc(window.db, "courses", docId), courseData, { merge: true });
+                            await setDoc(doc(window.db, "courses", courseData.courseId), courseData, { merge: true });
                         }
                         importedCount++;
                     }
