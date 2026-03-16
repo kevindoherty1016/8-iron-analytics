@@ -4,6 +4,23 @@
  */
 
 // WARNING: TO MAKE THE APP PUBLIC, PASTE YOUR FIREBASE WEB CONFIG OBJECT HERE
+// Check if the current URL is a dev/test environment
+const isDev = window.location.hostname.includes('8iron-dev') ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+// 1. Your DEV project configuration (The one you just shared)
+const devConfig = {
+    apiKey: "AIzaSyAS3gZqAR6XjXxuz-NvIxNqzCXSFrwMaxQ",
+    authDomain: "ironanalytics-dev.firebaseapp.com",
+    projectId: "ironanalytics-dev",
+    storageBucket: "ironanalytics-dev.firebasestorage.app",
+    messagingSenderId: "1084506018668",
+    appId: "1:1084506018668:web:be7a01d8aed35f4e365949",
+    measurementId: "G-NYYVEJV9JE"
+};
+// 2. Your PRODUCTION project configuration 
+// (Replace these placeholders with your original project keys)
 const firebaseConfig = {
     apiKey: "AIzaSyC7KiIYFW8KdDpdZEe42x6xxJZ16m5UPyo",
     authDomain: "ironanalytics-cda1d.firebaseapp.com",
@@ -12,6 +29,12 @@ const firebaseConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
+// 3. Select the config based on the environment
+const firebaseConfig = isDev ? devConfig : prodConfig;
+
+// Initialize Firebase using the selected config
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 class App {
     constructor() {
