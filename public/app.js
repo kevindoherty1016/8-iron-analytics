@@ -331,6 +331,23 @@ class App {
                 });
             }
 
+            // Migration: Link rounds to courses via courseId
+            let roundLinks = 0;
+            for (const round of this.rounds) {
+                if (!round.courseId && round.course) {
+                    const normalizedTarget = this.normalizeCourse(round.course);
+                    const course = this.courseLayouts.find(c => this.normalizeCourse(c.name) === normalizedTarget);
+                    if (course && course.courseId) {
+                        round.courseId = course.courseId;
+                        roundLinks++;
+                        if (window.db) {
+                            await this.syncRoundToCloud(round);
+                        }
+                    }
+                }
+            }
+            if (roundLinks > 0) console.log(`Linked ${roundLinks} rounds to course IDs.`);
+
             this.renderCourseDatalist();
             this.renderPutterDatalist();
             this.render(); // Ensure UI updates once data arrives from cloud
@@ -644,10 +661,15 @@ class App {
         const existingId = formData.get('id');
         const entryMode = document.getElementById('entry-mode-select') ? document.getElementById('entry-mode-select').value : 'quick';
 
+        const courseName = formData.get('course') || document.getElementById('course').value;
+        const normalizedTarget = this.normalizeCourse(courseName);
+        const courseLayout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === normalizedTarget);
+
         let newRound = {
             id: existingId || Date.now().toString(),
             date: formData.get('date'),
-            course: formData.get('course') || document.getElementById('course').value, // Fallback to direct DOM access
+            course: courseName,
+            courseId: courseLayout ? courseLayout.courseId : null,
             timestamp: new Date().toISOString(),
             putter: formData.get('putter') || ''
         };
@@ -1471,7 +1493,7 @@ class App {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.add('hidden');
         document.getElementById('add-course-form').reset();
-        this.editingCourseOriginalName = null;
+        this.editingCourseId = null;
     }
 
     generateCourseId() {
@@ -4234,7 +4256,11 @@ class App {
                                 createdAt: new Date().toISOString()
                             };
                             if (formattedDate) roundPayload.date = formattedDate;
-                            if (course) roundPayload.course = course;
+                            if (course) {
+                                roundPayload.course = course;
+                                const layout = self.courseLayouts.find(c => isCourseMatch(c.name, course));
+                                roundPayload.courseId = layout ? layout.courseId : null;
+                            }
 
                             const v_score = getRowVal(row, ['score']);
                             const v_par = getRowVal(row, ['course par', 'par']);
@@ -4540,11 +4566,14 @@ class App {
                             } else {
                                 // No match found, push as new round
                                 const nextRoundNum = self.rounds.reduce((max, r) => Math.max(max, r.roundNum || 0), 0) + 1;
+                                const layout = self.courseLayouts.find(c => isCourseMatch(c.name, roundObj.course));
+
                                 const finalRoundPayload = {
                                     id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
                                     roundNum: roundObj.roundNum > 0 ? roundObj.roundNum : nextRoundNum,
                                     date: formattedDate,
                                     course: roundObj.course,
+                                    courseId: layout ? layout.courseId : null,
                                     holes: roundObj.holeData.length,
                                     score: totalScore,
                                     scoreToPar: totalScore - totalPar,
