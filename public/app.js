@@ -3573,6 +3573,75 @@ class App {
         URL.revokeObjectURL(url);
     }
 
+    importCoursesCSV() {
+        document.getElementById('course-csv-upload').click();
+    }
+
+    async handleCourseCSVUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const text = e.target.result;
+            Papa.parse(text, {
+                header: true,
+                skipEmptyLines: true,
+                complete: async (results) => {
+                    const rows = results.data;
+                    let importedCount = 0;
+
+                    for (const row of rows) {
+                        const name = (row['Name'] || row['name'] || '').trim();
+                        if (!name) continue;
+
+                        const state = (row['State'] || row['state'] || '').trim();
+                        const country = (row['Country'] || row['country'] || '').trim();
+
+                        // Check if exists
+                        const existingIndex = this.courseLayouts.findIndex(c => c.name === name);
+                        let courseData;
+
+                        if (existingIndex !== -1) {
+                            courseData = {
+                                ...this.courseLayouts[existingIndex],
+                                state: state || this.courseLayouts[existingIndex].state || '',
+                                country: country || this.courseLayouts[existingIndex].country || '',
+                                updatedAt: new Date().toISOString()
+                            };
+                            if (!courseData.courseId) courseData.courseId = this.generateCourseId();
+                            this.courseLayouts[existingIndex] = courseData;
+                        } else {
+                            courseData = {
+                                courseId: this.generateCourseId(),
+                                name: name,
+                                state: state,
+                                country: country,
+                                tees: {},
+                                updatedAt: new Date().toISOString()
+                            };
+                            this.courseLayouts.push(courseData);
+                        }
+
+                        // Sync to cloud
+                        if (window.db) {
+                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                            const docId = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                            await setDoc(doc(window.db, "courses", docId), courseData, { merge: true });
+                        }
+                        importedCount++;
+                    }
+
+                    alert(`Successfully imported ${importedCount} courses.`);
+                    this.renderCourseManagement();
+                    this.renderCourseDatalist();
+                }
+            });
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Reset for next upload
+    }
+
     exportHoleDataCSV() {
         const startDate = document.getElementById('export-start-date')?.value;
         const endDate = document.getElementById('export-end-date')?.value;

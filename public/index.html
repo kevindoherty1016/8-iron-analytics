@@ -869,6 +869,9 @@
                         <p class="subtitle">Manage courses, tee sets, and hole layouts.</p>
                     </div>
                     <div style="display: flex; gap: 12px;">
+                        <input type="file" id="course-csv-upload" style="display: none;" accept=".csv"
+                            onchange="window.app.handleCourseCSVUpload(event)">
+                        <button class="btn btn-secondary" onclick="window.app.importCoursesCSV()">Import CSV</button>
                         <button class="btn btn-secondary" onclick="window.app.exportCoursesCSV()">Export CSV</button>
                         <button class="btn btn-primary" onclick="window.app.openAddCourseModal()">+ Add Course</button>
                     </div>
