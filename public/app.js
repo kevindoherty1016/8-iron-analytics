@@ -1314,6 +1314,10 @@ class App {
                     <td>${state}</td>
                     <td>${country}</td>
                     <td><span class="badge ${teeCount > 0 ? 'badge-active' : ''}">${teeCount} Tees</span></td>
+                    <td style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.editMgmtCourse('${courseName.replace(/'/g, "\\'")}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" style="background: rgba(239, 68, 68, 0.1); color: var(--primary-red); border: 1px solid rgba(239, 68, 68, 0.2);" onclick="event.stopPropagation(); window.app.deleteMgmtCourse('${courseName.replace(/'/g, "\\'")}')">Delete</button>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -1392,6 +1396,47 @@ class App {
         `;
     }
 
+    async deleteMgmtCourse(courseName) {
+        if (!confirm(`Are you sure you want to delete ${courseName}? This will remove all associated tees and data.`)) return;
+
+        const index = this.courseLayouts.findIndex(c => c.name === courseName);
+        if (index !== -1) {
+            const course = this.courseLayouts[index];
+            this.courseLayouts.splice(index, 1);
+
+            // Sync to cloud
+            if (window.db) {
+                const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                const docId = courseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                await deleteDoc(doc(window.db, "courses", docId));
+            }
+
+            this.renderCourseManagement();
+            this.renderCourseDatalist();
+
+            // Clear selection if deleted
+            if (this.selectedMgmtCourse === courseName) {
+                this.selectedMgmtCourse = null;
+                document.getElementById('mgmt-tee-section').style.display = 'none';
+                document.getElementById('mgmt-hole-section').style.display = 'none';
+            }
+        }
+    }
+
+    editMgmtCourse(courseName) {
+        const layout = this.courseLayouts.find(c => c.name === courseName);
+        if (!layout) return;
+
+        document.getElementById('mgmt-course-name').value = layout.name || '';
+        document.getElementById('mgmt-course-state').value = layout.state || '';
+        document.getElementById('mgmt-course-country').value = layout.country || '';
+
+        // Store current name to handle potential rename vs create
+        this.editingCourseOriginalName = courseName;
+
+        this.openAddCourseModal();
+    }
+
     openAddCourseModal() {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.remove('hidden');
@@ -1401,6 +1446,7 @@ class App {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.add('hidden');
         document.getElementById('add-course-form').reset();
+        this.editingCourseOriginalName = null;
     }
 
     generateCourseId() {
@@ -1425,21 +1471,31 @@ class App {
 
         if (!name) return;
 
-        // Add to local state
-        const existingIndex = this.courseLayouts.findIndex(c => c.name === name);
         let courseData;
+        const originalName = this.editingCourseOriginalName;
+
+        // If we're editing an existing course by name
+        const existingIndex = this.courseLayouts.findIndex(c => c.name === (originalName || name));
 
         if (existingIndex !== -1) {
             // Update existing
             courseData = {
                 ...this.courseLayouts[existingIndex],
                 name: name,
-                state: state || this.courseLayouts[existingIndex].state || '',
-                country: country || this.courseLayouts[existingIndex].country || '',
+                state: state || '',
+                country: country || '',
                 updatedAt: new Date().toISOString()
             };
-            // Ensure even existing has a C### ID if it's missing
+            // Ensure ID exists
             if (!courseData.courseId) courseData.courseId = this.generateCourseId();
+
+            // Handle rename: delete old doc if name changed
+            if (originalName && originalName !== name && window.db) {
+                const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                const oldDocId = originalName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                await deleteDoc(doc(window.db, "courses", oldDocId));
+            }
+
             this.courseLayouts[existingIndex] = courseData;
         } else {
             // Create new
