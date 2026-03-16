@@ -3649,7 +3649,7 @@ class App {
 
                     for (const row of rows) {
                         const idFromCsv = (row['ID'] || row['id'] || '').trim();
-                        const name = (row['Name'] || row['name'] || '').trim();
+                        const name = (row['Name'] || row['name'] || row['Course'] || row['course'] || '').trim();
                         if (!name && !idFromCsv) continue;
 
                         const state = (row['State'] || row['state'] || '').trim();
