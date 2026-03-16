@@ -451,12 +451,17 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="course">Course Name</label>
-                                    <div style="position: relative; display: flex; align-items: center;">
-                                        <input type="text" id="course" name="course" placeholder="Select a course..."
-                                            list="course-list" required style="flex: 1;"
-                                            onchange="window.app.handleCourseChangeRoundModal()">
+                                    <div class="search-select-container" id="course-search-container">
+                                        <input type="text" id="course" name="course"
+                                            placeholder="Search for a course..." autocomplete="off"
+                                            oninput="window.app.filterCourseSearch(this.value)"
+                                            onfocus="window.app.showCourseSearchList()"
+                                            onblur="setTimeout(() => window.app.hideCourseSearchList(), 200)" required
+                                            style="padding-right: 30px;">
+                                        <div id="course-search-list" class="search-select-list hidden">
+                                            <!-- Items injected by JS -->
+                                        </div>
                                     </div>
-                                    <datalist id="course-list"></datalist>
                                 </div>
                                 <div class="form-group">
                                     <label for="round-tee-set">Tee Set</label>

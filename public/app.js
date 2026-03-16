@@ -353,7 +353,7 @@ class App {
             }
             if (roundLinks > 0) console.log(`Linked ${roundLinks} rounds to course IDs.`);
 
-            this.renderCourseDatalist();
+            this.renderCourseSearchList();
             this.renderPutterDatalist();
             this.render(); // Ensure UI updates once data arrives from cloud
         } catch (e) {
@@ -361,13 +361,61 @@ class App {
         }
     }
 
-    renderCourseDatalist() {
-        const datalist = document.getElementById('course-list');
-        if (!datalist) return;
+    renderCourseSearchList() {
+        const listContainer = document.getElementById('course-search-list');
+        if (!listContainer) return;
 
-        datalist.innerHTML = this.courseLayouts.map(course =>
-            `<option value="${course.name}">`
-        ).join('');
+        if (this.courseLayouts.length === 0) {
+            listContainer.innerHTML = '<div class="search-select-item no-results">No courses found. Add one in Course Management.</div>';
+            return;
+        }
+
+        listContainer.innerHTML = this.courseLayouts.map(course => `
+            <div class="search-select-item" onclick="window.app.selectCourseFromSearch('${course.courseId}', '${course.name.replace(/'/g, "\\'")}')">
+                ${course.name}
+            </div>
+        `).join('');
+    }
+
+    filterCourseSearch(query) {
+        const listContainer = document.getElementById('course-search-list');
+        if (!listContainer) return;
+
+        const filtered = this.courseLayouts.filter(c =>
+            c.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        if (filtered.length === 0) {
+            listContainer.innerHTML = '<div class="search-select-item no-results">No matches found.</div>';
+        } else {
+            listContainer.innerHTML = filtered.map(course => `
+                <div class="search-select-item" onclick="window.app.selectCourseFromSearch('${course.courseId}', '${course.name.replace(/'/g, "\\'")}')">
+                    ${course.name}
+                </div>
+            `).join('');
+        }
+        this.showCourseSearchList();
+    }
+
+    showCourseSearchList() {
+        const list = document.getElementById('course-search-list');
+        if (list) list.classList.remove('hidden');
+    }
+
+    hideCourseSearchList() {
+        const list = document.getElementById('course-search-list');
+        if (list) list.classList.add('hidden');
+    }
+
+    selectCourseFromSearch(courseId, courseName) {
+        const input = document.getElementById('course');
+        if (input) {
+            input.value = courseName;
+            // Set a data attribute or similar if needed for courseId
+            input.setAttribute('data-course-id', courseId);
+        }
+        this.hideCourseSearchList();
+        this.handleCourseChangeRoundModal();
     }
 
     renderPutterDatalist() {
@@ -1521,7 +1569,7 @@ class App {
         }
 
         this.renderCourseManagement();
-        this.renderCourseDatalist();
+        this.renderCourseSearchList();
 
         // Clear selection if deleted
         if (this.selectedMgmtCourseId === courseId) {
@@ -1813,7 +1861,7 @@ class App {
 
             // Refresh Course view data
             this.renderCourseManagement();
-            this.renderCourseDatalist();
+            this.renderCourseSearchList();
 
         } catch (e) {
             console.error("Bulk upload failed:", e);
@@ -3779,7 +3827,7 @@ class App {
 
                     alert(`Successfully imported ${importedCount} courses.`);
                     this.renderCourseManagement();
-                    this.renderCourseDatalist();
+                    this.renderCourseSearchList();
                 }
             });
         };
