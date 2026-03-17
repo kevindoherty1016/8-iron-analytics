@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "ironanalytics-cda1d"
-  }
+  },
+  "targets": {
+    "ironanalytics-cda1d": {
+      "hosting": {
+        "dev-permanent": [
+          "8ironanalytics-dev"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
