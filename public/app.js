@@ -76,7 +76,6 @@ class App {
         this.insightsTargetValue = '76-79';
         this.insightsHoles = 18;
         this.holeChartParStat = 'score'; // Default stat for hole par trend chart
-
         // History Table state
         this.historySortCol = 'date';
         this.historySortDir = 'desc';
