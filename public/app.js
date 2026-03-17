@@ -102,13 +102,15 @@ class App {
                 this.auth = window.firebaseAuth.getAuth(firebaseApp);
                 this.db = window.firebaseDB.getFirestore(firebaseApp);
 
-                // Initialize Firebase App Check with reCAPTCHA Enterprise
-                if (window.firebaseAppCheck) {
-                    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
-                        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMUreVHom'),
-                        isTokenAutoRefreshEnabled: true
-                    });
-                }
+// Wrap the existing App Check logic so it skips Dev
+if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
+    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
+        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
+        isTokenAutoRefreshEnabled: true
+    });
+} else {
+    console.log("App Check skipped because we are in Dev mode.");
+}
 
                 const warning = document.getElementById('firebase-config-warning');
                 if (warning) {
