@@ -58,13 +58,13 @@ class App {
         this.filterStartDate = null;
         this.filterEndDate = null;
         this.chartGroupBy = 'round'; // Default group by
-        this.chartSortDir = 'chrono-asc'; // Default chart sort direction <!-- id: chartSortDir -->
+        this.chartSortDir = 'chrono-asc'; // Default chart sort direction
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
         this.filterCourses = []; // Array of selected courses. Empty means all.
         this.filterEvents = []; // Array of selected events. Empty means all.
         this.filterHoles = []; // Array of selected holes [9, 18]. Empty means all.
-        this.filterPars = []; // Array of selected pars [3, 4, 5]. Empty means all for hole analytics. <!-- id: filterPars -->
+        this.filterPars = []; // Array of selected pars [3, 4, 5]. Empty means all for hole analytics.
         this.profile = {
             firstName: '',
             lastName: '',
@@ -75,7 +75,7 @@ class App {
         this.insightsTargetType = 'score';
         this.insightsTargetValue = '76-79';
         this.insightsHoles = 18;
-        this.holeChartParStat = 'score'; // Default stat for hole par trend chart <!-- id: holeChartParStat -->
+        this.holeChartParStat = 'score'; // Default stat for hole par trend chart
 
         // History Table state
         this.historySortCol = 'date';
@@ -101,16 +101,17 @@ class App {
                 const firebaseApp = window.firebaseCore.initializeApp(firebaseConfig);
                 this.auth = window.firebaseAuth.getAuth(firebaseApp);
                 this.db = window.firebaseDB.getFirestore(firebaseApp);
+                window.db = this.db;
 
-// Wrap the existing App Check logic so it skips Dev
-if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
-    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
-        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
-        isTokenAutoRefreshEnabled: true
-    });
-} else {
-    console.log("App Check skipped because we are in Dev mode.");
-}
+                // Wrap the existing App Check logic so it skips Dev
+                if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
+                    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
+                        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
+                        isTokenAutoRefreshEnabled: true
+                    });
+                } else {
+                    console.log("App Check skipped because we are in Dev mode.");
+                }
 
                 const warning = document.getElementById('firebase-config-warning');
                 if (warning) {
@@ -341,15 +342,15 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
                         }
                     }
 
-                    if (window.db) {
+                    if (this.db) {
                         try {
                             const { doc, setDoc, deleteDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
                             // 1. Create new record with C### as doc ID
-                            await setDoc(doc(window.db, "courses", course.courseId), course, { merge: true });
+                            await setDoc(doc(this.db, "courses", course.courseId), course, { merge: true });
 
                             // 2. Delete old record if the doc ID wasn't already C###
                             if (course.id && course.id !== course.courseId) {
-                                await deleteDoc(doc(window.db, "courses", course.id));
+                                await deleteDoc(doc(this.db, "courses", course.id));
                             }
                         } catch (err) {
                             console.error("Migration error for course:", course.name, err);
@@ -377,7 +378,7 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
                     if (course && course.courseId) {
                         round.courseId = course.courseId;
                         roundLinks++;
-                        if (window.db) {
+                        if (this.db) {
                             await this.syncRoundToCloud(round);
                         }
                     }
@@ -1675,9 +1676,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
         this.courseLayouts.splice(index, 1);
 
         // Sync to cloud
-        if (window.db) {
-            const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await deleteDoc(doc(window.db, "courses", courseId));
+        if (this.db) {
+            const { doc, deleteDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            await deleteDoc(doc(this.db, "courses", courseId));
         }
 
         this.renderCourseManagement();
@@ -1808,9 +1809,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
         }
 
         // Sync to cloud
-        if (window.db) {
-            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(window.db, "courses", courseData.courseId), courseData, { merge: true });
+        if (this.db) {
+            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
         }
 
         this.closeAddCourseModal();
@@ -1897,9 +1898,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
         course.updatedAt = new Date().toISOString();
 
         // Sync to cloud
-        if (window.db) {
-            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(window.db, "courses", courseId), course, { merge: true });
+        if (this.db) {
+            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+            await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
         }
 
         this.closeAddTeeModal();
@@ -1916,9 +1917,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
         if (course.tees) {
             delete course.tees[teeName];
 
-            if (window.db) {
-                const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                await setDoc(doc(window.db, "courses", courseId), course);
+            if (this.db) {
+                const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                await setDoc(doc(this.db, "courses", courseId), course);
             }
 
             this.selectMgmtCourse(courseId);
@@ -1971,8 +1972,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
                 }
 
                 // Sync to cloud
-                if (window.db) {
-                    await setDoc(doc(window.db, "courses", courseId), course, { merge: true });
+                if (this.db) {
+                    const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                    await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
                 }
             }
 
@@ -3940,9 +3942,9 @@ if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
                         }
 
                         // Sync to cloud
-                        if (window.db) {
-                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-                            await setDoc(doc(window.db, "courses", courseData.courseId), courseData, { merge: true });
+                        if (this.db) {
+                            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+                            await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
                         }
                         importedCount++;
                     }
