@@ -4368,7 +4368,7 @@ class App {
             btn.disabled = false;
         }).catch(err => {
             console.error('Error creating image:', err);
-            alert('Failed to save image. Please try again.');
+            alert('Failed to save image. Please attempt again.');
             btn.innerHTML = originalText;
             btn.disabled = false;
         });
@@ -4516,7 +4516,7 @@ class App {
                         // Check for accidental detailed CSV upload
                         const firstKeys = rows.length > 0 ? Object.keys(rows[0]).map(k => k.trim().toLowerCase()) : [];
                         if (firstKeys.includes('hole') || firstKeys.includes('par')) {
-                            statusDiv.innerText = 'Error: It looks like you uploaded a detailed hole-by-hole CSV but selected "Basic Round Totals". Please change the Import Type above to Detailed and try again.';
+                            statusDiv.innerText = 'Error: It looks like you uploaded a detailed hole-by-hole CSV but selected "Basic Round Totals". Please change the Import Type above to Detailed and attempt again.';
                             statusDiv.style.color = '#ef4444';
                             return;
                         }
