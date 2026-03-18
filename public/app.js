@@ -767,6 +767,7 @@ class App {
             course: courseName,
             courseId: courseLayout.courseId,
             teeName: teeName,
+            teeId: (courseLayout.tees && courseLayout.tees[teeName]) ? courseLayout.tees[teeName].teeId : '',
             timestamp: new Date().toISOString(),
             putter: formData.get('putter') || ''
         };
@@ -1611,6 +1612,7 @@ class App {
             list.innerHTML = Object.entries(tees).map(([teeName, data]) => `
                 <tr onclick="window.app.selectMgmtTee('${courseId}', '${teeName}')" style="cursor: pointer;">
                     <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
+                    <td>${data.teeId || '---'}</td>
                     <td>${data.rating || 'N/A'}</td>
                     <td>${data.slope || 'N/A'}</td>
                     <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseId}', '${teeName}')">Delete</button></td>
@@ -1863,6 +1865,7 @@ class App {
         e.preventDefault();
         const courseId = this.selectedMgmtCourseId;
         const teeName = document.getElementById('mgmt-tee-color').value.trim();
+        const teeId = document.getElementById('mgmt-tee-id').value.trim();
         const rating = parseFloat(document.getElementById('mgmt-tee-rating').value);
         const slope = parseInt(document.getElementById('mgmt-tee-slope').value);
 
@@ -1884,6 +1887,7 @@ class App {
         }
 
         const teeData = {
+            teeId: teeId,
             rating: rating,
             slope: slope,
             holes: holes
@@ -3540,6 +3544,7 @@ class App {
                     <td style="color:var(--text-muted); font-size:0.8rem; white-space:nowrap;">#${num}</td>
                     <td>${this.formatDateDisplay(round.date)}</td>
                     <td style="font-weight: 500; color: var(--primary-green)">${String(round.course || 'Unknown').trim()}</td>
+                    <td>${round.teeId || '---'}</td>
                     <td style="font-weight: 700;">${score}</td>
                     <td>${scoreToPar > 0 ? '+' : ''}${scoreToPar}</td>
                     <td>${fir}</td>
@@ -4548,6 +4553,8 @@ class App {
                             const v_par = getRowVal(row, ['course par', 'par']);
                             const v_holes = getRowVal(row, ['holes']);
                             const v_putts = getRowVal(row, ['putts']);
+                            const v_teeId = getRowVal(row, ['tee id', 'tee_id', 'teeid']);
+                            const v_tee = getRowVal(row, ['tee color', 'tee name', 'tee']);
                             const v_gir = getRowVal(row, ['gir', 'gir ']);
                             const v_pens = getRowVal(row, ['penalty strokes', 'pens']);
                             const v_ud_c = getRowVal(row, ['up/down chances', 'scrambling chances']);
@@ -4563,6 +4570,13 @@ class App {
 
                             if (v_score !== undefined && v_score !== "") roundPayload.score = parseInt(v_score) || 0;
                             if (v_par !== undefined && v_par !== "") roundPayload.par = parseInt(v_par) || 72;
+                            if (v_teeId !== undefined && v_teeId !== "") roundPayload.teeId = v_teeId;
+                            if (v_tee !== undefined && v_tee !== "") {
+                                roundPayload.teeName = v_tee;
+                            } else if (v_teeId && layout && layout.tees) {
+                                const matchedTee = Object.entries(layout.tees).find(([name, data]) => data.teeId === v_teeId);
+                                if (matchedTee) roundPayload.teeName = matchedTee[0];
+                            }
                             if (roundPayload.score !== undefined && roundPayload.par !== undefined) {
                                 roundPayload.scoreToPar = roundPayload.score - roundPayload.par;
                             }
@@ -4656,6 +4670,7 @@ class App {
                             const roundNum = parseInt(getVal(['round #', 'round number', 'round_#', 'round'])) || 0;
                             const date = getVal(['date']);
                             const course = getVal(['course']);
+                            const teeId = getVal(['tee id', 'tee_id', 'teeid', 'tee']);
 
                             if (!roundNum && (!date || !course || date.toLowerCase() === 'date')) return;
 
@@ -4664,7 +4679,7 @@ class App {
                                 key = `round_num_${roundNum}`;
                             } else {
                                 const normalizedCourseKey = cleanCourseName(course);
-                                key = `${date}_${normalizedCourseKey}`;
+                                key = `${date}_${normalizedCourseKey}_${teeId || ''}`;
                             }
 
                             if (!roundsMap[key]) {
@@ -4672,6 +4687,7 @@ class App {
                                     date: date,
                                     course: course,
                                     roundNum: roundNum,
+                                    teeId: teeId,
                                     holeData: []
                                 };
                             }
@@ -4830,6 +4846,7 @@ class App {
                                     putter: roundObj.putter !== undefined ? roundObj.putter : (existingRound.putter || ''),
                                     cost: roundObj.cost !== undefined ? roundObj.cost : (existingRound.cost || 0),
                                     winnings: roundObj.winnings !== undefined ? roundObj.winnings : (existingRound.winnings || 0),
+                                    teeId: roundObj.teeId !== undefined ? roundObj.teeId : existingRound.teeId,
                                     event: roundObj.event !== undefined ? roundObj.event : (existingRound.event || ''),
                                     group: roundObj.group !== undefined ? roundObj.group : (existingRound.group || ''),
                                     holes: roundObj.holeData.length > 0 ? roundObj.holeData.length : existingRound.holes,
@@ -4856,6 +4873,14 @@ class App {
                                     date: formattedDate,
                                     course: roundObj.course,
                                     courseId: layout ? layout.courseId : null,
+                                    teeId: roundObj.teeId || '',
+                                    teeName: (function () {
+                                        if (layout && layout.tees && roundObj.teeId) {
+                                            const matchedTee = Object.entries(layout.tees).find(([name, data]) => data.teeId === roundObj.teeId);
+                                            return matchedTee ? matchedTee[0] : 'Default';
+                                        }
+                                        return 'Default';
+                                    })(),
                                     holes: roundObj.holeData.length,
                                     score: totalScore,
                                     scoreToPar: totalScore - totalPar,

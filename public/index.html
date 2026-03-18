@@ -388,6 +388,11 @@
                                 <input type="text" id="mgmt-tee-color" required placeholder="e.g. Blue">
                             </div>
                             <div class="form-group">
+                                <label for="mgmt-tee-id">Tee ID</label>
+                                <input type="text" id="mgmt-tee-id" placeholder="e.g. T001" pattern="T\d{3}"
+                                    title="Format: T followed by 3 digits (e.g., T001)">
+                            </div>
+                            <div class="form-group">
                                 <label for="mgmt-tee-rating">Course Rating</label>
                                 <input type="number" id="mgmt-tee-rating" step="0.1" required placeholder="e.g. 74.3">
                             </div>
@@ -812,6 +817,9 @@
                                     <th id="sort-course" style="cursor: pointer;"
                                         onclick="window.app.sortHistory('course')">Course <span class="sort-icon"
                                             style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                    <th id="sort-teeId" style="cursor: pointer;"
+                                        onclick="window.app.sortHistory('teeId')">Tee ID <span class="sort-icon"
+                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
                                     <th id="sort-score" style="cursor: pointer;"
                                         onclick="window.app.sortHistory('score')">
                                         Score <span class="sort-icon"
@@ -931,6 +939,7 @@
                                 <thead>
                                     <tr>
                                         <th>Tee Color</th>
+                                        <th>Tee ID</th>
                                         <th>Rating</th>
                                         <th>Slope</th>
                                         <th>Action</th>
@@ -1002,12 +1011,12 @@
                         <h4 style="margin: 0 0 10px 0; color: var(--primary-blue);">Detailed Format Requirements</h4>
                         <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
                             Import granular, hole-by-hole analytics. Your file must contain these exact headers:<br>
-                            <code>Date, Course, Hole, Par, Score, FIR, GIR, Scrambling, Putts, Putter Used, Cost, Winnings, Event, Group</code><br><br>
+                            <code>Date, Course, Tee ID, Hole, Par, Score, FIR, GIR, Scrambling, Putts, Putter Used, Cost, Winnings, Event, Group</code><br><br>
                             Ensure you have exactly <strong>one row per hole</strong> (e.g., 18 rows for a full
                             round).
                         </p>
-                        <a href="data:text/csv;charset=utf-8,Date,Course,Hole,Par,Score,FIR,GIR,Scrambling,Putts,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,1,4,5,TRUE,FALSE,FALSE,2,Odyssey 7,65,20,May Monthly,Saturday Crew%0A2025-05-12,Sample Course,2,5,5,TRUE,TRUE,FALSE,2,,,,,"
-                            download="Detailed_Hole_Template_v2.csv"
+                        <a href="data:text/csv;charset=utf-8,Date,Course,Tee ID,Hole,Par,Score,FIR,GIR,Scrambling,Putts,Putter Used,Cost,Winnings,Event,Group%0A2025-05-12,Sample Course,T001,1,4,5,TRUE,FALSE,FALSE,2,Odyssey 7,65,20,May Monthly,Saturday Crew%0A2025-05-12,Sample Course,T001,2,5,5,TRUE,TRUE,FALSE,2,,,,,"
+                            download="Detailed_Hole_Template_v3.csv"
                             style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; text-decoration: none; font-size: 0.85rem;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2"
