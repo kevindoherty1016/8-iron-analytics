@@ -1036,6 +1036,25 @@ class App {
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
         const tbody = document.getElementById('detailed-scorecard-body');
         if (!tbody) return;
+
+        // SCRAPE EXISTING DATA TO PRESERVE ON REGEN
+        const scraped = {};
+        if (tbody.children.length > 0) {
+            for (const row of tbody.children) {
+                const rid = row.id || "";
+                const hNum = rid.replace("hole-row-", "");
+                if (hNum) {
+                    const s = document.getElementById(`detail-score-${hNum}`)?.value;
+                    const p = document.getElementById(`detail-putts-${hNum}`)?.value;
+                    const f = document.getElementById(`detail-fir-${hNum}`)?.checked;
+                    const f1 = document.getElementById(`detail-fir-${hNum}-1`)?.checked;
+                    const f2 = document.getElementById(`detail-fir-${hNum}-2`)?.checked;
+                    const g = document.getElementById(`detail-gir-${hNum}`)?.checked;
+                    scraped[hNum] = { score: s, putts: p, fir: f, fir1: f1, fir2: f2, gir: g };
+                }
+            }
+        }
+
         tbody.innerHTML = '';
 
         let startIdx = 0;
@@ -1066,19 +1085,34 @@ class App {
             tr.id = `hole-row-${holeNum}`;
 
             const preHole = prefilledHoles ? prefilledHoles[i] : null;
+            const existing = scraped[holeNum];
 
             tr.innerHTML = `
                 <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
                 <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : 4}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? existing.score : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? existing.putts : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
                 <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);">
+                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" ${existing && existing.fir ? 'checked' : ''}>
                 </td>
-                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" ${existing && existing.gir ? 'checked' : ''}></td>
             `;
             tbody.appendChild(tr);
             this.updateHoleFIR(holeNum); // Initial setup
+
+            // Re-apply special Par 5 FIR if needed (updateHoleFIR might have wiped inline 'checked' if par changed)
+            if (existing && existing.fir1 !== undefined) {
+                const f1El = document.getElementById(`detail-fir-${holeNum}-1`);
+                if (f1El) f1El.checked = existing.fir1;
+            }
+            if (existing && existing.fir2 !== undefined) {
+                const f2El = document.getElementById(`detail-fir-${holeNum}-2`);
+                if (f2El) f2El.checked = existing.fir2;
+            }
+            if (existing && existing.fir !== undefined) {
+                const fEl = document.getElementById(`detail-fir-${holeNum}`);
+                if (fEl) fEl.checked = existing.fir;
+            }
         }
         this.calculateDetailedTotals();
     }
