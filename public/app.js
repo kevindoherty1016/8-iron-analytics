@@ -973,7 +973,7 @@ class App {
     }
 
 
-    toggleDataEntryMode() {
+    toggleDataEntryMode(skipRegeneration = false) {
         const mode = document.getElementById('entry-mode-select').value;
         const quickSection = document.getElementById('section-quick-entry');
         const detailedSection = document.getElementById('section-detailed-entry');
@@ -1009,7 +1009,7 @@ class App {
 
             // Generate the scorecard if it hasn't been generated yet
             const segment = document.getElementById('detail-holes-select')?.value || "18";
-            if (document.getElementById('detailed-scorecard-body').children.length === 0) {
+            if (!skipRegeneration && document.getElementById('detailed-scorecard-body').children.length === 0) {
                 this.handleDetailedHoleChange(segment);
             }
         }
@@ -1146,9 +1146,16 @@ class App {
         // First, update tempHoleData with latest from DOM
         rows.forEach(row => {
             const hNum = row.id.split('-').pop();
-            const parVal = parseInt(document.getElementById(`detail-par-${hNum}`)?.value) || 0;
-            const scoreVal = parseInt(document.getElementById(`detail-score-${hNum}`)?.value) || 0;
-            const puttsVal = parseInt(document.getElementById(`detail-putts-${hNum}`)?.value) || 0;
+            const parInput = document.getElementById(`detail-par-${hNum}`);
+            const scoreInput = document.getElementById(`detail-score-${hNum}`);
+            const puttsInput = document.getElementById(`detail-putts-${hNum}`);
+
+            if (!parInput || !scoreInput || !puttsInput) return;
+
+            const parVal = parseInt(parInput.value) || 0;
+            const scoreVal = parseInt(scoreInput.value) || 0;
+            const puttsVal = parseInt(puttsInput.value) || 0;
+
             const girEl = document.getElementById(`detail-gir-${hNum}`);
             const gir = girEl ? girEl.checked : false;
 
@@ -1156,14 +1163,18 @@ class App {
             const f1 = document.getElementById(`detail-fir-${hNum}-1`);
             const f2 = document.getElementById(`detail-fir-${hNum}-2`);
 
-            this.tempHoleData[hNum] = {
-                hole: parseInt(hNum),
-                par: parVal,
-                score: scoreVal,
-                putts: puttsVal,
-                gir: gir,
-                fir: (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false))
-            };
+            // Only update tempHoleData if we have at least a par or a score.
+            // This prevents overwriting valid loaded data with empty defaults during setup.
+            if (parVal > 0 || scoreVal > 0) {
+                this.tempHoleData[hNum] = {
+                    hole: parseInt(hNum),
+                    par: parVal,
+                    score: scoreVal,
+                    putts: puttsVal,
+                    gir: gir,
+                    fir: (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false))
+                };
+            }
         });
 
         // Determine current segment to calculate totals correctly
@@ -1366,13 +1377,13 @@ class App {
         // DETAILED SCORECARD MAPPING: Rely on tempHoleData and handleTeeChange
         if (round.holeData && round.holeData.length > 0) {
             document.getElementById('entry-mode-select').value = 'detailed';
-            this.toggleDataEntryMode();
+            this.toggleDataEntryMode(true); // Skip regeneration to preserve data
             // generateDetailedScorecard was already triggered by handleTeeChangeRoundModal at line 1316.
             // This now correctly uses the tempHoleData.
         } else if (true) {
             // Quick entry mode default
             document.getElementById('entry-mode-select').value = 'quick';
-            this.toggleDataEntryMode();
+            this.toggleDataEntryMode(true);
         }
 
         this.openAddRoundModal(true);
