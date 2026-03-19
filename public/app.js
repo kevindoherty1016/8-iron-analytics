@@ -1047,6 +1047,8 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
+        console.debug('Generating scorecard:', segment, 'Prefilled:', prefilledHoles?.length, 'TempData Keys:', Object.keys(this.tempHoleData).length);
+
         // First ensure any currently visible data is saved before we clear,
         // but ONLY if we are not already in the middle of a regeneration/load.
         if (!this.isRegeneratingScorecard) {
@@ -1057,6 +1059,7 @@ class App {
 
         const tbody = document.getElementById('detailed-scorecard-body');
         if (!tbody) {
+            console.error('detailed-scorecard-body not found!');
             this.isRegeneratingScorecard = false;
             return;
         }
@@ -1074,20 +1077,24 @@ class App {
             endIdx = 18;
         }
 
-        // If the tee only has 9 holes, we can only ever show 9
-        if (prefilledHoles && prefilledHoles.length === 9) {
-            startIdx = 0;
-            endIdx = 9;
+        // If the tee has a specific hole count, use that as the primary boundary
+        if (prefilledHoles && prefilledHoles.length > 0) {
+            if (prefilledHoles.length === 9) {
+                startIdx = 0;
+                endIdx = 9;
+            } else if (segment === "18") {
+                endIdx = prefilledHoles.length;
+            }
         }
-        // If we are showing "18", but the tee has a different number, use that
-        else if (segment === "18" && prefilledHoles && prefilledHoles.length > 0) {
-            endIdx = prefilledHoles.length;
-        }
-        // FALLBACK: If endIdx resolved to 0 or startIdx, reset to 18
-        if (endIdx <= startIdx) {
+
+        // FINAL SAFETY: If we still have an invalid range or 0 holes, force 18
+        if (endIdx <= startIdx || isNaN(endIdx) || isNaN(startIdx)) {
+            console.warn('Invalid scorecard range detected, defaulting to 18 holes');
             startIdx = 0;
             endIdx = 18;
         }
+
+        console.debug('Effective range:', startIdx, 'to', endIdx);
 
         for (let i = startIdx; i < endIdx; i++) {
             const holeNum = i + 1;
@@ -1113,7 +1120,8 @@ class App {
 
             // Re-apply FIR state (in case updateHoleFIR changed the structure)
             if (existing && existing.fir !== undefined) {
-                const par = parseInt(document.getElementById(`detail-par-${holeNum}`).value);
+                const parInput = document.getElementById(`detail-par-${holeNum}`);
+                const par = parInput ? parseInt(parInput.value) : 4;
                 if (par === 5 && Array.isArray(existing.fir)) {
                     const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
                     const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
@@ -1309,18 +1317,26 @@ class App {
     }
 
     editRound(id) {
+        console.debug('editRound called for id:', id);
         const round = this.rounds.find(r => r.id === id);
-        if (!round) return;
+        if (!round) {
+            console.error('Round not found for id:', id);
+            return;
+        }
 
         // 1. OPEN MODAL FIRST (Ensures DOM elements are active and visible)
         this.openAddRoundModal(true);
 
         const form = document.getElementById('add-round-form');
         const entryModeSelect = document.getElementById('entry-mode-select');
-        if (!form || !entryModeSelect) return;
+        if (!form || !entryModeSelect) {
+            console.error('Form or EntryModeSelect not found!');
+            return;
+        }
 
         // 2. SET ENTRY MODE
         const isDetailed = !!(round.holeData && round.holeData.length > 0);
+        console.debug('IsDetailed mode:', isDetailed, 'HoleData Length:', round.holeData?.length);
         entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
         this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
 
@@ -1357,17 +1373,24 @@ class App {
                 }
             });
         }
+        console.debug('TempData Populated:', Object.keys(this.tempHoleData).length, 'holes');
 
         // 5. SETUP SEGMENT (HEALER: Prefer 18 holes if tee supports it)
         let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-        const tee = (layout && layout.tees && round.teeName) ? layout.tees[round.teeName] : null;
+        const teeName = round.teeName || '';
+        const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
+
         if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
-            if (round.holeData && round.holeData.length > 9) segment = '18';
+            if (round.holeData && round.holeData.length > 9) {
+                console.debug('Healing segment from', segment, 'to 18 due to data length');
+                segment = '18';
+            }
         }
+
         setVal('holes', segment);
         setVal('detail-holes-select', segment);
-        setVal('round-tee-set', round.teeName || '');
+        setVal('round-tee-set', teeName);
 
         // 6. RENDER SCORECARD
         this.isRegeneratingScorecard = true;
