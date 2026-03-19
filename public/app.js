@@ -1056,7 +1056,10 @@ class App {
         this.isRegeneratingScorecard = true;
 
         const tbody = document.getElementById('detailed-scorecard-body');
-        if (!tbody) return;
+        if (!tbody) {
+            this.isRegeneratingScorecard = false;
+            return;
+        }
 
         tbody.innerHTML = '';
 
@@ -1077,8 +1080,13 @@ class App {
             endIdx = 9;
         }
         // If we are showing "18", but the tee has a different number, use that
-        else if (segment === "18" && prefilledHoles) {
+        else if (segment === "18" && prefilledHoles && prefilledHoles.length > 0) {
             endIdx = prefilledHoles.length;
+        }
+        // FALLBACK: If endIdx resolved to 0 or startIdx, reset to 18
+        if (endIdx <= startIdx) {
+            startIdx = 0;
+            endIdx = 18;
         }
 
         for (let i = startIdx; i < endIdx; i++) {
@@ -1304,16 +1312,19 @@ class App {
         const round = this.rounds.find(r => r.id === id);
         if (!round) return;
 
+        // 1. OPEN MODAL FIRST (Ensures DOM elements are active and visible)
+        this.openAddRoundModal(true);
+
         const form = document.getElementById('add-round-form');
         const entryModeSelect = document.getElementById('entry-mode-select');
         if (!form || !entryModeSelect) return;
 
-        // 1. SET ENTRY MODE FIRST
+        // 2. SET ENTRY MODE
         const isDetailed = !!(round.holeData && round.holeData.length > 0);
         entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
         this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
 
-        // 2. LOAD CORE DATA
+        // 3. LOAD CORE DATA
         document.getElementById('edit-round-id').value = round.id;
         const setVal = (id, val) => {
             const el = form.querySelector('#' + id);
@@ -1335,7 +1346,7 @@ class App {
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
         this.handleCourseChangeRoundModal();
 
-        // 3. POPULATE TEMP DATA
+        // 4. POPULATE TEMP DATA
         this.tempHoleData = {};
         if (round.holeData) {
             const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
@@ -1347,7 +1358,7 @@ class App {
             });
         }
 
-        // 4. SETUP SEGMENT (HEALER: Prefer 18 holes if tee supports it)
+        // 5. SETUP SEGMENT (HEALER: Prefer 18 holes if tee supports it)
         let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
         const tee = (layout && layout.tees && round.teeName) ? layout.tees[round.teeName] : null;
@@ -1358,12 +1369,12 @@ class App {
         setVal('detail-holes-select', segment);
         setVal('round-tee-set', round.teeName || '');
 
-        // 5. RENDER SCORECARD
+        // 6. RENDER SCORECARD
         this.isRegeneratingScorecard = true;
         this.handleTeeChangeRoundModal(); // This calls generateDetailedScorecard internally
         this.isRegeneratingScorecard = false;
 
-        // 6. POPULATE EXTRAS
+        // 7. POPULATE EXTRAS
         const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
         const divisor = isLegacyDoubledEntry ? 2 : 1;
         setVal('coursePar', (round.coursePar / divisor) || 72);
@@ -1392,8 +1403,6 @@ class App {
         document.getElementById('add-round-title').textContent = 'Edit Round';
         document.getElementById('save-round-btn').textContent = 'Update Round';
         document.getElementById('cancel-edit-btn').style.display = 'block';
-
-        this.openAddRoundModal(true);
 
         // Final sanity check: if detailed mode, ensure totals are visible
         if (isDetailed) {
