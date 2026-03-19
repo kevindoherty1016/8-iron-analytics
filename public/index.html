@@ -1165,17 +1165,18 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, setDoc, query, orderBy, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
         import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app-check.js";
 
         window.firebaseCore = { initializeApp };
         window.firebaseAuth = { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail };
-        window.firebaseDB = { getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, setDoc, query, orderBy };
+        window.firebaseDB = { getFirestore, collection, addDoc, getDocs, getDoc, deleteDoc, doc, setDoc, query, orderBy, runTransaction, updateDoc };
         window.firebaseAppCheck = { initializeAppCheck, ReCaptchaEnterpriseProvider };
     </script>
 
     <!-- Make app.js a module to delay execution until the module map above is done, or we can just leave it as standard script and wait for DOMContentLoaded. We will leave it as module so we can use top level await if needed, but standard script is safer for backwards compat inline handlers. -->
     <script type="module" src="app.js?v=5"></script>
+    <!-- Version: 1.0.4-firebase-fix -->
 </body>
 
 </html>
