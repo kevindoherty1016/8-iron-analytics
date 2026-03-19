@@ -1304,57 +1304,38 @@ class App {
         const round = this.rounds.find(r => r.id === id);
         if (!round) return;
 
-        // Note: tempHoleData is populated later in this function, just before handleTeeChange.
-
         const form = document.getElementById('add-round-form');
-        if (!form) return;
+        const entryModeSelect = document.getElementById('entry-mode-select');
+        if (!form || !entryModeSelect) return;
 
-        // Note: For legacy rounds that were forcefully doubled and tagged with (9 Holes x2),
-        // we will divide them back down to their true physical 9-hole state so they can 
-        // finally be converted off the legacy string logic and explicitly saved as pure holes.
-        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
-        const divisor = isLegacyDoubledEntry ? 2 : 1;
+        // 1. SET ENTRY MODE FIRST
+        const isDetailed = !!(round.holeData && round.holeData.length > 0);
+        entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
+        this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
 
+        // 2. LOAD CORE DATA
         document.getElementById('edit-round-id').value = round.id;
-
-        // Format date string for input type="date"
-        let dateVal = round.date;
-        if (dateVal && dateVal.includes('/')) {
-            const parts = dateVal.split('/');
-            if (parts.length === 3) {
-                let year = parts[2];
-                if (year.length === 2) year = '20' + year; // very basic assumption
-                let month = parts[0].padStart(2, '0');
-                let day = parts[1].padStart(2, '0');
-                dateVal = `${year}-${month}-${day}`;
-            }
-        }
-
         const setVal = (id, val) => {
             const el = form.querySelector('#' + id);
             if (el) el.value = val !== undefined ? val : '';
         };
 
+        let dateVal = round.date;
+        if (dateVal && dateVal.includes('/')) {
+            const parts = dateVal.split('/');
+            if (parts.length === 3) {
+                let year = parts[2];
+                if (year.length === 2) year = '20' + year;
+                let month = parts[0].padStart(2, '0');
+                let day = parts[1].padStart(2, '0');
+                dateVal = `${year}-${month}-${day}`;
+            }
+        }
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
         this.handleCourseChangeRoundModal();
 
-        // HEALER: If it's an 18-hole tee, prefer the 18-hole view even if previously saved as 9.
-        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
-        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-        const tee = (layout && layout.tees && round.teeName) ? layout.tees[round.teeName] : null;
-        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
-            // If we have data for the OTHER side, or if the user likely wants to see the whole thing
-            if (round.holeData && round.holeData.length > 9) {
-                segment = '18';
-            }
-        }
-
-        setVal('holes', segment);
-        setVal('detail-holes-select', segment);
-        setVal('round-tee-set', round.teeName || '');
-
-        // Ensure tempHoleData is fully populated BEFORE we render any scorecard
+        // 3. POPULATE TEMP DATA
         this.tempHoleData = {};
         if (round.holeData) {
             const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
@@ -1366,30 +1347,38 @@ class App {
             });
         }
 
-        // Use the flag to prevent handleTeeChange -> generateScorecard -> calculateTotals
-        // from clearing the data we just loaded into tempHoleData.
+        // 4. SETUP SEGMENT (HEALER: Prefer 18 holes if tee supports it)
+        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
+        const tee = (layout && layout.tees && round.teeName) ? layout.tees[round.teeName] : null;
+        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
+            if (round.holeData && round.holeData.length > 9) segment = '18';
+        }
+        setVal('holes', segment);
+        setVal('detail-holes-select', segment);
+        setVal('round-tee-set', round.teeName || '');
+
+        // 5. RENDER SCORECARD
         this.isRegeneratingScorecard = true;
-        this.handleTeeChangeRoundModal();
+        this.handleTeeChangeRoundModal(); // This calls generateDetailedScorecard internally
         this.isRegeneratingScorecard = false;
 
+        // 6. POPULATE EXTRAS
+        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
+        const divisor = isLegacyDoubledEntry ? 2 : 1;
         setVal('coursePar', (round.coursePar / divisor) || 72);
-
         setVal('score', (round.score / divisor) || 0);
         setVal('putts', (round.putts / divisor) || 0);
         setVal('gir', (round.gir / divisor) || 0);
         setVal('fir', (round.fir / divisor) || 0);
         setVal('firChances', (round.firChances / divisor) || 0);
-
         setVal('eagles', (round.eagles / divisor) || 0);
         setVal('birdies', (round.birdies / divisor) || 0);
         setVal('pars', (round.pars / divisor) || 0);
         setVal('bogeys', (round.bogeys / divisor) || 0);
         setVal('putter', round.putter || '');
-
         setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
         setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
-        setVal('otherScore', (round.otherScore / divisor) || 0);
-
         setVal('upDownChances', (round.upDownChances / divisor) || 0);
         setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
         setVal('threePutts', (round.threePutts / divisor) || 0);
@@ -1404,20 +1393,12 @@ class App {
         document.getElementById('save-round-btn').textContent = 'Update Round';
         document.getElementById('cancel-edit-btn').style.display = 'block';
 
-        // DETAILED SCORECARD MAPPING: If the round has hole-by-hole data, prepopulate the bottom table
-        // DETAILED SCORECARD MAPPING: Rely on tempHoleData and handleTeeChange
-        if (round.holeData && round.holeData.length > 0) {
-            document.getElementById('entry-mode-select').value = 'detailed';
-            this.toggleDataEntryMode(true); // Skip regeneration to preserve data
-            // generateDetailedScorecard was already triggered by handleTeeChangeRoundModal at line 1316.
-            // This now correctly uses the tempHoleData.
-        } else if (true) {
-            // Quick entry mode default
-            document.getElementById('entry-mode-select').value = 'quick';
-            this.toggleDataEntryMode(true);
-        }
-
         this.openAddRoundModal(true);
+
+        // Final sanity check: if detailed mode, ensure totals are visible
+        if (isDetailed) {
+            this.calculateDetailedTotals();
+        }
     }
 
     switchView(viewId) {
