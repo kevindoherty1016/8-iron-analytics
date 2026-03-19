@@ -835,13 +835,14 @@ class App {
             // Ensure any visible changes are synced to this.tempHoleData before saving
             this.calculateDetailedTotals();
 
+            // Determine how many holes to save based on the overall round, not just the visible segment.
+            // If we have data for holes 10-18 in tempHoleData, we should save them even if looking at front 9.
             let holeIndices = [];
-            if (segment === "front9") holeIndices = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-            else if (segment === "back9") holeIndices = [10, 11, 12, 13, 14, 15, 16, 17, 18];
-            else {
-                // If segment is "18" or a number, we want all those holes
-                const limit = parseInt(segment) || 18;
-                for (let i = 1; i <= limit; i++) holeIndices.push(i);
+            const maxHoleInData = Math.max(...Object.keys(this.tempHoleData).map(k => parseInt(k)), 0);
+            const totalHolesForRound = Math.max(maxHoleInData, segment === "18" ? 18 : (segment === "front9" || segment === "back9" ? 9 : parseInt(segment) || 18));
+
+            for (let i = 1; i <= totalHolesForRound; i++) {
+                holeIndices.push(i);
             }
 
             holeIndices.forEach(i => {
@@ -1707,16 +1708,42 @@ class App {
     }
 
     openQuickEditTee() {
-        // Find selecting course from the modal
-        const courseId = document.getElementById('round-course-name-select')?.value;
-        const teeName = document.getElementById('round-tee-set')?.value;
+        const courseInput = document.getElementById('course');
+        const teeSelect = document.getElementById('round-tee-set');
 
-        if (!courseId || !teeName || teeName === "") {
+        if (!courseInput || !teeSelect || !teeSelect.value) {
             alert('Please select a course and tee set first.');
             return;
         }
 
-        this.editMgmtTee(courseId, teeName);
+        const val = courseInput.value;
+        const teeName = teeSelect.value;
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(val));
+
+        if (layout) {
+            this.editMgmtTee(layout.courseId, teeName);
+        } else {
+            alert('Course not found in database.');
+        }
+    }
+
+    openQuickEditTeeFromCourses() {
+        if (!this.selectedMgmtCourseId) {
+            alert('Please select a course from the list first.');
+            return;
+        }
+
+        // If a tee is selected in the list, edit it. Otherwise, prompt or edit first.
+        // For now, if no tee selected, we could just open the Add Tee modal.
+        // But the user specifically said "Manage Tees" button should be moved.
+        // Let's make it open the "Add Tee" modal if none selected, or the first one.
+        const layout = this.courseLayouts.find(c => c.courseId === this.selectedMgmtCourseId);
+        if (layout && layout.tees && Object.keys(layout.tees).length > 0) {
+            const firstTee = Object.keys(layout.tees)[0];
+            this.editMgmtTee(this.selectedMgmtCourseId, firstTee);
+        } else {
+            this.openAddTeeModal();
+        }
     }
 
     selectMgmtTee(courseId, teeName) {
