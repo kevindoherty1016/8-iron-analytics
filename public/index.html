@@ -401,7 +401,8 @@
                                 <input type="number" id="mgmt-tee-slope" required placeholder="e.g. 144">
                             </div>
                             <div class="form-group">
-                                <label for="mgmt-tee-holes">Hole Count</label>
+                                <label for="mgmt-tee-holes" style="font-weight: 600; color: var(--primary-color);">Hole
+                                    Count (9 or 18)</label>
                                 <select id="mgmt-tee-holes" class="form-control"
                                     onchange="window.app.renderHoleGridInTeeModal(this.value)">
                                     <option value="18" selected>18 Holes</option>
@@ -477,7 +478,12 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="round-tee-set">Tee Set</label>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <label for="round-tee-set" style="margin-bottom: 0;">Tee Set</label>
+                                        <a href="#" onclick="event.preventDefault(); window.app.openQuickEditTee()"
+                                            style="font-size: 0.8rem; color: var(--primary-color); text-decoration: none; font-weight: 500;">✎
+                                            Edit Tees</a>
+                                    </div>
                                     <select id="round-tee-set" name="teeName" class="form-control" style="width: 100%;"
                                         onchange="window.app.handleTeeChangeRoundModal()">
                                         <option value="">Select Course First</option>

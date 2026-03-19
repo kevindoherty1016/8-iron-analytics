@@ -1031,10 +1031,10 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
-        this.isRegeneratingScorecard = true;
-
         // First ensure any currently visible data is saved before we clear
         this.calculateDetailedTotals();
+
+        this.isRegeneratingScorecard = true;
 
         const tbody = document.getElementById('detailed-scorecard-body');
         if (!tbody) return;
@@ -1706,8 +1706,7 @@ class App {
         const holesSelect = document.getElementById('mgmt-tee-holes');
         if (holesSelect) {
             holesSelect.value = holes.length;
-            // Trigger change to update inputs visibility if needed
-            holesSelect.dispatchEvent(new Event('change'));
+            this.renderHoleGridInTeeModal(holes.length);
         }
 
         // Populate pars (and yardages/handicaps if they exist)
@@ -1722,6 +1721,19 @@ class App {
         });
 
         this.openAddTeeModal(true);
+    }
+
+    openQuickEditTee() {
+        // Find selecting course from the modal
+        const courseId = document.getElementById('round-course-name-select')?.value;
+        const teeName = document.getElementById('round-tee-set')?.value;
+
+        if (!courseId || !teeName || teeName === "") {
+            alert('Please select a course and tee set first.');
+            return;
+        }
+
+        this.editMgmtTee(courseId, teeName);
     }
 
     selectMgmtTee(courseId, teeName) {
