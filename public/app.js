@@ -1077,16 +1077,16 @@ class App {
 
             tr.innerHTML = `
                 <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly' : ''}></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
                 <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" ${existing && (existing.fir === true) ? 'checked' : ''}>
+                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
                 </td>
-                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" ${existing && existing.gir ? 'checked' : ''}></td>
+                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && existing.gir ? 'checked' : ''}></td>
             `;
             tbody.appendChild(tr);
-            this.updateHoleFIR(holeNum);
+            this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
 
             // Re-apply FIR state (in case updateHoleFIR changed the structure)
             if (existing && existing.fir !== undefined) {
@@ -1106,8 +1106,10 @@ class App {
         this.calculateDetailedTotals();
     }
 
-    updateHoleFIR(holeNum) {
-        const par = parseInt(document.getElementById(`detail-par-${holeNum}`).value) || 0;
+    updateHoleFIR(holeNum, skipTotals = false) {
+        const parInput = document.getElementById(`detail-par-${holeNum}`);
+        if (!parInput) return;
+        const par = parseInt(parInput.value) || 0;
         const container = document.getElementById(`detail-fir-container-${holeNum}`);
         if (!container) return;
 
@@ -1116,14 +1118,54 @@ class App {
         } else if (par === 5) {
             container.innerHTML = `
                 <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
-                    <input type="checkbox" id="detail-fir-${holeNum}-1" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" title="Fairway 1">
-                    <input type="checkbox" id="detail-fir-${holeNum}-2" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" title="Fairway 2">
+                    <input type="checkbox" id="detail-fir-${holeNum}-1" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 1">
+                    <input type="checkbox" id="detail-fir-${holeNum}-2" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 2">
                 </div>
             `;
         } else {
             // Par 4 or others
-            container.innerHTML = `<input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()">`;
+            container.innerHTML = `<input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})">`;
         }
+        if (!skipTotals) {
+            this.calculateDetailedTotals();
+        }
+    }
+
+    syncHoleDataFromDOM(hNum) {
+        const parInput = document.getElementById(`detail-par-${hNum}`);
+        const scoreInput = document.getElementById(`detail-score-${hNum}`);
+        const puttsInput = document.getElementById(`detail-putts-${hNum}`);
+
+        if (!parInput || !scoreInput || !puttsInput) return;
+
+        const parVal = parseInt(parInput.value) || 0;
+        const scoreVal = parseInt(scoreInput.value) || 0;
+        const puttsVal = parseInt(puttsInput.value) || 0;
+
+        const girEl = document.getElementById(`detail-gir-${hNum}`);
+        const gir = girEl ? girEl.checked : false;
+
+        const fEl = document.getElementById(`detail-fir-${hNum}`);
+        const f1 = document.getElementById(`detail-fir-${hNum}-1`);
+        const f2 = document.getElementById(`detail-fir-${hNum}-2`);
+
+        const firValue = (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false));
+
+        // Update the central data store
+        this.tempHoleData[hNum] = {
+            hole: parseInt(hNum),
+            par: parVal,
+            score: scoreVal,
+            putts: puttsVal,
+            gir: gir,
+            fir: firValue
+        };
+
+        // If par changed, we might need to update FIR container
+        if (parInput === document.activeElement || event?.target === parInput) {
+            this.updateHoleFIR(hNum, true);
+        }
+
         this.calculateDetailedTotals();
     }
 
@@ -1133,51 +1175,13 @@ class App {
         let totalPar = 0;
         let totalScore = 0;
         let totalPutts = 0;
+        // ... (rest of the calculation logic remains, but NO sync from DOM here)
         let girCount = 0;
         let firCount = 0;
         let firChances = 0;
         let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
         let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
 
-        const tbody = document.getElementById('detailed-scorecard-body');
-        if (!tbody) return;
-        const rows = tbody.querySelectorAll('tr');
-
-        // First, update tempHoleData with latest from DOM
-        rows.forEach(row => {
-            const hNum = row.id.split('-').pop();
-            const parInput = document.getElementById(`detail-par-${hNum}`);
-            const scoreInput = document.getElementById(`detail-score-${hNum}`);
-            const puttsInput = document.getElementById(`detail-putts-${hNum}`);
-
-            if (!parInput || !scoreInput || !puttsInput) return;
-
-            const parVal = parseInt(parInput.value) || 0;
-            const scoreVal = parseInt(scoreInput.value) || 0;
-            const puttsVal = parseInt(puttsInput.value) || 0;
-
-            const girEl = document.getElementById(`detail-gir-${hNum}`);
-            const gir = girEl ? girEl.checked : false;
-
-            const fEl = document.getElementById(`detail-fir-${hNum}`);
-            const f1 = document.getElementById(`detail-fir-${hNum}-1`);
-            const f2 = document.getElementById(`detail-fir-${hNum}-2`);
-
-            // Only update tempHoleData if we have at least a par or a score.
-            // This prevents overwriting valid loaded data with empty defaults during setup.
-            if (parVal > 0 || scoreVal > 0) {
-                this.tempHoleData[hNum] = {
-                    hole: parseInt(hNum),
-                    par: parVal,
-                    score: scoreVal,
-                    putts: puttsVal,
-                    gir: gir,
-                    fir: (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false))
-                };
-            }
-        });
-
-        // Determine current segment to calculate totals correctly
         const segment = document.getElementById('detail-holes-select')?.value || "18";
         let targetHoles = [];
         if (segment === "front9") targetHoles = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -1662,8 +1666,8 @@ class App {
         } else {
             list.innerHTML = Object.entries(tees).map(([teeName, data]) => `
                 <tr onclick="window.app.selectMgmtTee('${courseId}', '${teeName}')" style="cursor: pointer;">
-                    <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
                     <td>${data.teeId || '---'}</td>
+                    <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
                     <td>${data.rating || 'N/A'}</td>
                     <td>${data.slope || 'N/A'}</td>
                     <td>
