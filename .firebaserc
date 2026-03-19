@@ -8,6 +8,9 @@
       "hosting": {
         "dev-permanent": [
           "8ironanalytics-dev"
+        ],
+        "8iron-dev": [
+          "ironanalytics-cda1d"
         ]
       }
     },
