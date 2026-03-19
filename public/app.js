@@ -1870,6 +1870,62 @@ class App {
         return `C${nextId.toString().padStart(3, '0')}`;
     }
 
+    async getNextTeeIdGlobal() {
+        if (!this.db || !window.firebaseDB) return this.generateTeeId();
+
+        const { doc, runTransaction } = window.firebaseDB;
+        const metaRef = doc(this.db, 'metadata', 'tees');
+
+        try {
+            const nextId = await runTransaction(this.db, async (transaction) => {
+                const metaDoc = await transaction.get(metaRef);
+                if (!metaDoc.exists()) {
+                    // Initialize from current local max
+                    let maxNum = 0;
+                    this.courseLayouts.forEach(c => {
+                        if (c.tees) {
+                            Object.values(c.tees).forEach(t => {
+                                if (t.teeId && t.teeId.startsWith('T')) {
+                                    const num = parseInt(t.teeId.substring(1));
+                                    if (!isNaN(num) && num > maxNum) maxNum = num;
+                                }
+                            });
+                        }
+                    });
+                    const startId = maxNum + 1;
+                    transaction.set(metaRef, { lastId: startId });
+                    return startId;
+                } else {
+                    const newId = (metaDoc.data().lastId || 0) + 1;
+                    transaction.update(metaRef, { lastId: newId });
+                    return newId;
+                }
+            });
+
+            return `T${nextId.toString().padStart(3, '0')}`;
+        } catch (e) {
+            console.error("Global Tee ID generation failed, falling back:", e);
+            return this.generateTeeId();
+        }
+    }
+
+    generateTeeId() {
+        // Find the maximum numeric ID among existing tees across all courses
+        let maxNum = 0;
+        this.courseLayouts.forEach(c => {
+            if (c.tees) {
+                Object.values(c.tees).forEach(t => {
+                    if (t.teeId && t.teeId.startsWith('T')) {
+                        const num = parseInt(t.teeId.substring(1));
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
+                });
+            }
+        });
+        const nextId = maxNum + 1;
+        return `T${nextId.toString().padStart(3, '0')}`;
+    }
+
     async handleAddCourse(e) {
         e.preventDefault();
         const name = document.getElementById('mgmt-course-name').value.trim();
@@ -1934,6 +1990,12 @@ class App {
 
             // Initial Grid Render (18 holes)
             this.renderHoleGridInTeeModal(18);
+
+            // Auto-populate next available Tee ID
+            this.getNextTeeIdGlobal().then(id => {
+                const teeIdInput = document.getElementById('mgmt-tee-id');
+                if (teeIdInput) teeIdInput.value = id;
+            });
         }
 
         modal.classList.remove('hidden');
@@ -1947,16 +2009,16 @@ class App {
         const hcpRow = document.getElementById('mgmt-input-handicap-row');
 
         if (header && parRow && yardRow && hcpRow) {
-            header.innerHTML = `<tr><th>Hole</th>${[...Array(count)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
+            header.innerHTML = `<tr><th style="min-width: 100px; text-align: left; padding-left: 15px;">Hole</th>${[...Array(count)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
 
-            parRow.innerHTML = `<td><strong>Par</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+            parRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Par</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 42px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
 
-            yardRow.innerHTML = `<td><strong>Yardage</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 45px; padding: 4px; text-align: center;"></td>`).join('');
+            yardRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Yardage</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 48px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
 
-            hcpRow.innerHTML = `<td><strong>Handicap</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+            hcpRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Handicap</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 42px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
         }
     }
 

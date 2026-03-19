@@ -603,6 +603,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     justify-content: flex-end;
 }
 
+.grid-input {
+    background-color: #FFFFFF !important;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    outline: none;
+    font-size: 0.9rem;
+}
+
+.grid-input:focus {
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 2px var(--primary-green-glow);
+}
+
 .btn-large {
     padding: 14px 28px;
     font-size: 1.05rem;
