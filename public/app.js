@@ -1031,8 +1031,11 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
-        // First ensure any currently visible data is saved before we clear
-        this.calculateDetailedTotals();
+        // First ensure any currently visible data is saved before we clear,
+        // but ONLY if we are not already in the middle of a regeneration/load.
+        if (!this.isRegeneratingScorecard) {
+            this.calculateDetailedTotals();
+        }
 
         this.isRegeneratingScorecard = true;
 
@@ -1269,13 +1272,7 @@ class App {
         const round = this.rounds.find(r => r.id === id);
         if (!round) return;
 
-        // Initialize temp data for editing
-        this.tempHoleData = {};
-        if (round.holeData) {
-            round.holeData.forEach(h => {
-                this.tempHoleData[h.hole] = { ...h };
-            });
-        }
+        // Note: tempHoleData is populated later in this function, just before handleTeeChange.
 
         const form = document.getElementById('add-round-form');
         if (!form) return;
@@ -1326,7 +1323,11 @@ class App {
             });
         }
 
+        // Use the flag to prevent handleTeeChange -> generateScorecard -> calculateTotals
+        // from clearing the data we just loaded into tempHoleData.
+        this.isRegeneratingScorecard = true;
         this.handleTeeChangeRoundModal();
+        this.isRegeneratingScorecard = false;
 
         setVal('coursePar', (round.coursePar / divisor) || 72);
 
