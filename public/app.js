@@ -85,6 +85,8 @@ class App {
         this.selectedMgmtCourse = null;
         this.selectedMgmtTee = null;
         this.tempHoleData = {};
+        this.isRegeneratingScorecard = false;
+        this.editingTeeName = null;
 
         this.init();
     }
@@ -1029,6 +1031,8 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
+        this.isRegeneratingScorecard = true;
+
         // First ensure any currently visible data is saved before we clear
         this.calculateDetailedTotals();
 
@@ -1094,6 +1098,7 @@ class App {
                 }
             }
         }
+        this.isRegeneratingScorecard = false;
         this.calculateDetailedTotals();
     }
 
@@ -1119,6 +1124,8 @@ class App {
     }
 
     calculateDetailedTotals() {
+        if (this.isRegeneratingScorecard) return;
+
         let totalPar = 0;
         let totalScore = 0;
         let totalPutts = 0;
@@ -1664,10 +1671,57 @@ class App {
                     <td>${data.teeId || '---'}</td>
                     <td>${data.rating || 'N/A'}</td>
                     <td>${data.slope || 'N/A'}</td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseId}', '${teeName}')">Delete</button></td>
+                    <td>
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.editMgmtTee('${courseId}', '${teeName}')">Edit</button>
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.app.deleteMgmtTee('${courseId}', '${teeName}')">Delete</button>
+                    </td>
                 </tr>
             `).join('');
         }
+    }
+
+    editMgmtTee(courseId, teeName) {
+        const layout = this.courseLayouts.find(c => c.courseId === courseId);
+        if (!layout || !layout.tees || !layout.tees[teeName]) return;
+
+        const tee = layout.tees[teeName];
+        this.editingTeeName = teeName;
+
+        // Reset and populate modal
+        const titleEl = document.getElementById('add-tee-title');
+        if (titleEl) titleEl.textContent = 'Edit Tee Set';
+
+        const saveBtn = document.getElementById('save-tee-btn') ||
+            document.querySelector('#add-tee-form button[type="submit"]');
+
+        if (saveBtn) saveBtn.textContent = 'Update Tee Set';
+
+        document.getElementById('mgmt-tee-color').value = teeName;
+        document.getElementById('mgmt-tee-id').value = tee.teeId || '';
+        document.getElementById('mgmt-tee-rating').value = tee.rating || '';
+        document.getElementById('mgmt-tee-slope').value = tee.slope || '';
+
+        // Handle hole count and par inputs
+        const holes = tee.holes || [];
+        const holesSelect = document.getElementById('mgmt-tee-holes');
+        if (holesSelect) {
+            holesSelect.value = holes.length;
+            // Trigger change to update inputs visibility if needed
+            holesSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Populate pars (and yardages/handicaps if they exist)
+        holes.forEach((h, idx) => {
+            const hNum = idx + 1;
+            const parInput = document.getElementById(`mgmt-par-${hNum}`);
+            const ydsInput = document.getElementById(`mgmt-yardage-${hNum}`);
+            const hcpInput = document.getElementById(`mgmt-handicap-${hNum}`);
+            if (parInput) parInput.value = h.par || 4;
+            if (ydsInput) ydsInput.value = h.yardage || 0;
+            if (hcpInput) hcpInput.value = h.handicap || 0;
+        });
+
+        this.openAddTeeModal(true);
     }
 
     selectMgmtTee(courseId, teeName) {
@@ -1869,16 +1923,23 @@ class App {
         this.selectMgmtCourse(courseData.courseId);
     }
 
-    openAddTeeModal() {
+    openAddTeeModal(isEdit = false) {
         const modal = document.getElementById('add-tee-modal');
         const holeSelect = document.getElementById('mgmt-tee-holes');
         if (!modal) return;
 
-        // Reset hole count select to 18
-        if (holeSelect) holeSelect.value = '18';
+        if (!isEdit) {
+            this.editingTeeName = null;
+            document.getElementById('add-tee-title').textContent = 'Add Tee Set';
+            const saveBtn = document.querySelector('#add-tee-form button[type="submit"]');
+            if (saveBtn) saveBtn.textContent = 'Save Tee Set';
 
-        // Initial Grid Render (18 holes)
-        this.renderHoleGridInTeeModal(18);
+            // Reset hole count select to 18
+            if (holeSelect) holeSelect.value = '18';
+
+            // Initial Grid Render (18 holes)
+            this.renderHoleGridInTeeModal(18);
+        }
 
         modal.classList.remove('hidden');
     }
@@ -1908,6 +1969,7 @@ class App {
         const modal = document.getElementById('add-tee-modal');
         if (modal) modal.classList.add('hidden');
         document.getElementById('add-tee-form').reset();
+        this.editingTeeName = null;
     }
 
     async handleAddTee(e) {
@@ -1946,6 +2008,12 @@ class App {
         if (!course) return;
 
         if (!course.tees) course.tees = {};
+
+        // If we are editing and the name changed, delete the old entry
+        if (this.editingTeeName && this.editingTeeName !== teeName) {
+            delete course.tees[this.editingTeeName];
+        }
+
         course.tees[teeName] = teeData;
         course.updatedAt = new Date().toISOString();
 
@@ -1955,6 +2023,7 @@ class App {
             await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
         }
 
+        this.editingTeeName = null;
         this.closeAddTeeModal();
         this.selectMgmtCourse(courseId);
         this.selectMgmtTee(courseId, teeName);
