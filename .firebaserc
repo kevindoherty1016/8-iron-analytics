@@ -1,26 +1,14 @@
 {
   "projects": {
-    "default": "ironanalytics-cda1d",
-    "dev": "ironanalytics-dev"
+    "default": "ironanalytics-cda1d"
   },
   "targets": {
     "ironanalytics-cda1d": {
       "hosting": {
-        "dev-permanent": [
-          "8ironanalytics-dev"
-        ],
         "8iron-dev": [
           "ironanalytics-cda1d"
         ]
       }
-    },
-    "ironanalytics-dev-490500": {
-      "hosting": {
-        "dev-permanent": [
-          "ironanalytics-dev-490500"
-        ]
-      }
     }
-  },
-  "etags": {}
+  }
 }
