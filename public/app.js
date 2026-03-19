@@ -804,15 +804,15 @@ class App {
             newRound.upDownSuccesses = parseInt(formData.get('upDownSuccesses') || 0, 10);
             newRound.threePutts = parseInt(formData.get('threePutts') || 0, 10);
         } else {
-            // DETAILED SCORECARD MODE
+            // For detailed mode, we are much more robust about saving all data
             const holesSelect = document.getElementById('detail-holes-select');
             const segment = holesSelect ? holesSelect.value : "18";
+
+            // Initial guess on holesCount based on segment
             let holesCount = 18;
             if (segment === "front9" || segment === "back9") holesCount = 9;
 
-            newRound.holes = holesCount;
             newRound.segment = segment;
-            newRound.originalHoles = holesCount;
             newRound.holeData = [];
 
             let totalScore = 0;
@@ -902,6 +902,21 @@ class App {
 
                 if (putts >= 3) threePutts++;
             });
+
+            // FINAL HEALER: If we saved > 9 holes, the round IS an 18-hole round,
+            // even if the user was looking at a 9-hole segment.
+            if (newRound.holeData.length > 9) {
+                newRound.holes = 18;
+                if (newRound.segment === 'front9' || newRound.segment === 'back9') {
+                    // Keep segment for view context but set holes to 18 so it loads 
+                    // fully in the future if needed.
+                } else {
+                    newRound.segment = '18';
+                }
+            } else {
+                newRound.holes = holesCount;
+            }
+            newRound.originalHoles = newRound.holes;
 
             newRound.coursePar = totalPar;
             newRound.score = totalScore;
@@ -1161,8 +1176,9 @@ class App {
             fir: firValue
         };
 
-        // If par changed, we might need to update FIR container
-        if (parInput === document.activeElement || event?.target === parInput) {
+        // Handle FIR updates if par changes
+        const currentEvent = typeof event !== 'undefined' ? event : null;
+        if (parInput === document.activeElement || (currentEvent && currentEvent.target === parInput)) {
             this.updateHoleFIR(hNum, true);
         }
 
@@ -1322,7 +1338,18 @@ class App {
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
         this.handleCourseChangeRoundModal();
-        const segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+
+        // HEALER: If it's an 18-hole tee, prefer the 18-hole view even if previously saved as 9.
+        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
+        const tee = (layout && layout.tees && round.teeName) ? layout.tees[round.teeName] : null;
+        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
+            // If we have data for the OTHER side, or if the user likely wants to see the whole thing
+            if (round.holeData && round.holeData.length > 9) {
+                segment = '18';
+            }
+        }
+
         setVal('holes', segment);
         setVal('detail-holes-select', segment);
         setVal('round-tee-set', round.teeName || '');
