@@ -1313,6 +1313,16 @@ class App {
         setVal('holes', segment);
         setVal('detail-holes-select', segment);
         setVal('round-tee-set', round.teeName || '');
+
+        // Ensure tempHoleData is fully populated BEFORE we render any scorecard
+        this.tempHoleData = {};
+        if (round.holeData) {
+            round.holeData.forEach(h => {
+                const hNum = parseInt(h.hole);
+                this.tempHoleData[hNum] = { ...h };
+            });
+        }
+
         this.handleTeeChangeRoundModal();
 
         setVal('coursePar', (round.coursePar / divisor) || 72);
@@ -1348,44 +1358,13 @@ class App {
         document.getElementById('cancel-edit-btn').style.display = 'block';
 
         // DETAILED SCORECARD MAPPING: If the round has hole-by-hole data, prepopulate the bottom table
+        // DETAILED SCORECARD MAPPING: Rely on tempHoleData and handleTeeChange
         if (round.holeData && round.holeData.length > 0) {
             document.getElementById('entry-mode-select').value = 'detailed';
             this.toggleDataEntryMode();
-
-            const holesSelect = document.getElementById('detail-holes-select');
-            if (holesSelect) holesSelect.value = round.holeData.length;
-            this.generateDetailedScorecard(round.holeData.length);
-
-            // Populate each row
-            round.holeData.forEach((hole, idx) => {
-                const i = idx + 1; // 1-indexed DOM IDs
-                const parEl = document.getElementById(`detail-par-${i}`);
-                const scoreEl = document.getElementById(`detail-score-${i}`);
-                const puttsEl = document.getElementById(`detail-putts-${i}`);
-                const girEl = document.getElementById(`detail-gir-${i}`);
-
-                if (parEl) parEl.value = hole.par;
-                if (scoreEl) scoreEl.value = hole.score;
-                if (puttsEl) puttsEl.value = hole.putts;
-                if (girEl) girEl.checked = hole.gir;
-
-                // Fire FIR update to build correct checkboxes based on mapped Par
-                this.updateHoleFIR(i);
-
-                if (hole.par === 4) {
-                    const firEl = document.getElementById(`detail-fir-${i}`);
-                    if (firEl) firEl.checked = hole.fir;
-                } else if (hole.par === 5) {
-                    const fir1El = document.getElementById(`detail-fir-${i}-1`);
-                    const fir2El = document.getElementById(`detail-fir-${i}-2`);
-                    if (Array.isArray(hole.fir)) {
-                        if (fir1El) fir1El.checked = hole.fir[0];
-                        if (fir2El) fir2El.checked = hole.fir[1];
-                    }
-                }
-            });
-            this.calculateDetailedTotals(); // Refresh DOM aggregates
-        } else {
+            // generateDetailedScorecard was already triggered by handleTeeChangeRoundModal at line 1316.
+            // This now correctly uses the tempHoleData.
+        } else if (true) {
             // Quick entry mode default
             document.getElementById('entry-mode-select').value = 'quick';
             this.toggleDataEntryMode();
