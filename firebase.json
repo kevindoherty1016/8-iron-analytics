@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "target": "8iron-dev",
     "public": "public", 
     "ignore": [
       "firebase.json",
