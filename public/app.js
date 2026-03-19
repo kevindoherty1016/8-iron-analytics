@@ -84,6 +84,7 @@ class App {
         this.courseLayouts = [];
         this.selectedMgmtCourse = null;
         this.selectedMgmtTee = null;
+        this.tempHoleData = {};
 
         this.init();
     }
@@ -829,54 +830,37 @@ class App {
             let tripleBogeys = 0;
             let threePutts = 0;
 
-            const tbody = document.getElementById('detailed-scorecard-body');
-            const rows = tbody ? tbody.querySelectorAll('tr') : [];
+            // Ensure any visible changes are synced to this.tempHoleData before saving
+            this.calculateDetailedTotals();
 
-            rows.forEach(row => {
-                const i = row.id.split('-').pop(); // Hole number
-                const parEl = document.getElementById(`detail-par-${i}`);
-                const scoreEl = document.getElementById(`detail-score-${i}`);
-                const puttsEl = document.getElementById(`detail-putts-${i}`);
+            let holeIndices = [];
+            if (segment === "front9") holeIndices = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+            else if (segment === "back9") holeIndices = [10, 11, 12, 13, 14, 15, 16, 17, 18];
+            else {
+                // If segment is "18" or a number, we want all those holes
+                const limit = parseInt(segment) || 18;
+                for (let i = 1; i <= limit; i++) holeIndices.push(i);
+            }
 
-                const par = parEl ? (parseInt(parEl.value) || 0) : 0;
-                const score = scoreEl ? (parseInt(scoreEl.value) || 0) : 0;
-                const putts = puttsEl ? (parseInt(puttsEl.value) || 0) : 0;
+            holeIndices.forEach(i => {
+                const hole = this.tempHoleData[i];
+                if (!hole) return;
 
-                let fir = false;
-                if (par === 4) {
-                    const firEl = document.getElementById(`detail-fir-${i}`);
-                    fir = firEl ? (firEl.checked) : false;
-                    firChances += 1;
-                    if (fir) firCount += 1;
-                } else if (par === 5) {
-                    const fir1El = document.getElementById(`detail-fir-${i}-1`);
-                    const fir2El = document.getElementById(`detail-fir-${i}-2`);
-                    const f1 = fir1El ? fir1El.checked : false;
-                    const f2 = fir2El ? fir2El.checked : false;
-                    firChances += 2;
-                    if (f1) firCount += 1;
-                    if (f2) firCount += 1;
-                    fir = [f1, f2];
-                }
-
-                const girEl = document.getElementById(`detail-gir-${i}`);
-                const gir = girEl ? girEl.checked : false;
-
-                // Auto-calculate scrambling
-                let scr = false;
-                if (!gir && score > 0 && par > 0) {
-                    if (score <= par) scr = true;
-                }
+                const par = hole.par || 0;
+                const score = hole.score || 0;
+                const putts = hole.putts || 0;
+                const fir = hole.fir;
+                const gir = hole.gir || false;
 
                 const holeObj = {
                     hole: parseInt(i),
                     par: par,
                     score: score,
-                    scoreToPar: score - par,
+                    scoreToPar: (score > 0 && par > 0) ? (score - par) : 0,
                     putts: putts,
                     fir: fir,
                     gir: gir,
-                    scrambling: scr
+                    scrambling: (!gir && score > 0 && par > 0) ? (score <= par) : false
                 };
                 newRound.holeData.push(holeObj);
 
@@ -886,9 +870,20 @@ class App {
                 totalPutts += putts;
                 if (gir) girCount++;
 
-                if (!gir && score > 0) {
+                if (par === 4) {
+                    firChances++;
+                    if (fir === true) firCount++;
+                } else if (par === 5) {
+                    firChances += 2;
+                    if (Array.isArray(fir)) {
+                        if (fir[0]) firCount++;
+                        if (fir[1]) firCount++;
+                    }
+                }
+
+                if (!gir && score > 0 && par > 0) {
                     upDownChances++;
-                    if (scr) upDownSuccesses++;
+                    if (score <= par) upDownSuccesses++;
                 }
 
                 // Scoring Breakdown
@@ -1034,26 +1029,11 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
+        // First ensure any currently visible data is saved before we clear
+        this.calculateDetailedTotals();
+
         const tbody = document.getElementById('detailed-scorecard-body');
         if (!tbody) return;
-
-        // SCRAPE EXISTING DATA TO PRESERVE ON REGEN
-        const scraped = {};
-        if (tbody.children.length > 0) {
-            for (const row of tbody.children) {
-                const rid = row.id || "";
-                const hNum = rid.replace("hole-row-", "");
-                if (hNum) {
-                    const s = document.getElementById(`detail-score-${hNum}`)?.value;
-                    const p = document.getElementById(`detail-putts-${hNum}`)?.value;
-                    const f = document.getElementById(`detail-fir-${hNum}`)?.checked;
-                    const f1 = document.getElementById(`detail-fir-${hNum}-1`)?.checked;
-                    const f2 = document.getElementById(`detail-fir-${hNum}-2`)?.checked;
-                    const g = document.getElementById(`detail-gir-${hNum}`)?.checked;
-                    scraped[hNum] = { score: s, putts: p, fir: f, fir1: f1, fir2: f2, gir: g };
-                }
-            }
-        }
 
         tbody.innerHTML = '';
 
@@ -1085,33 +1065,33 @@ class App {
             tr.id = `hole-row-${holeNum}`;
 
             const preHole = prefilledHoles ? prefilledHoles[i] : null;
-            const existing = scraped[holeNum];
+            const existing = this.tempHoleData[holeNum];
 
             tr.innerHTML = `
                 <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : 4}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? existing.score : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? existing.putts : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
+                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
                 <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" ${existing && existing.fir ? 'checked' : ''}>
+                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" ${existing && (existing.fir === true) ? 'checked' : ''}>
                 </td>
                 <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" ${existing && existing.gir ? 'checked' : ''}></td>
             `;
             tbody.appendChild(tr);
-            this.updateHoleFIR(holeNum); // Initial setup
+            this.updateHoleFIR(holeNum);
 
-            // Re-apply special Par 5 FIR if needed (updateHoleFIR might have wiped inline 'checked' if par changed)
-            if (existing && existing.fir1 !== undefined) {
-                const f1El = document.getElementById(`detail-fir-${holeNum}-1`);
-                if (f1El) f1El.checked = existing.fir1;
-            }
-            if (existing && existing.fir2 !== undefined) {
-                const f2El = document.getElementById(`detail-fir-${holeNum}-2`);
-                if (f2El) f2El.checked = existing.fir2;
-            }
+            // Re-apply FIR state (in case updateHoleFIR changed the structure)
             if (existing && existing.fir !== undefined) {
-                const fEl = document.getElementById(`detail-fir-${holeNum}`);
-                if (fEl) fEl.checked = existing.fir;
+                const par = parseInt(document.getElementById(`detail-par-${holeNum}`).value);
+                if (par === 5 && Array.isArray(existing.fir)) {
+                    const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
+                    const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
+                    if (f1) f1.checked = existing.fir[0];
+                    if (f2) f2.checked = existing.fir[1];
+                } else {
+                    const fEl = document.getElementById(`detail-fir-${holeNum}`);
+                    if (fEl) fEl.checked = (existing.fir === true);
+                }
             }
         }
         this.calculateDetailedTotals();
@@ -1152,42 +1132,68 @@ class App {
         if (!tbody) return;
         const rows = tbody.querySelectorAll('tr');
 
+        // First, update tempHoleData with latest from DOM
         rows.forEach(row => {
-            const holeNum = row.id.split('-').pop(); // e.g. "hole-row-10" -> "10"
-            const parVal = parseInt(document.getElementById(`detail-par-${holeNum}`)?.value) || 0;
-            const scoreVal = parseInt(document.getElementById(`detail-score-${holeNum}`)?.value) || 0;
-            const puttsVal = parseInt(document.getElementById(`detail-putts-${holeNum}`)?.value) || 0;
-            const girEl = document.getElementById(`detail-gir-${holeNum}`);
+            const hNum = row.id.split('-').pop();
+            const parVal = parseInt(document.getElementById(`detail-par-${hNum}`)?.value) || 0;
+            const scoreVal = parseInt(document.getElementById(`detail-score-${hNum}`)?.value) || 0;
+            const puttsVal = parseInt(document.getElementById(`detail-putts-${hNum}`)?.value) || 0;
+            const girEl = document.getElementById(`detail-gir-${hNum}`);
             const gir = girEl ? girEl.checked : false;
 
-            totalPar += parVal;
-            totalScore += scoreVal;
-            totalPutts += puttsVal;
-            if (gir) girCount++;
-            if (puttsVal >= 3) threePutts++;
+            const fEl = document.getElementById(`detail-fir-${hNum}`);
+            const f1 = document.getElementById(`detail-fir-${hNum}-1`);
+            const f2 = document.getElementById(`detail-fir-${hNum}-2`);
 
-            // FIR
-            if (parVal === 4) {
-                const firEl = document.getElementById(`detail-fir-${holeNum}`);
-                firChances += 1;
-                if (firEl && firEl.checked) firCount++;
-            } else if (parVal === 5) {
+            this.tempHoleData[hNum] = {
+                hole: parseInt(hNum),
+                par: parVal,
+                score: scoreVal,
+                putts: puttsVal,
+                gir: gir,
+                fir: (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false))
+            };
+        });
+
+        // Determine current segment to calculate totals correctly
+        const segment = document.getElementById('detail-holes-select')?.value || "18";
+        let targetHoles = [];
+        if (segment === "front9") targetHoles = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        else if (segment === "back9") targetHoles = [10, 11, 12, 13, 14, 15, 16, 17, 18];
+        else {
+            // Assume 18 or custom hole count from the tee
+            const holeCount = Object.keys(this.tempHoleData).length > 9 ? Object.keys(this.tempHoleData).length : 18;
+            for (let i = 1; i <= (parseInt(segment) || holeCount); i++) targetHoles.push(i);
+        }
+
+        targetHoles.forEach(hNum => {
+            const h = this.tempHoleData[hNum];
+            if (!h) return;
+
+            totalPar += h.par;
+            totalScore += h.score;
+            totalPutts += h.putts;
+            if (h.gir) girCount++;
+            if (h.putts >= 3) threePutts++;
+
+            if (h.par === 4) {
+                firChances++;
+                if (h.fir === true) firCount++;
+            } else if (h.par === 5) {
                 firChances += 2;
-                const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
-                const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
-                if (f1 && f1.checked) firCount++;
-                if (f2 && f2.checked) firCount++;
+                if (Array.isArray(h.fir)) {
+                    if (h.fir[0]) firCount++;
+                    if (h.fir[1]) firCount++;
+                }
             }
 
-            // Scrambling (up/down)
-            if (!gir && scoreVal > 0 && parVal > 0) {
+            if (!h.gir && h.score > 0 && h.par > 0) {
                 upDownChances++;
-                if (scoreVal <= parVal) upDownSuccesses++;
+                if (h.score <= h.par) upDownSuccesses++;
             }
 
-            // Scoring breakdown
-            if (scoreVal > 0 && parVal > 0) {
-                const diff = scoreVal - parVal;
+            if (h.score > 0 && h.par > 0) {
+                const diff = h.score - h.par;
                 if (diff <= -2) eagles++;
                 else if (diff === -1) birdies++;
                 else if (diff === 0) pars++;
@@ -1255,6 +1261,14 @@ class App {
     editRound(id) {
         const round = this.rounds.find(r => r.id === id);
         if (!round) return;
+
+        // Initialize temp data for editing
+        this.tempHoleData = {};
+        if (round.holeData) {
+            round.holeData.forEach(h => {
+                this.tempHoleData[h.hole] = { ...h };
+            });
+        }
 
         const form = document.getElementById('add-round-form');
         if (!form) return;
@@ -1442,6 +1456,7 @@ class App {
             }
             // Only toggle mode on fresh open — editRound() handles this for edit mode
             // to avoid wiping the pre-populated detailed scorecard
+            this.tempHoleData = {};
             this.toggleDataEntryMode();
         }
 
