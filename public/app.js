@@ -1299,16 +1299,28 @@ class App {
             return;
         }
 
-        // 1. POPULATE TEMP DATA FIRST
+        // 1. POPULATE TEMP DATA FIRST (Collision-Safe for legacy 1-9 twice data)
         this.tempHoleData = {};
         if (round.holeData) {
             const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
-            hData.forEach(h => {
+            console.debug('editRound: Populating from hData. length:', hData.length);
+            hData.forEach((h, idx) => {
                 if (h && h.hole !== undefined) {
-                    const hNum = parseInt(h.hole);
-                    this.tempHoleData[hNum] = { ...h };
+                    let hNum = parseInt(h.hole);
+
+                    // HEALER: If we see a hole number we've already seen (e.g. 1-9 repeating),
+                    // or if it's the second half of an 18-item array, shift it to 10-18.
+                    if (this.tempHoleData[hNum] !== undefined || (idx >= 9 && hNum <= 9 && hData.length > 9)) {
+                        if (hNum <= 9) {
+                            hNum += 9;
+                            console.debug(`  Auto-shifted hole ${h.hole} at idx ${idx} to ${hNum}`);
+                        }
+                    }
+
+                    this.tempHoleData[hNum] = { ...h, hole: hNum };
                 }
             });
+            console.debug('Populated tempHoleData keys:', Object.keys(this.tempHoleData));
         }
 
         // 2. OPEN MODAL (Ensures DOM elements are active)
