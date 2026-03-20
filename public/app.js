@@ -1353,10 +1353,12 @@ class App {
         // 6. SETUP SEGMENT
         let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
 
-        // DATA-DRIVEN HEALER: Count how many holes actually have scores. 
-        // If more than 9, we MUST show 18 holes to be useful.
-        const nonZeroHoleCount = (round.holeData || []).filter(h => h.score > 0).length;
-        if (nonZeroHoleCount > 9) {
+        // DATA-DRIVEN HEALER: Count how many holes actually have ANY data. 
+        // If more than 9, or if we have keys above 9, we MUST show 18 holes to be useful.
+        const populatedHolesCount = Object.keys(this.tempHoleData).length;
+        const hasBackNineData = Object.keys(this.tempHoleData).some(hNum => parseInt(hNum) > 9);
+
+        if (populatedHolesCount > 9 || hasBackNineData) {
             segment = '18';
         }
 
@@ -1368,8 +1370,11 @@ class App {
         setVal('detail-holes-select', segment);
         setVal('round-tee-set', teeName);
 
-        // 7. RENDER SCORECARD (Synchronous)
+        // 7. RENDER SCORECARD (Immediate & Deterministic)
         this.isRegeneratingScorecard = true;
+        this.generateDetailedScorecard(segment, tee ? tee.holes : null);
+
+        // Also call the standard tee change handler to ensure all other side effects (like dropdowns) are synced
         this.handleTeeChangeRoundModal();
 
         // 8. POPULATE EXTRAS
@@ -1557,10 +1562,18 @@ class App {
                 let totalPar = 0;
                 if (segment === "front9") {
                     totalPar = tee.holes.slice(0, 9).reduce((sum, h) => sum + h.par, 0);
-                } else if (segment === "back9" && holeCount === 18) {
-                    totalPar = tee.holes.slice(9, 18).reduce((sum, h) => sum + h.par, 0);
+                } else if (segment === "back9") {
+                    // Loop if only 9 holes available
+                    const backHoles = tee.holes.length === 18 ? tee.holes.slice(9, 18) : tee.holes.slice(0, 9);
+                    totalPar = backHoles.reduce((sum, h) => sum + h.par, 0);
                 } else {
-                    totalPar = tee.holes.reduce((sum, h) => sum + (h.par || 0), 0);
+                    // 18 Holes
+                    if (tee.holes.length === 18) {
+                        totalPar = tee.holes.reduce((sum, h) => sum + (h.par || 0), 0);
+                    } else {
+                        // Loop 9 holes twice
+                        totalPar = (tee.holes.reduce((sum, h) => sum + (h.par || 0), 0)) * 2;
+                    }
                 }
                 courseParInput.value = totalPar;
                 courseParInput.readOnly = true;
