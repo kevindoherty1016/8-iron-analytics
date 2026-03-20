@@ -603,6 +603,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     justify-content: flex-end;
 }
 
+.grid-input {
+    background-color: #FFFFFF !important;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    outline: none;
+    font-size: 0.9rem;
+}
+
+.grid-input:focus {
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 2px var(--primary-green-glow);
+}
+
 .btn-large {
     padding: 14px 28px;
     font-size: 1.05rem;
@@ -648,20 +662,39 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .data-table th {
-    padding: 12px 16px;
+    padding: 14px 16px;
     color: var(--text-secondary);
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 1px solid var(--border-color);
+    letter-spacing: 0.08em;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
 }
 
 .data-table td {
     padding: 16px;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+/* Badge styles */
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    line-height: 1.6;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+}
+
+.badge-active {
+    background: var(--primary-green-glow);
+    color: var(--primary-green);
 }
 
 .data-table tbody tr {
@@ -674,6 +707,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .data-table tbody tr:last-child td {
     border-bottom: none;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    gap: 4px;
 }
 
 /* Animations */
@@ -813,4 +852,63 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .hole-option.selected,
 .par-option.selected {
     color: var(--primary-green);
+}
+
+/* Search Select Dropdown */
+.search-select-container {
+    position: relative;
+    width: 100%;
+}
+
+.search-select-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-top: -3px;
+    border-top: none;
+}
+
+.search-select-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    transition: background var(--transition-fast);
+    text-align: left;
+}
+
+.search-select-item:hover {
+    background: var(--bg-dark);
+}
+
+.search-select-item.no-results {
+    color: var(--text-muted);
+    font-style: italic;
+    cursor: default;
+}
+
+.search-select-item.no-results:hover {
+    background: transparent;
+}
+
+/* Custom Scrollbar for Search List */
+.search-select-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.search-select-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.search-select-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 10px;
 }

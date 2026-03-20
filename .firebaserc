@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "ironanalytics-cda1d"
+  },
+  "targets": {
+    "ironanalytics-cda1d": {
+      "hosting": {
+        "8iron-dev": [
+          "ironanalytics-cda1d"
+        ]
+      }
+    }
   }
 }
