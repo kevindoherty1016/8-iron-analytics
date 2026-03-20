@@ -4701,7 +4701,8 @@ class App {
             const lines = text.split('\n');
             let headerIndex = 0;
             for (let i = 0; i < Math.min(10, lines.length); i++) {
-                if (lines[i].toLowerCase().includes('date') && lines[i].toLowerCase().includes('course')) {
+                const l = lines[i].toLowerCase();
+                if ((l.includes('date') && l.includes('course')) || l.includes('round #') || l.includes('round number')) {
                     headerIndex = i;
                     console.log("Found header index at line:", i, lines[i]);
                     break;
@@ -4894,6 +4895,18 @@ class App {
                                     };
                                     self.rounds[existingRoundIndex] = updated;
                                     if (self.user && self.user.uid !== 'local') {
+                                        // HEALER: If we have teeId but no teeName/course context in the CSV row, 
+                                        // resolve it using the existing round's course layout.
+                                        if (updated.teeId && !updated.teeName && updated.course) {
+                                            const layout = self.courseLayouts.find(c => isCourseMatch(c.name, updated.course));
+                                            if (layout && layout.tees) {
+                                                const matchedTee = Object.entries(layout.tees).find(([name, data]) => data.teeId === updated.teeId);
+                                                if (matchedTee) {
+                                                    updated.teeName = matchedTee[0];
+                                                    updated.courseId = layout.courseId;
+                                                }
+                                            }
+                                        }
                                         self.syncRoundToCloud(updated);
                                     }
                                 } else {
