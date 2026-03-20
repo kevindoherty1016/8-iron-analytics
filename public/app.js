@@ -815,39 +815,21 @@ class App {
             newRound.segment = segment;
             newRound.holeData = [];
 
-            let totalScore = 0;
-            let totalPar = 0;
-            let totalPutts = 0;
-            let girCount = 0;
-            let firCount = 0;
-            let upDownSuccesses = 0;
-            let upDownChances = 0;
-            let firChances = 0;
-
-            let eagles = 0;
-            let birdies = 0;
-            let pars = 0;
-            let bogeys = 0;
-            let doubleBogeys = 0;
-            let tripleBogeys = 0;
-            let threePutts = 0;
-
-            // Ensure any visible changes are synced to this.tempHoleData before saving
-            this.calculateDetailedTotals();
-
-            // Determine how many holes to save based on the overall round, not just the visible segment.
-            // If we have data for holes 10-18 in tempHoleData, we should save them even if looking at front 9.
+            // Determine how many holes to save. 
+            // CRITICAL: We save EVERYTHING we have in tempHoleData if it has a score.
+            // This prevents accidental data loss if the segment dropdown is wrong.
             let holeIndices = [];
-            const maxHoleInData = Math.max(...Object.keys(this.tempHoleData).map(k => parseInt(k)), 0);
-            const totalHolesForRound = Math.max(maxHoleInData, segment === "18" ? 18 : (segment === "front9" || segment === "back9" ? 9 : parseInt(segment) || 18));
-
-            for (let i = 1; i <= totalHolesForRound; i++) {
+            for (let i = 1; i <= 18; i++) {
                 holeIndices.push(i);
             }
 
             holeIndices.forEach(i => {
                 const hole = this.tempHoleData[i];
                 if (!hole) return;
+
+                // Only save if it has a score or it's within the selected segment
+                const isInSegment = (segment === "18") || (segment === "front9" && i <= 9) || (segment === "back9" && i > 9 && i <= 18);
+                if (!isInSegment && (hole.score === 0 || !hole.score)) return;
 
                 const par = hole.par || 0;
                 const score = hole.score || 0;
@@ -866,73 +848,50 @@ class App {
                     scrambling: (!gir && score > 0 && par > 0) ? (score <= par) : false
                 };
                 newRound.holeData.push(holeObj);
-
-                // Aggregates
-                totalScore += score;
-                totalPar += par;
-                totalPutts += putts;
-                if (gir) girCount++;
-
-                if (par === 4) {
-                    firChances++;
-                    if (fir === true) firCount++;
-                } else if (par === 5) {
-                    firChances += 2;
-                    if (Array.isArray(fir)) {
-                        if (fir[0]) firCount++;
-                        if (fir[1]) firCount++;
-                    }
-                }
-
-                if (!gir && score > 0 && par > 0) {
-                    upDownChances++;
-                    if (score <= par) upDownSuccesses++;
-                }
-
-                // Scoring Breakdown
-                const diff = score - par;
-                if (score > 0 && par > 0) {
-                    if (diff <= -2) eagles++;
-                    else if (diff === -1) birdies++;
-                    else if (diff === 0) pars++;
-                    else if (diff === 1) bogeys++;
-                    else if (diff === 2) doubleBogeys++;
-                    else if (diff >= 3) tripleBogeys++;
-                }
-
-                if (putts >= 3) threePutts++;
             });
 
-            // FINAL HEALER: If we saved > 9 holes, the round IS an 18-hole round,
-            // even if the user was looking at a 9-hole segment.
-            if (newRound.holeData.length > 9) {
-                newRound.holes = 18;
-                if (newRound.segment === 'front9' || newRound.segment === 'back9') {
-                    // Keep segment for view context but set holes to 18 so it loads 
-                    // fully in the future if needed.
-                } else {
-                    newRound.segment = '18';
-                }
-            } else {
-                newRound.holes = holesCount;
-            }
-            newRound.originalHoles = newRound.holes;
+            // Recalculate totals from the holeData we JUST built to ensure absolute sync
+            let totalScore = 0;
+            let totalPar = 0;
+            let totalPutts = 0;
+            let girCount = 0;
+            let firCount = 0;
+            let firChances = 0;
+            let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
+            let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
 
-            newRound.coursePar = totalPar;
+            newRound.holeData.forEach(h => {
+                totalScore += h.score;
+                totalPar += h.par;
+                totalPutts += h.putts;
+                if (h.gir) girCount++;
+                if (h.putts >= 3) threePutts++;
+                if (h.par === 4) { firChances++; if (h.fir === true) firCount++; }
+                else if (h.par === 5) { firChances += 2; if (Array.isArray(h.fir)) { if (h.fir[0]) firCount++; if (h.fir[1]) firCount++; } }
+                if (!h.gir && h.score > 0 && h.par > 0) { upDownChances++; if (h.score <= h.par) upDownSuccesses++; }
+                if (h.score > 0 && h.par > 0) {
+                    const diff = h.score - h.par;
+                    if (diff <= -2) eagles++; else if (diff === -1) birdies++; else if (diff === 0) pars++;
+                    else if (diff === 1) bogeys++; else if (diff === 2) doubleBogeys++; else if (diff >= 3) tripleBogeys++;
+                }
+            });
+
             newRound.score = totalScore;
+            newRound.coursePar = totalPar;
             newRound.putts = totalPutts;
             newRound.gir = girCount;
             newRound.fir = firCount;
             newRound.firChances = firChances;
-            newRound.upDownSuccesses = upDownSuccesses;
-            newRound.upDownChances = upDownChances;
             newRound.eagles = eagles;
             newRound.birdies = birdies;
             newRound.pars = pars;
             newRound.bogeys = bogeys;
             newRound.doubleBogeys = doubleBogeys;
             newRound.tripleBogeys = tripleBogeys;
+            newRound.upDownChances = upDownChances;
+            newRound.upDownSuccesses = upDownSuccesses;
             newRound.threePutts = threePutts;
+            newRound.holes = newRound.holeData.length;
         }
 
         // Apply mandatory extras to all entry modes
@@ -1332,110 +1291,108 @@ class App {
             return;
         }
 
-        // 1. OPEN MODAL FIRST (Ensures DOM elements are active and visible)
+        // 1. POPULATE TEMP DATA FIRST
+        this.tempHoleData = {};
+        if (round.holeData) {
+            const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
+            hData.forEach(h => {
+                if (h && h.hole !== undefined) {
+                    const hNum = parseInt(h.hole);
+                    this.tempHoleData[hNum] = { ...h };
+                }
+            });
+        }
+
+        // 2. OPEN MODAL (Ensures DOM elements are active)
         this.openAddRoundModal(true);
 
-        // 2. DEFERRED POPULATION (Ensures modal animation is complete and IDs are hot)
-        setTimeout(() => {
-            console.debug('Deferred population starting for round:', id);
-            const form = document.getElementById('add-round-form');
-            const entryModeSelect = document.getElementById('entry-mode-select');
-            if (!form || !entryModeSelect) {
-                console.error('Deferred check failed: Form or EntryModeSelect not found!');
-                return;
+        // 3. SYNCHRONOUS POPULATION
+        console.debug('Synchronous population starting for round:', id);
+        const form = document.getElementById('add-round-form');
+        const entryModeSelect = document.getElementById('entry-mode-select');
+        if (!form || !entryModeSelect) {
+            console.error('Population failed: Form or EntryModeSelect not found!');
+            return;
+        }
+
+        // 4. SET ENTRY MODE
+        const isDetailed = !!(round.holeData && round.holeData.length > 0);
+        entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
+        this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
+
+        // 5. LOAD CORE DATA
+        document.getElementById('edit-round-id').value = round.id;
+        const setVal = (fid, val) => {
+            const el = form.querySelector('#' + fid);
+            if (el) el.value = val !== undefined ? val : '';
+        };
+
+        let dateVal = round.date;
+        if (dateVal && dateVal.includes('/')) {
+            const parts = dateVal.split('/');
+            if (parts.length === 3) {
+                let year = parts[2];
+                if (year.length === 2) year = '20' + year;
+                let month = parts[0].padStart(2, '0');
+                let day = parts[1].padStart(2, '0');
+                dateVal = `${year}-${month}-${day}`;
             }
+        }
+        setVal('date', dateVal);
+        setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
+        this.handleCourseChangeRoundModal();
 
-            // 3. SET ENTRY MODE
-            const isDetailed = !!(round.holeData && round.holeData.length > 0);
-            entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
-            this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
+        // 6. SETUP SEGMENT
+        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
+        const teeName = round.teeName || '';
+        const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
 
-            // 4. LOAD CORE DATA
-            document.getElementById('edit-round-id').value = round.id;
-            const setVal = (fid, val) => {
-                const el = form.querySelector('#' + fid);
-                if (el) el.value = val !== undefined ? val : '';
-            };
+        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
+            if (round.holeData && round.holeData.length > 9) segment = '18';
+        }
 
-            let dateVal = round.date;
-            if (dateVal && dateVal.includes('/')) {
-                const parts = dateVal.split('/');
-                if (parts.length === 3) {
-                    let year = parts[2];
-                    if (year.length === 2) year = '20' + year;
-                    let month = parts[0].padStart(2, '0');
-                    let day = parts[1].padStart(2, '0');
-                    dateVal = `${year}-${month}-${day}`;
-                }
-            }
-            setVal('date', dateVal);
-            setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
-            this.handleCourseChangeRoundModal();
+        setVal('holes', segment);
+        setVal('detail-holes-select', segment);
+        setVal('round-tee-set', teeName);
 
-            // 5. POPULATE TEMP DATA
-            this.tempHoleData = {};
-            if (round.holeData) {
-                const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
-                hData.forEach(h => {
-                    if (h && h.hole !== undefined) {
-                        const hNum = parseInt(h.hole);
-                        this.tempHoleData[hNum] = { ...h };
-                    }
-                });
-            }
+        // 7. RENDER SCORECARD (Synchronous)
+        this.isRegeneratingScorecard = true;
+        this.handleTeeChangeRoundModal();
 
-            // 6. SETUP SEGMENT
-            let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
-            const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-            const teeName = round.teeName || '';
-            const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
+        // 8. POPULATE EXTRAS
+        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
+        const divisor = isLegacyDoubledEntry ? 2 : 1;
+        setVal('coursePar', (round.coursePar / divisor) || 72);
+        setVal('score', (round.score / divisor) || 0);
+        setVal('putts', (round.putts / divisor) || 0);
+        setVal('gir', (round.gir / divisor) || 0);
+        setVal('fir', (round.fir / divisor) || 0);
+        setVal('firChances', (round.firChances / divisor) || 0);
+        setVal('eagles', (round.eagles / divisor) || 0);
+        setVal('birdies', (round.birdies / divisor) || 0);
+        setVal('pars', (round.pars / divisor) || 0);
+        setVal('bogeys', (round.bogeys / divisor) || 0);
+        setVal('putter', round.putter || '');
+        setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
+        setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
+        setVal('upDownChances', (round.upDownChances / divisor) || 0);
+        setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
+        setVal('threePutts', (round.threePutts / divisor) || 0);
+        setVal('lostBalls', (round.lostBalls / divisor) || 0);
+        setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
+        setVal('roundCost', round.cost || '');
+        setVal('roundWinnings', round.winnings || '');
+        setVal('roundEvent', round.event || '');
+        setVal('roundGroup', round.group || '');
 
-            if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
-                if (round.holeData && round.holeData.length > 9) segment = '18';
-            }
+        document.getElementById('add-round-title').textContent = 'Edit Round';
+        document.getElementById('save-round-btn').textContent = 'Update Round';
+        document.getElementById('cancel-edit-btn').style.display = 'block';
 
-            setVal('holes', segment);
-            setVal('detail-holes-select', segment);
-            setVal('round-tee-set', teeName);
-
-            // 7. RENDER SCORECARD
-            this.isRegeneratingScorecard = true;
-            this.handleTeeChangeRoundModal();
-
-            // 8. POPULATE EXTRAS
-            const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
-            const divisor = isLegacyDoubledEntry ? 2 : 1;
-            setVal('coursePar', (round.coursePar / divisor) || 72);
-            setVal('score', (round.score / divisor) || 0);
-            setVal('putts', (round.putts / divisor) || 0);
-            setVal('gir', (round.gir / divisor) || 0);
-            setVal('fir', (round.fir / divisor) || 0);
-            setVal('firChances', (round.firChances / divisor) || 0);
-            setVal('eagles', (round.eagles / divisor) || 0);
-            setVal('birdies', (round.birdies / divisor) || 0);
-            setVal('pars', (round.pars / divisor) || 0);
-            setVal('bogeys', (round.bogeys / divisor) || 0);
-            setVal('putter', round.putter || '');
-            setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
-            setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
-            setVal('upDownChances', (round.upDownChances / divisor) || 0);
-            setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
-            setVal('threePutts', (round.threePutts / divisor) || 0);
-            setVal('lostBalls', (round.lostBalls / divisor) || 0);
-            setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
-            setVal('roundCost', round.cost || '');
-            setVal('roundWinnings', round.winnings || '');
-            setVal('roundEvent', round.event || '');
-            setVal('roundGroup', round.group || '');
-
-            document.getElementById('add-round-title').textContent = 'Edit Round';
-            document.getElementById('save-round-btn').textContent = 'Update Round';
-            document.getElementById('cancel-edit-btn').style.display = 'block';
-
-            if (isDetailed) {
-                this.calculateDetailedTotals();
-            }
-        }, 50);
+        if (isDetailed) {
+            this.calculateDetailedTotals();
+        }
     }
 
     switchView(viewId) {
@@ -1565,14 +1522,19 @@ class App {
                 select.innerHTML = '';
                 if (holeCount === 18) {
                     select.innerHTML = `
-                        <option value="18">18 Holes</option>
-                        <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
-                        <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
-                    `;
+                    <option value="18" ${currentVal === '18' ? 'selected' : ''}>18 Holes</option>
+                    <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
+                    <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
+                `;
                 } else {
                     select.innerHTML = `<option value="front9" selected>Front 9</option>`;
                 }
+                // Preserve the value if it exists in the new options, otherwise it defaults to first
+                if (currentVal && select.querySelector(`option[value="${currentVal}"]`)) {
+                    select.value = currentVal;
+                }
             };
+
 
             updateSegments(holesSelect);
             updateSegments(detailHolesSelect);
