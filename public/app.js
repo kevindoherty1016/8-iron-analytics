@@ -3757,9 +3757,9 @@ class App {
                 if (this.historySortCol === 'date') {
                     valA = this.getEST(valA).ts;
                     valB = this.getEST(valB).ts;
-                } else if (this.historySortCol === 'course') {
-                    valA = valA ? valA.toLowerCase() : '';
-                    valB = valB ? valB.toLowerCase() : '';
+                } else if (this.historySortCol === 'course' || this.historySortCol === 'teeName') {
+                    valA = valA ? String(valA).toLowerCase() : '';
+                    valB = valB ? String(valB).toLowerCase() : '';
                 } else {
                     // Ensure numerical for other columns
                     valA = Number(valA) || 0;
@@ -3805,7 +3805,7 @@ class App {
                     <td style="color:var(--text-muted); font-size:0.8rem; white-space:nowrap;">#${num}</td>
                     <td>${this.formatDateDisplay(round.date)}</td>
                     <td style="font-weight: 500; color: var(--primary-green)">${String(round.course || 'Unknown').trim()}</td>
-                    <td>${round.teeId || '---'}</td>
+                    <td style="font-weight: 500; color: var(--text-primary)">${round.teeName || '---'}</td>
                     <td style="font-weight: 700;">${score}</td>
                     <td>${scoreToPar > 0 ? '+' : ''}${scoreToPar}</td>
                     <td>${fir}</td>
@@ -4953,6 +4953,7 @@ class App {
                             const date = getVal(['date']);
                             const course = getVal(['course']);
                             const teeId = getVal(['tee id', 'tee_id', 'teeid', 'tee']);
+                            const v_courseId = getVal(['course id', 'course_id', 'courseid']);
 
                             if (!roundNum && (!date || !course || date.toLowerCase() === 'date')) return;
 
@@ -4968,6 +4969,7 @@ class App {
                                 roundsMap[key] = {
                                     date: date,
                                     course: course,
+                                    courseId: v_courseId,
                                     roundNum: roundNum,
                                     teeId: teeId,
                                     holeData: []
@@ -5146,15 +5148,20 @@ class App {
                                 }
                             } else {
                                 // No match found, push as new round
+                                let layout = self.courseLayouts.find(c => isCourseMatch(c.name, roundObj.course));
+                                if (!layout && roundObj.courseId) {
+                                    layout = self.courseLayouts.find(c => c.courseId === roundObj.courseId);
+                                    if (layout && !roundObj.course) roundObj.course = layout.name;
+                                }
+
                                 const nextRoundNum = self.rounds.reduce((max, r) => Math.max(max, r.roundNum || 0), 0) + 1;
-                                const layout = self.courseLayouts.find(c => isCourseMatch(c.name, roundObj.course));
 
                                 const finalRoundPayload = {
                                     id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
                                     roundNum: roundObj.roundNum > 0 ? roundObj.roundNum : nextRoundNum,
                                     date: formattedDate,
                                     course: roundObj.course,
-                                    courseId: layout ? layout.courseId : null,
+                                    courseId: layout ? layout.courseId : (roundObj.courseId || null),
                                     teeId: roundObj.teeId || '',
                                     teeName: (function () {
                                         if (layout && layout.tees && roundObj.teeId) {
