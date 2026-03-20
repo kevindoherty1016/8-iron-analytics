@@ -4702,7 +4702,7 @@ class App {
             let headerIndex = 0;
             for (let i = 0; i < Math.min(10, lines.length); i++) {
                 const l = lines[i].toLowerCase();
-                if ((l.includes('date') && l.includes('course')) || l.includes('round #') || l.includes('round number')) {
+                if ((l.includes('date') && l.includes('course')) || l.includes('round #') || l.includes('round number') || l.includes('course id') || l.includes('course_id')) {
                     headerIndex = i;
                     console.log("Found header index at line:", i, lines[i]);
                     break;
@@ -4804,11 +4804,19 @@ class App {
                                 roundNum: roundNum > 0 ? roundNum : undefined,
                                 createdAt: new Date().toISOString()
                             };
+                            const v_courseId = getRowVal(row, ['course id', 'course_id', 'courseid']);
                             if (formattedDate) roundPayload.date = formattedDate;
                             if (course) {
                                 roundPayload.course = course;
                                 const layout = self.courseLayouts.find(c => isCourseMatch(c.name, course));
-                                roundPayload.courseId = layout ? layout.courseId : null;
+                                roundPayload.courseId = layout ? layout.courseId : (v_courseId || null);
+                            } else if (v_courseId) {
+                                // HEALER: If course name is missing but Course ID is provided, resolve name
+                                const layout = self.courseLayouts.find(c => c.courseId === v_courseId);
+                                if (layout) {
+                                    roundPayload.course = layout.name;
+                                    roundPayload.courseId = v_courseId;
+                                }
                             }
 
                             const v_score = getRowVal(row, ['score']);
