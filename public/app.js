@@ -1036,13 +1036,16 @@ class App {
                 endIdx = 18;
             }
 
-            // If the tee has a specific hole count, use that as the primary boundary
+            // If the tee has a specific hole count, use that as the secondary boundary IF it makes sense
             if (prefilledHoles && prefilledHoles.length > 0) {
-                if (prefilledHoles.length === 9) {
+                if (segment === "18") {
+                    endIdx = Math.max(18, prefilledHoles.length);
+                } else if (segment === "front9") {
                     startIdx = 0;
                     endIdx = 9;
-                } else if (segment === "18") {
-                    endIdx = prefilledHoles.length;
+                } else if (segment === "back9") {
+                    startIdx = 9;
+                    endIdx = 18;
                 }
             }
 
@@ -1062,7 +1065,12 @@ class App {
                     tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
                     tr.id = `hole-row-${holeNum}`;
 
-                    const preHole = prefilledHoles ? prefilledHoles[i] : null;
+                    // Looping prefilledHoles: if it has 9 but we are at 10-18, loop back to 0-8
+                    let preHole = null;
+                    if (prefilledHoles && prefilledHoles.length > 0) {
+                        const lookupIdx = i % prefilledHoles.length;
+                        preHole = prefilledHoles[lookupIdx];
+                    }
                     const existing = this.tempHoleData[holeNum];
 
                     tr.innerHTML = `
@@ -1344,13 +1352,17 @@ class App {
 
         // 6. SETUP SEGMENT
         let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+
+        // DATA-DRIVEN HEALER: Count how many holes actually have scores. 
+        // If more than 9, we MUST show 18 holes to be useful.
+        const nonZeroHoleCount = (round.holeData || []).filter(h => h.score > 0).length;
+        if (nonZeroHoleCount > 9) {
+            segment = '18';
+        }
+
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
         const teeName = round.teeName || '';
         const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
-
-        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
-            if (round.holeData && round.holeData.length > 9) segment = '18';
-        }
 
         setVal('holes', segment);
         setVal('detail-holes-select', segment);
@@ -1520,15 +1532,15 @@ class App {
                 if (!select) return;
                 const currentVal = select.value;
                 select.innerHTML = '';
-                if (holeCount === 18) {
-                    select.innerHTML = `
+
+                // ALWAYS allow 18 Holes if the user has/wants it.
+                // On a 9-hole course, it just loops the front 9.
+                select.innerHTML = `
                     <option value="18" ${currentVal === '18' ? 'selected' : ''}>18 Holes</option>
                     <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
                     <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
                 `;
-                } else {
-                    select.innerHTML = `<option value="front9" selected>Front 9</option>`;
-                }
+
                 // Preserve the value if it exists in the new options, otherwise it defaults to first
                 if (currentVal && select.querySelector(`option[value="${currentVal}"]`)) {
                     select.value = currentVal;
