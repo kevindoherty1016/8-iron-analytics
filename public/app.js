@@ -1049,92 +1049,100 @@ class App {
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
         console.debug('Generating scorecard:', segment, 'Prefilled:', prefilledHoles?.length, 'TempData Keys:', Object.keys(this.tempHoleData).length);
 
-        // First ensure any currently visible data is saved before we clear,
-        // but ONLY if we are not already in the middle of a regeneration/load.
-        if (!this.isRegeneratingScorecard) {
-            this.calculateDetailedTotals();
-        }
+        try {
+            // First ensure any currently visible data is saved before we clear,
+            // but ONLY if we are not already in the middle of a regeneration/load.
+            if (!this.isRegeneratingScorecard) {
+                this.calculateDetailedTotals();
+            }
 
-        this.isRegeneratingScorecard = true;
+            this.isRegeneratingScorecard = true;
 
-        const tbody = document.getElementById('detailed-scorecard-body');
-        if (!tbody) {
-            console.error('detailed-scorecard-body not found!');
-            this.isRegeneratingScorecard = false;
-            return;
-        }
+            const tbody = document.getElementById('detailed-scorecard-body');
+            if (!tbody) {
+                console.error('detailed-scorecard-body not found!');
+                return;
+            }
 
-        tbody.innerHTML = '';
+            tbody.innerHTML = '';
 
-        let startIdx = 0;
-        let endIdx = 18;
+            let startIdx = 0;
+            let endIdx = 18;
 
-        if (segment === "front9") {
-            startIdx = 0;
-            endIdx = 9;
-        } else if (segment === "back9") {
-            startIdx = 9;
-            endIdx = 18;
-        }
-
-        // If the tee has a specific hole count, use that as the primary boundary
-        if (prefilledHoles && prefilledHoles.length > 0) {
-            if (prefilledHoles.length === 9) {
+            if (segment === "front9") {
                 startIdx = 0;
                 endIdx = 9;
-            } else if (segment === "18") {
-                endIdx = prefilledHoles.length;
+            } else if (segment === "back9") {
+                startIdx = 9;
+                endIdx = 18;
             }
-        }
 
-        // FINAL SAFETY: If we still have an invalid range or 0 holes, force 18
-        if (endIdx <= startIdx || isNaN(endIdx) || isNaN(startIdx)) {
-            console.warn('Invalid scorecard range detected, defaulting to 18 holes');
-            startIdx = 0;
-            endIdx = 18;
-        }
-
-        console.debug('Effective range:', startIdx, 'to', endIdx);
-
-        for (let i = startIdx; i < endIdx; i++) {
-            const holeNum = i + 1;
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            tr.id = `hole-row-${holeNum}`;
-
-            const preHole = prefilledHoles ? prefilledHoles[i] : null;
-            const existing = this.tempHoleData[holeNum];
-
-            tr.innerHTML = `
-                <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
-                <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
-                </td>
-                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && existing.gir ? 'checked' : ''}></td>
-            `;
-            tbody.appendChild(tr);
-            this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
-
-            // Re-apply FIR state (in case updateHoleFIR changed the structure)
-            if (existing && existing.fir !== undefined) {
-                const parInput = document.getElementById(`detail-par-${holeNum}`);
-                const par = parInput ? parseInt(parInput.value) : 4;
-                if (par === 5 && Array.isArray(existing.fir)) {
-                    const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
-                    const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
-                    if (f1) f1.checked = existing.fir[0];
-                    if (f2) f2.checked = existing.fir[1];
-                } else {
-                    const fEl = document.getElementById(`detail-fir-${holeNum}`);
-                    if (fEl) fEl.checked = (existing.fir === true);
+            // If the tee has a specific hole count, use that as the primary boundary
+            if (prefilledHoles && prefilledHoles.length > 0) {
+                if (prefilledHoles.length === 9) {
+                    startIdx = 0;
+                    endIdx = 9;
+                } else if (segment === "18") {
+                    endIdx = prefilledHoles.length;
                 }
             }
+
+            // FINAL SAFETY: If we still have an invalid range or 0 holes, force 18
+            if (endIdx <= startIdx || isNaN(endIdx) || isNaN(startIdx)) {
+                console.warn('Invalid scorecard range detected, defaulting to 18 holes');
+                startIdx = 0;
+                endIdx = 18;
+            }
+
+            console.debug('Effective range:', startIdx, 'to', endIdx);
+
+            for (let i = startIdx; i < endIdx; i++) {
+                try {
+                    const holeNum = i + 1;
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                    tr.id = `hole-row-${holeNum}`;
+
+                    const preHole = prefilledHoles ? prefilledHoles[i] : null;
+                    const existing = this.tempHoleData[holeNum];
+
+                    tr.innerHTML = `
+                        <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly' : ''}></td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
+                        <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
+                            <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
+                        </td>
+                        <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && existing.gir ? 'checked' : ''}></td>
+                    `;
+                    tbody.appendChild(tr);
+                    this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
+
+                    // Re-apply FIR state (in case updateHoleFIR changed the structure)
+                    if (existing && existing.fir !== undefined) {
+                        const parInput = document.getElementById(`detail-par-${holeNum}`);
+                        const par = parInput ? parseInt(parInput.value) : 4;
+                        if (par === 5 && Array.isArray(existing.fir)) {
+                            const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
+                            const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
+                            if (f1) f1.checked = existing.fir[0];
+                            if (f2) f2.checked = existing.fir[1];
+                        } else {
+                            const fEl = document.getElementById(`detail-fir-${holeNum}`);
+                            if (fEl) fEl.checked = (existing.fir === true);
+                        }
+                    }
+                } catch (holeErr) {
+                    console.error(`Error rendering hole ${i + 1}:`, holeErr);
+                }
+            }
+        } catch (err) {
+            console.error('Fatal error in generateDetailedScorecard:', err);
+        } finally {
+            this.isRegeneratingScorecard = false;
+            this.calculateDetailedTotals();
         }
-        this.isRegeneratingScorecard = false;
-        this.calculateDetailedTotals();
     }
 
     updateHoleFIR(holeNum, skipTotals = false) {
@@ -1327,110 +1335,107 @@ class App {
         // 1. OPEN MODAL FIRST (Ensures DOM elements are active and visible)
         this.openAddRoundModal(true);
 
-        const form = document.getElementById('add-round-form');
-        const entryModeSelect = document.getElementById('entry-mode-select');
-        if (!form || !entryModeSelect) {
-            console.error('Form or EntryModeSelect not found!');
-            return;
-        }
-
-        // 2. SET ENTRY MODE
-        const isDetailed = !!(round.holeData && round.holeData.length > 0);
-        console.debug('IsDetailed mode:', isDetailed, 'HoleData Length:', round.holeData?.length);
-        entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
-        this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
-
-        // 3. LOAD CORE DATA
-        document.getElementById('edit-round-id').value = round.id;
-        const setVal = (id, val) => {
-            const el = form.querySelector('#' + id);
-            if (el) el.value = val !== undefined ? val : '';
-        };
-
-        let dateVal = round.date;
-        if (dateVal && dateVal.includes('/')) {
-            const parts = dateVal.split('/');
-            if (parts.length === 3) {
-                let year = parts[2];
-                if (year.length === 2) year = '20' + year;
-                let month = parts[0].padStart(2, '0');
-                let day = parts[1].padStart(2, '0');
-                dateVal = `${year}-${month}-${day}`;
+        // 2. DEFERRED POPULATION (Ensures modal animation is complete and IDs are hot)
+        setTimeout(() => {
+            console.debug('Deferred population starting for round:', id);
+            const form = document.getElementById('add-round-form');
+            const entryModeSelect = document.getElementById('entry-mode-select');
+            if (!form || !entryModeSelect) {
+                console.error('Deferred check failed: Form or EntryModeSelect not found!');
+                return;
             }
-        }
-        setVal('date', dateVal);
-        setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
-        this.handleCourseChangeRoundModal();
 
-        // 4. POPULATE TEMP DATA
-        this.tempHoleData = {};
-        if (round.holeData) {
-            const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
-            hData.forEach(h => {
-                if (h && h.hole !== undefined) {
-                    const hNum = parseInt(h.hole);
-                    this.tempHoleData[hNum] = { ...h };
+            // 3. SET ENTRY MODE
+            const isDetailed = !!(round.holeData && round.holeData.length > 0);
+            entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
+            this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
+
+            // 4. LOAD CORE DATA
+            document.getElementById('edit-round-id').value = round.id;
+            const setVal = (fid, val) => {
+                const el = form.querySelector('#' + fid);
+                if (el) el.value = val !== undefined ? val : '';
+            };
+
+            let dateVal = round.date;
+            if (dateVal && dateVal.includes('/')) {
+                const parts = dateVal.split('/');
+                if (parts.length === 3) {
+                    let year = parts[2];
+                    if (year.length === 2) year = '20' + year;
+                    let month = parts[0].padStart(2, '0');
+                    let day = parts[1].padStart(2, '0');
+                    dateVal = `${year}-${month}-${day}`;
                 }
-            });
-        }
-        console.debug('TempData Populated:', Object.keys(this.tempHoleData).length, 'holes');
-
-        // 5. SETUP SEGMENT (HEALER: Prefer 18 holes if tee supports it)
-        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
-        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-        const teeName = round.teeName || '';
-        const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
-
-        if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
-            if (round.holeData && round.holeData.length > 9) {
-                console.debug('Healing segment from', segment, 'to 18 due to data length');
-                segment = '18';
             }
-        }
+            setVal('date', dateVal);
+            setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
+            this.handleCourseChangeRoundModal();
 
-        setVal('holes', segment);
-        setVal('detail-holes-select', segment);
-        setVal('round-tee-set', teeName);
+            // 5. POPULATE TEMP DATA
+            this.tempHoleData = {};
+            if (round.holeData) {
+                const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
+                hData.forEach(h => {
+                    if (h && h.hole !== undefined) {
+                        const hNum = parseInt(h.hole);
+                        this.tempHoleData[hNum] = { ...h };
+                    }
+                });
+            }
 
-        // 6. RENDER SCORECARD
-        this.isRegeneratingScorecard = true;
-        this.handleTeeChangeRoundModal(); // This calls generateDetailedScorecard internally
-        this.isRegeneratingScorecard = false;
+            // 6. SETUP SEGMENT
+            let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+            const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
+            const teeName = round.teeName || '';
+            const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
 
-        // 7. POPULATE EXTRAS
-        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
-        const divisor = isLegacyDoubledEntry ? 2 : 1;
-        setVal('coursePar', (round.coursePar / divisor) || 72);
-        setVal('score', (round.score / divisor) || 0);
-        setVal('putts', (round.putts / divisor) || 0);
-        setVal('gir', (round.gir / divisor) || 0);
-        setVal('fir', (round.fir / divisor) || 0);
-        setVal('firChances', (round.firChances / divisor) || 0);
-        setVal('eagles', (round.eagles / divisor) || 0);
-        setVal('birdies', (round.birdies / divisor) || 0);
-        setVal('pars', (round.pars / divisor) || 0);
-        setVal('bogeys', (round.bogeys / divisor) || 0);
-        setVal('putter', round.putter || '');
-        setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
-        setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
-        setVal('upDownChances', (round.upDownChances / divisor) || 0);
-        setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
-        setVal('threePutts', (round.threePutts / divisor) || 0);
-        setVal('lostBalls', (round.lostBalls / divisor) || 0);
-        setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
-        setVal('roundCost', round.cost || '');
-        setVal('roundWinnings', round.winnings || '');
-        setVal('roundEvent', round.event || '');
-        setVal('roundGroup', round.group || '');
+            if (tee && tee.holes && tee.holes.length === 18 && (segment === 'front9' || segment === 'back9')) {
+                if (round.holeData && round.holeData.length > 9) segment = '18';
+            }
 
-        document.getElementById('add-round-title').textContent = 'Edit Round';
-        document.getElementById('save-round-btn').textContent = 'Update Round';
-        document.getElementById('cancel-edit-btn').style.display = 'block';
+            setVal('holes', segment);
+            setVal('detail-holes-select', segment);
+            setVal('round-tee-set', teeName);
 
-        // Final sanity check: if detailed mode, ensure totals are visible
-        if (isDetailed) {
-            this.calculateDetailedTotals();
-        }
+            // 7. RENDER SCORECARD
+            this.isRegeneratingScorecard = true;
+            this.handleTeeChangeRoundModal();
+
+            // 8. POPULATE EXTRAS
+            const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
+            const divisor = isLegacyDoubledEntry ? 2 : 1;
+            setVal('coursePar', (round.coursePar / divisor) || 72);
+            setVal('score', (round.score / divisor) || 0);
+            setVal('putts', (round.putts / divisor) || 0);
+            setVal('gir', (round.gir / divisor) || 0);
+            setVal('fir', (round.fir / divisor) || 0);
+            setVal('firChances', (round.firChances / divisor) || 0);
+            setVal('eagles', (round.eagles / divisor) || 0);
+            setVal('birdies', (round.birdies / divisor) || 0);
+            setVal('pars', (round.pars / divisor) || 0);
+            setVal('bogeys', (round.bogeys / divisor) || 0);
+            setVal('putter', round.putter || '');
+            setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
+            setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
+            setVal('upDownChances', (round.upDownChances / divisor) || 0);
+            setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
+            setVal('threePutts', (round.threePutts / divisor) || 0);
+            setVal('lostBalls', (round.lostBalls / divisor) || 0);
+            setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
+            setVal('roundCost', round.cost || '');
+            setVal('roundWinnings', round.winnings || '');
+            setVal('roundEvent', round.event || '');
+            setVal('roundGroup', round.group || '');
+
+            document.getElementById('add-round-title').textContent = 'Edit Round';
+            document.getElementById('save-round-btn').textContent = 'Update Round';
+            document.getElementById('cancel-edit-btn').style.display = 'block';
+
+            if (isDetailed) {
+                this.calculateDetailedTotals();
+            }
+        }, 50);
     }
 
     switchView(viewId) {
