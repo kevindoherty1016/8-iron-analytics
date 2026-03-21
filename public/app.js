@@ -2051,8 +2051,8 @@ class App {
         }
 
         // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
+        if (this.db && window.firebaseDB) {
+            const { doc, setDoc } = window.firebaseDB;
             await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
         }
 
