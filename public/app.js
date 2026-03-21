@@ -2054,11 +2054,12 @@ class App {
                 this.courseLayouts.push(courseData);
             }
 
-            // Sync to cloud
+            // Sync to cloud (fire and forget — don't block UI)
             if (this.db && window.firebaseDB) {
                 const { doc, setDoc } = window.firebaseDB;
-                await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
-                console.log("Course saved successfully:", courseData.courseId);
+                setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true })
+                    .then(() => console.log("Course synced to cloud:", courseData.courseId))
+                    .catch(err => console.error("Cloud sync failed (data saved locally):", err));
             }
 
             this.closeAddCourseModal();
