@@ -2040,8 +2040,8 @@ class App {
                 };
                 this.courseLayouts[index] = courseData;
             } else {
-                // Create new
-                const newId = await this.getNextCourseIdGlobal();
+                // Create new — use local ID generator to avoid blocking Firestore transaction
+                const newId = this.generateCourseId();
                 courseData = {
                     courseId: newId,
                     name: name,
