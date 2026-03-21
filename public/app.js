@@ -37,8 +37,9 @@ const prodConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
-// 3. Select the config based on the environment
-const firebaseConfig = isDev ? devConfig : prodConfig;
+// 3. Always use production config so your data persists.
+//    isDev is still used to skip App Check (reCAPTCHA) on dev.
+const firebaseConfig = prodConfig;
 
 // Initialize Firebase using the selected config
 const app = initializeApp(firebaseConfig);
@@ -2124,7 +2125,8 @@ class App {
     closeAddTeeModal() {
         const modal = document.getElementById('add-tee-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-tee-form').reset();
+        const form = document.getElementById('add-tee-form');
+        if (form) form.reset();
         this.editingTeeName = null;
     }
 
@@ -2173,10 +2175,12 @@ class App {
         course.tees[teeName] = teeData;
         course.updatedAt = new Date().toISOString();
 
-        // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
+        // Sync to cloud (fire and forget — don't block UI)
+        if (this.db && window.firebaseDB) {
+            const { doc, setDoc } = window.firebaseDB;
+            setDoc(doc(this.db, "courses", courseId), course, { merge: true })
+                .then(() => console.log("Tee synced to cloud:", courseId, teeName))
+                .catch(err => console.error("Tee cloud sync failed:", err));
         }
 
         this.editingTeeName = null;
