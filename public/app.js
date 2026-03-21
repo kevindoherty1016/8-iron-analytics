@@ -2021,44 +2021,54 @@ class App {
 
         if (!name) return;
 
-        let courseData;
-        const editingId = this.editingCourseId;
+        const saveBtn = e.target.querySelector('button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
-        if (editingId) {
-            // Update existing
-            const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
-            courseData = {
-                ...this.courseLayouts[index],
-                name: name,
-                state: state || '',
-                country: country || '',
-                updatedAt: new Date().toISOString()
-            };
-            this.courseLayouts[index] = courseData;
-        } else {
-            // Create new (Global Registry)
-            const newId = await this.getNextCourseIdGlobal();
-            courseData = {
-                courseId: newId,
-                name: name,
-                state: state,
-                country: country,
-                tees: {},
-                updatedAt: new Date().toISOString(),
-                createdBy: this.user ? this.user.uid : 'anonymous'
-            };
-            this.courseLayouts.push(courseData);
+        try {
+            let courseData;
+            const editingId = this.editingCourseId;
+
+            if (editingId) {
+                // Update existing
+                const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
+                courseData = {
+                    ...this.courseLayouts[index],
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    updatedAt: new Date().toISOString()
+                };
+                this.courseLayouts[index] = courseData;
+            } else {
+                // Create new
+                const newId = await this.getNextCourseIdGlobal();
+                courseData = {
+                    courseId: newId,
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    tees: {},
+                    updatedAt: new Date().toISOString(),
+                    createdBy: this.user ? this.user.uid : 'anonymous'
+                };
+                this.courseLayouts.push(courseData);
+            }
+
+            // Sync to cloud
+            if (this.db && window.firebaseDB) {
+                const { doc, setDoc } = window.firebaseDB;
+                await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
+                console.log("Course saved successfully:", courseData.courseId);
+            }
+
+            this.closeAddCourseModal();
+            this.renderCourseManagement();
+            this.selectMgmtCourse(courseData.courseId);
+        } catch (err) {
+            console.error("Failed to save course:", err);
+            alert(`Error saving course: ${err.message}`);
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Course'; }
         }
-
-        // Sync to cloud
-        if (this.db && window.firebaseDB) {
-            const { doc, setDoc } = window.firebaseDB;
-            await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
-        }
-
-        this.closeAddCourseModal();
-        this.renderCourseManagement();
-        this.selectMgmtCourse(courseData.courseId);
     }
 
     openAddTeeModal(isEdit = false) {
