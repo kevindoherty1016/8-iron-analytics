@@ -1904,7 +1904,8 @@ class App {
     closeAddCourseModal() {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-course-form').reset();
+        const form = document.getElementById('add-course-form');
+        if (form) form.reset();
         this.editingCourseId = null;
     }
 
