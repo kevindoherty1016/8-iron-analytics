@@ -13,6 +13,7 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.1/firebase
 // Check if the current URL is a dev/test environment
 const isDev = window.location.hostname.includes('dev-permanent') ||
     window.location.hostname.includes('ironanalytics-dev') ||
+    window.location.hostname.includes('8iron-dev') ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
 
@@ -36,8 +37,8 @@ const prodConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
-// 3. Select the config based on the environment
-const firebaseConfig = isDev ? devConfig : prodConfig;
+// 3. Always use production Firebase so your data persists on dev
+const firebaseConfig = prodConfig;
 
 // Initialize Firebase using the selected config
 const app = initializeApp(firebaseConfig);
@@ -105,25 +106,15 @@ class App {
                 this.db = window.firebaseDB.getFirestore(firebaseApp);
                 window.db = this.db;
 
-                // Wrap the existing App Check logic so it skips Dev
-                if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
+                // Initialize Firebase App Check logic (skips on dev)
+                if (window.firebaseAppCheck && !isDev) {
                     window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
                         provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
                         isTokenAutoRefreshEnabled: true
                     });
-                } else {
+                } else if (window.firebaseAppCheck) {
                     console.log("App Check skipped because we are in Dev mode.");
                 }
-                // Initialize Firebase App Check with reCAPTCHA Enterprise
-             // Wrap the existing App Check logic so it skips Dev
-if (window.firebaseAppCheck)
-    window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
-        provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
-        isTokenAutoRefreshEnabled: true
-    });
-} else {
-    console.log("App Check skipped because we are in Dev mode.");
-}
 
                 const warning = document.getElementById('firebase-config-warning');
                 if (warning) {
@@ -1913,7 +1904,8 @@ if (window.firebaseAppCheck)
     closeAddCourseModal() {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-course-form').reset();
+        const form = document.getElementById('add-course-form');
+        if (form) form.reset();
         this.editingCourseId = null;
     }
 
@@ -2030,44 +2022,55 @@ if (window.firebaseAppCheck)
 
         if (!name) return;
 
-        let courseData;
-        const editingId = this.editingCourseId;
+        const saveBtn = e.target.querySelector('button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
-        if (editingId) {
-            // Update existing
-            const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
-            courseData = {
-                ...this.courseLayouts[index],
-                name: name,
-                state: state || '',
-                country: country || '',
-                updatedAt: new Date().toISOString()
-            };
-            this.courseLayouts[index] = courseData;
-        } else {
-            // Create new (Global Registry)
-            const newId = await this.getNextCourseIdGlobal();
-            courseData = {
-                courseId: newId,
-                name: name,
-                state: state,
-                country: country,
-                tees: {},
-                updatedAt: new Date().toISOString(),
-                createdBy: this.user ? this.user.uid : 'anonymous'
-            };
-            this.courseLayouts.push(courseData);
+        try {
+            let courseData;
+            const editingId = this.editingCourseId;
+
+            if (editingId) {
+                // Update existing
+                const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
+                courseData = {
+                    ...this.courseLayouts[index],
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    updatedAt: new Date().toISOString()
+                };
+                this.courseLayouts[index] = courseData;
+            } else {
+                // Create new — use local ID generator to avoid blocking Firestore transaction
+                const newId = this.generateCourseId();
+                courseData = {
+                    courseId: newId,
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    tees: {},
+                    updatedAt: new Date().toISOString(),
+                    createdBy: this.user ? this.user.uid : 'anonymous'
+                };
+                this.courseLayouts.push(courseData);
+            }
+
+            // Sync to cloud (fire and forget — don't block UI)
+            if (this.db && window.firebaseDB) {
+                const { doc, setDoc } = window.firebaseDB;
+                setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true })
+                    .then(() => console.log("Course synced to cloud:", courseData.courseId))
+                    .catch(err => console.error("Cloud sync failed (data saved locally):", err));
+            }
+
+            this.closeAddCourseModal();
+            this.renderCourseManagement();
+            this.selectMgmtCourse(courseData.courseId);
+        } catch (err) {
+            console.error("Failed to save course:", err);
+            alert(`Error saving course: ${err.message}`);
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Course'; }
         }
-
-        // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
-        }
-
-        this.closeAddCourseModal();
-        this.renderCourseManagement();
-        this.selectMgmtCourse(courseData.courseId);
     }
 
     openAddTeeModal(isEdit = false) {
@@ -2121,7 +2124,8 @@ if (window.firebaseAppCheck)
     closeAddTeeModal() {
         const modal = document.getElementById('add-tee-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-tee-form').reset();
+        const form = document.getElementById('add-tee-form');
+        if (form) form.reset();
         this.editingTeeName = null;
     }
 
@@ -2170,10 +2174,12 @@ if (window.firebaseAppCheck)
         course.tees[teeName] = teeData;
         course.updatedAt = new Date().toISOString();
 
-        // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
+        // Sync to cloud (fire and forget — don't block UI)
+        if (this.db && window.firebaseDB) {
+            const { doc, setDoc } = window.firebaseDB;
+            setDoc(doc(this.db, "courses", courseId), course, { merge: true })
+                .then(() => console.log("Tee synced to cloud:", courseId, teeName))
+                .catch(err => console.error("Tee cloud sync failed:", err));
         }
 
         this.editingTeeName = null;
@@ -2750,6 +2756,7 @@ if (window.firebaseAppCheck)
 
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
+            const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
             const avgScore = mathScoringCount > 0 ? (totalScoreSum / mathScoringCount) : 0;
             const avgScoreToPar = mathScoringCount > 0 ? (totalScoreToParSum / mathScoringCount) : 0;
             const avgPutts = mathScoringCount > 0 ? (totalPuttsSum / mathScoringCount) : 0;
@@ -2866,7 +2873,7 @@ if (window.firebaseAppCheck)
                 <div class="card stat-card">
                     <div class="stat-title"># of Rounds</div>
                     <div class="stat-value" style="color: var(--text-primary);">${count}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Total Filtered</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">${uniqueCourseCount} course${uniqueCourseCount !== 1 ? 's' : ''} · Total Filtered</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Best Score (${benchmarkHoles} Holes)</div>
