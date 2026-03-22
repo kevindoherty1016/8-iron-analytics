@@ -2757,6 +2757,7 @@ class App {
 
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
+            const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
             const avgScore = mathScoringCount > 0 ? (totalScoreSum / mathScoringCount) : 0;
             const avgScoreToPar = mathScoringCount > 0 ? (totalScoreToParSum / mathScoringCount) : 0;
             const avgPutts = mathScoringCount > 0 ? (totalPuttsSum / mathScoringCount) : 0;
@@ -2872,7 +2873,7 @@ class App {
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title"># of Rounds</div>
-                    <div class="stat-value" style="color: var(--text-primary);">${count}</div>
+                    <div class="stat-value" style="color: var(--text-primary);">${count} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${uniqueCourseCount} course${uniqueCourseCount !== 1 ? 's' : ''})</span></div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Total Filtered</div>
                 </div>
                 <div class="card stat-card">
