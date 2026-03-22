@@ -2069,6 +2069,7 @@ class App {
         } catch (err) {
             console.error("Failed to save course:", err);
             alert(`Error saving course: ${err.message}`);
+        } finally {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Course'; }
         }
     }
