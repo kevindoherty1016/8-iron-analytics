@@ -2873,8 +2873,8 @@ class App {
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title"># of Rounds</div>
-                    <div class="stat-value" style="color: var(--text-primary);">${count} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${uniqueCourseCount} course${uniqueCourseCount !== 1 ? 's' : ''})</span></div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Total Filtered</div>
+                    <div class="stat-value" style="color: var(--text-primary);">${count}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">${uniqueCourseCount} course${uniqueCourseCount !== 1 ? 's' : ''} · Total Filtered</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Best Score (${benchmarkHoles} Holes)</div>
