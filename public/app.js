@@ -37,9 +37,8 @@ const prodConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
-// 3. Always use production config so your data persists.
-//    isDev is still used to skip App Check (reCAPTCHA) on dev.
-const firebaseConfig = prodConfig;
+// 3. Select the config based on the environment
+const firebaseConfig = isDev ? devConfig : prodConfig;
 
 // Initialize Firebase using the selected config
 const app = initializeApp(firebaseConfig);
