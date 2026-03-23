@@ -2091,11 +2091,20 @@ class App {
             // Initial Grid Render (18 holes)
             this.renderHoleGridInTeeModal(18);
 
-            // Auto-populate next available Tee ID
-            this.getNextTeeIdGlobal().then(id => {
-                const teeIdInput = document.getElementById('mgmt-tee-id');
-                if (teeIdInput) teeIdInput.value = id;
-            });
+            // Populate Tee ID — reuse the cached pending ID if the user previously cancelled,
+            // so we don't burn a new ID every time the modal is opened.
+            const teeIdInput = document.getElementById('mgmt-tee-id');
+            if (teeIdInput) teeIdInput.readOnly = true;
+
+            if (this.pendingTeeId) {
+                if (teeIdInput) teeIdInput.value = this.pendingTeeId;
+            } else {
+                this.getNextTeeIdGlobal().then(id => {
+                    this.pendingTeeId = id;
+                    const input = document.getElementById('mgmt-tee-id');
+                    if (input) input.value = id;
+                });
+            }
         }
 
         modal.classList.remove('hidden');
@@ -2128,6 +2137,8 @@ class App {
         const form = document.getElementById('add-tee-form');
         if (form) form.reset();
         this.editingTeeName = null;
+        // NOTE: intentionally do NOT clear this.pendingTeeId here — if the user
+        // cancelled, we want to reuse the same ID next time they open Add Tee.
     }
 
     async handleAddTee(e) {
@@ -2184,6 +2195,7 @@ class App {
         }
 
         this.editingTeeName = null;
+        this.pendingTeeId = null; // ID was consumed — clear so a fresh one is fetched next time
         this.closeAddTeeModal();
         this.selectMgmtCourse(courseId);
         this.selectMgmtTee(courseId, teeName);
