@@ -3999,7 +3999,7 @@ class App {
                                     <td style="padding: 10px; text-align: center;">${h.par || '-'}</td>
                                     <td style="padding: 10px; text-align: center; font-weight: bold; color: ${h.score < h.par ? '#10b981' : (h.score > h.par ? '#ef4444' : 'var(--text-primary)')};">${h.score || '-'}</td>
                                     <td style="padding: 10px; text-align: center;">${h.putts || '-'}</td>
-                                    <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : (h.fir ? '✅' : '❌')}</td>
+                                    <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : ((Array.isArray(h.fir) ? h.fir.some(v => v) : h.fir) ? '✅' : '❌')}</td>
                                     <td style="padding: 10px; text-align: center;">${h.gir ? '✅' : '❌'}</td>
                                 </tr>
                             ` : '').join('')}
