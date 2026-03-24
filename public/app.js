@@ -1082,7 +1082,7 @@ class App {
                         <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
                             <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
                         </td>
-                        <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && existing.gir ? 'checked' : ''}></td>
+                        <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green); pointer-events: none; opacity: 0.7;" tabindex="-1" ${existing && existing.gir ? 'checked' : ''}></td>
                     `;
                     tbody.appendChild(tr);
                     this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
@@ -1149,8 +1149,17 @@ class App {
         const scoreVal = parseInt(scoreInput.value) || 0;
         const puttsVal = parseInt(puttsInput.value) || 0;
 
+        // Auto-calculate GIR: reached the green in (par - 2) strokes or fewer.
+        // Formula: (score - putts) <= (par - 2)
+        // Only compute when we have valid score and putts; otherwise leave unchecked.
+        let gir = false;
+        if (scoreVal > 0 && puttsVal > 0 && parVal > 0) {
+            gir = (scoreVal - puttsVal) <= (parVal - 2);
+        }
+
+        // Reflect auto-calculated GIR back to the checkbox
         const girEl = document.getElementById(`detail-gir-${hNum}`);
-        const gir = girEl ? girEl.checked : false;
+        if (girEl) girEl.checked = gir;
 
         const fEl = document.getElementById(`detail-fir-${hNum}`);
         const f1 = document.getElementById(`detail-fir-${hNum}-1`);
