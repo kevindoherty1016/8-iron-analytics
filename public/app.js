@@ -128,7 +128,7 @@ class App {
                         document.body.classList.remove('landing-mode');
                         document.getElementById('sidebar').classList.remove('hidden');
                         document.getElementById('top-header').classList.remove('hidden');
-                        document.getElementById('user-avatar').textContent = user.email.charAt(0).toUpperCase();
+                        this.updateAvatar();
 
                         // Switch view IMMEDIATELY, then load data in background
                         this.switchView('dashboard');
@@ -494,6 +494,8 @@ class App {
                 if (this.profile.insightsTargetType) this.insightsTargetType = this.profile.insightsTargetType;
                 if (this.profile.insightsTargetValue) this.insightsTargetValue = this.profile.insightsTargetValue;
                 if (this.profile.insightsHoles) this.insightsHoles = this.profile.insightsHoles;
+                
+                this.updateAvatar();
             }
         } catch (e) {
             console.error("Error loading profile:", e);
@@ -506,6 +508,7 @@ class App {
             const { doc, setDoc } = window.firebaseDB;
             await setDoc(doc(this.db, 'users', this.user.uid, 'settings', 'profile'), profileData, { merge: true });
             this.profile = { ...this.profile, ...profileData };
+            this.updateAvatar();
             alert("Profile saved successfully!");
         } catch (e) {
             console.error("Error saving profile:", e);
@@ -1793,6 +1796,21 @@ class App {
         }
     }
 
+    updateAvatar() {
+        const avatar = document.getElementById('user-avatar');
+        if (!avatar) return;
+        
+        if (this.profile && this.profile.firstName && this.profile.lastName) {
+            const firstInitial = this.profile.firstName.trim().charAt(0).toUpperCase();
+            const lastInitial = this.profile.lastName.trim().charAt(0).toUpperCase();
+            avatar.textContent = `${firstInitial}.${lastInitial}.`;
+        } else if (this.user && this.user.email) {
+            avatar.textContent = this.user.email.charAt(0).toUpperCase();
+        } else {
+            avatar.textContent = 'U';
+        }
+    }
+
     renderProfile() {
         const setVal = (id, val) => {
             const el = document.getElementById(id);
@@ -1801,6 +1819,7 @@ class App {
 
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
+        setVal('profile-email', this.user ? this.user.email : 'local@example.com');
         this.updateHandicapDisplay();
     }
 
