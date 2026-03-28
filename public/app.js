@@ -1967,10 +1967,12 @@ class App {
             const validRatings = history.filter(h => h.roundRating !== null);
             if (validRatings.length > 0) {
                 const bestRatingEntry = [...validRatings].sort((a, b) => b.roundRating - a.roundRating)[0];
+                const worstRatingEntry = [...validRatings].sort((a, b) => a.roundRating - b.roundRating)[0];
                 const latestRatingEntry = validRatings[validRatings.length - 1];
                 const avgRatingVal = validRatings.reduce((acc, h) => acc + h.roundRating, 0) / validRatings.length;
 
                 setTile('stat-best-rating', bestRatingEntry.roundRating.toFixed(1), `${bestRatingEntry.roundRatingLabel} (${bestRatingEntry.courseName})`, bestRatingEntry, 'rating');
+                setTile('stat-worst-rating', worstRatingEntry.roundRating.toFixed(1), `${worstRatingEntry.roundRatingLabel} (${worstRatingEntry.courseName})`, worstRatingEntry, 'rating');
                 setTile('stat-latest-rating', latestRatingEntry.roundRating.toFixed(1), `${latestRatingEntry.roundRatingLabel} (${latestRatingEntry.courseName})`, latestRatingEntry, 'rating');
                 
                 const avgRatingEl = document.getElementById('stat-avg-rating');
@@ -1988,6 +1990,7 @@ class App {
                 }
             } else {
                 setTile('stat-best-rating', '--', 'Need 3 rounds', null, 'rating');
+                setTile('stat-worst-rating', '--', 'Need 3 rounds', null, 'rating');
                 setTile('stat-latest-rating', '--', 'Need 3 rounds', null, 'rating');
                 const avgRatingEl = document.getElementById('stat-avg-rating');
                 if (avgRatingEl) avgRatingEl.textContent = '--';

@@ -378,6 +378,12 @@
                             <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">Weighted performance & difficulty</div>
                         </div>
                         <div class="card stat-card">
+                            <div class="stat-label">Worse Round Rating</div>
+                            <div class="stat-value" id="stat-worst-rating" style="color: var(--danger);">--</div>
+                            <div class="stat-desc" id="stat-worst-rating-desc">--</div>
+                            <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">Lowest rated performance</div>
+                        </div>
+                        <div class="card stat-card">
                             <div class="stat-label">Latest Round Rating</div>
                             <div class="stat-value" id="stat-latest-rating" style="color: var(--text-light);">--</div>
                             <div class="stat-desc" id="stat-latest-rating-desc">--</div>
@@ -389,6 +395,12 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                             <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Handicap & Performance Trend</h3>
                             <div style="display: flex; align-items: center; gap: 10px;">
+                                <select id="course-chart-sort" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                                    <option value="chrono-asc">Oldest First</option>
+                                    <option value="chrono-desc">Newest First</option>
+                                    <option value="val-asc">Low to High</option>
+                                    <option value="val-desc">High to Low</option>
+                                </select>
                                 <select id="course-primary-stat" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                                     <option value="handicap">Primary: Handicap</option>
                                     <option value="performance">Primary: Performance</option>
@@ -400,12 +412,6 @@
                                     <option value="performance">Secondary: Performance</option>
                                     <option value="difficulty">Secondary: Difficulty</option>
                                     <option value="rating">Secondary: Round Rating</option>
-                                </select>
-                                <select id="course-chart-sort" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
-                                    <option value="chrono-asc">Oldest First</option>
-                                    <option value="chrono-desc">Newest First</option>
-                                    <option value="val-asc">Low to High</option>
-                                    <option value="val-desc">High to Low</option>
                                 </select>
                             </div>
                         </div>
