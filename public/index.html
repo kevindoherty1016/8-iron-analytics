@@ -357,6 +357,16 @@
                                 <label for="mgmt-course-country">Country</label>
                                 <input type="text" id="mgmt-course-country" placeholder="e.g. USA">
                             </div>
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="mgmt-course-type">Type</label>
+                                <select id="mgmt-course-type">
+                                    <option value="">Select Type</option>
+                                    <option value="Public">Public</option>
+                                    <option value="Private">Private</option>
+                                    <option value="Semi-Private">Semi-Private</option>
+                                    <option value="Resort">Resort</option>
+                                </select>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 10px;">
                             <button type="submit" class="btn btn-primary" style="flex: 1;">Save Course</button>
@@ -693,6 +703,29 @@
                                         <label for="roundGroup">Group</label>
                                         <input type="text" id="roundGroup" name="roundGroup"
                                             placeholder="e.g. Saturday Foursome">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="weather">Weather Conditions</label>
+                                        <select id="weather" name="weather">
+                                            <option value="">Select Weather</option>
+                                            <option value="Sunny">Sunny</option>
+                                            <option value="Partly Cloudy">Partly Cloudy</option>
+                                            <option value="Cloudy">Cloudy</option>
+                                            <option value="Rain">Rain</option>
+                                            <option value="Windy">Windy</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="temperature">Temperature</label>
+                                        <input type="number" id="temperature" name="temperature" placeholder="e.g. 75">
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top: 10px;">
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="roundNotes">Notes</label>
+                                        <textarea id="roundNotes" name="roundNotes" rows="3" placeholder="Any notes about the round..." style="width: 100%; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; background: var(--bg-dark); color: var(--text-light); resize: vertical;"></textarea>
                                     </div>
                                 </div>
                             </div>

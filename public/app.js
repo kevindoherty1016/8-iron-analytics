@@ -902,6 +902,9 @@ class App {
         newRound.winnings = parseFloat(formData.get('roundWinnings') || 0) || 0;
         newRound.event = (formData.get('roundEvent') || '').trim();
         newRound.group = (formData.get('roundGroup') || '').trim();
+        newRound.weather = formData.get('weather') || '';
+        newRound.temperature = formData.get('temperature') || '';
+        newRound.notes = (formData.get('roundNotes') || '').trim();
 
         newRound.scoreToPar = newRound.score - newRound.coursePar;
         newRound.puttsPerHole = newRound.holes > 0 ? (newRound.putts / newRound.holes).toFixed(2) : 0;
@@ -1424,6 +1427,9 @@ class App {
         setVal('roundWinnings', round.winnings || '');
         setVal('roundEvent', round.event || '');
         setVal('roundGroup', round.group || '');
+        setVal('weather', round.weather || '');
+        setVal('temperature', round.temperature || '');
+        setVal('roundNotes', round.notes || '');
 
         document.getElementById('add-round-title').textContent = 'Edit Round';
         document.getElementById('save-round-btn').textContent = 'Update Round';
@@ -1898,6 +1904,8 @@ class App {
         document.getElementById('mgmt-course-name').value = layout ? layout.name : (fallbackName || '');
         document.getElementById('mgmt-course-state').value = layout ? (layout.state || '') : '';
         document.getElementById('mgmt-course-country').value = layout ? (layout.country || '') : '';
+        const typeEl = document.getElementById('mgmt-course-type');
+        if (typeEl) typeEl.value = layout ? (layout.public_private || '') : '';
 
         // Store ID as we're editing an existing record, or null if registering a new course 
         this.editingCourseId = layout ? layout.courseId : null;
@@ -2028,6 +2036,8 @@ class App {
         const name = document.getElementById('mgmt-course-name').value.trim();
         const state = document.getElementById('mgmt-course-state').value.trim();
         const country = document.getElementById('mgmt-course-country').value.trim();
+        const typeEl = document.getElementById('mgmt-course-type');
+        const publicPrivate = typeEl ? typeEl.value : '';
 
         if (!name) return;
 
@@ -2046,6 +2056,7 @@ class App {
                     name: name,
                     state: state || '',
                     country: country || '',
+                    public_private: publicPrivate || '',
                     updatedAt: new Date().toISOString()
                 };
                 this.courseLayouts[index] = courseData;
@@ -2057,6 +2068,7 @@ class App {
                     name: name,
                     state: state || '',
                     country: country || '',
+                    public_private: publicPrivate || '',
                     tees: {},
                     updatedAt: new Date().toISOString(),
                     createdBy: this.user ? this.user.uid : 'anonymous'
@@ -3973,9 +3985,25 @@ class App {
                             <span>Group:</span>
                             <span style="font-weight: 600;">${round.group || '—'}</span>
                         </div>` : ''}
+                        ${(round.weather || round.temperature) ? `
+                        <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 2px;">
+                            <span>Weather:</span>
+                            <span style="font-weight: 600;">${round.weather || '—'}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Temp:</span>
+                            <span style="font-weight: 600;">${round.temperature ? round.temperature + '°' : '—'}</span>
+                        </div>` : ''}
                     </div>
                 </div>
             </div>
+
+            ${round.notes ? `
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Notes</h3>
+                <div style="background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-primary); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5;">${round.notes}</div>
+            </div>
+            ` : ''}
 
             ${round.holeData && round.holeData.length > 0 ? `
             <div style="margin-bottom: 30px;">
@@ -4209,6 +4237,7 @@ class App {
 
                         const state = (row['State'] || row['state'] || '').trim();
                         const country = (row['Country'] || row['country'] || '').trim();
+                        const publicPrivate = (row['Public/Private'] || row['public_private'] || row['Type'] || row['type'] || '').trim();
 
                         // Match by ID first, then by normalized Name
                         let existingIndex = -1;
@@ -4228,6 +4257,7 @@ class App {
                                 name: name || existing.name, // Support renaming via ID match if name changed
                                 state: state || existing.state || '',
                                 country: country || existing.country || '',
+                                public_private: publicPrivate || existing.public_private || '',
                                 updatedAt: new Date().toISOString()
                             };
                             this.courseLayouts[existingIndex] = courseData;
@@ -4238,6 +4268,7 @@ class App {
                                 name: name,
                                 state: state,
                                 country: country,
+                                public_private: publicPrivate,
                                 tees: {},
                                 updatedAt: new Date().toISOString(),
                                 createdBy: this.user ? this.user.uid : 'anonymous'
