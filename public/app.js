@@ -1793,11 +1793,6 @@ class App {
                     if (hdcpVal > 54.0) hdcpVal = 54.0;
                 }
 
-                // Expected Score: Rating + (Slope / 113) * Current Handicap
-                const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
-                const expected = rating + (slope / 113) * currentHdcp;
-                const performance = expected - adjustedScore;
-
                 history.push({
                     date: r.date,
                     count: count,
@@ -1805,7 +1800,13 @@ class App {
                     performance: performance,
                     difficulty: diffMetric,
                     courseName: r.course || course.name,
-                    score: r.score
+                    teeName: r.teeName,
+                    score: r.score,
+                    adjustedScore: adjustedScore,
+                    rating: rating,
+                    slope: slope,
+                    prevHandicap: currentHdcp,
+                    holes: holes
                 });
             }
         }
@@ -1851,17 +1852,23 @@ class App {
             const hardest = sortedByDiff[0];
             const easiest = sortedByDiff[sortedByDiff.length - 1];
 
-            const setTile = (id, val, desc) => {
+            const setTile = (id, val, desc, data, type) => {
+                const card = document.getElementById(id)?.closest('.card');
                 const valEl = document.getElementById(id);
                 const descEl = document.getElementById(id + '-desc');
                 if (valEl) valEl.textContent = val;
                 if (descEl) descEl.textContent = desc;
+                if (card) {
+                    card.style.cursor = 'pointer';
+                    card.onclick = () => this.showMetricBreakdown(type, data);
+                    card.title = "Click to see calculation";
+                }
             };
 
-            setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')');
-            setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')');
-            setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName);
-            setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName);
+            setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
+            setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
+            setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
+            setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
         }
 
         // Grouping Logic
@@ -2059,6 +2066,72 @@ class App {
                 }
             });
         }
+    }
+
+    showMetricBreakdown(type, data) {
+        const modal = document.getElementById('metric-math-modal');
+        const titleEl = document.getElementById('metric-modal-title');
+        const subtitleEl = document.getElementById('metric-modal-subtitle');
+        const contentEl = document.getElementById('metric-modal-content');
+
+        if (!modal || !contentEl) return;
+
+        let html = '';
+        if (type === 'performance') {
+            titleEl.textContent = "Performance Breakdown";
+            subtitleEl.textContent = `${data.courseName} - ${this.formatDateDisplay(data.date)}`;
+            
+            const expected = data.rating + (data.slope / 113) * data.prevHandicap;
+            
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">1. Expected Score Calculation</div>
+                <div style="margin-left: 10px; margin-bottom: 20px;">
+                    Rating: ${data.rating}<br>
+                    Slope: ${data.slope}<br>
+                    Handicap at time: ${data.prevHandicap.toFixed(1)}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Rating + (Slope / 113) * Handicap</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${data.rating} + (${data.slope} / 113) * ${data.prevHandicap.toFixed(1)} = <span style="color: var(--primary-green);">${expected.toFixed(2)}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">2. Performance Score</div>
+                <div style="margin-left: 10px;">
+                    Expected Score: ${expected.toFixed(2)}<br>
+                    Actual Score: ${data.score} ${data.holes !== 18 ? `(Scales to ${data.adjustedScore.toFixed(1)} for 18h)` : ''}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Expected - Actual</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${expected.toFixed(2)} - ${data.adjustedScore.toFixed(2)} = <span style="color: ${data.performance >= 0 ? 'var(--primary-green)' : 'var(--danger)'}; font-weight: bold;">${(data.performance > 0 ? '+' : '') + data.performance.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        } else if (type === 'difficulty') {
+            titleEl.textContent = "Course Difficulty Breakdown";
+            subtitleEl.textContent = `${data.courseName} (${data.teeName} Tees)`;
+
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Difficulty Factor Calculation</div>
+                <div style="margin-left: 10px;">
+                    Rating: ${data.rating}<br>
+                    Slope: ${data.slope}<br>
+                    <div style="margin-top: 15px; font-style: italic; opacity: 0.8;">Formula: (Rating - 67) * 5 + (Slope - 113)</div>
+                    <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; font-size: 1.1rem;">
+                        (${data.rating} - 67) * 5 + (${data.slope} - 113) = <span style="color: var(--warning); font-weight: bold;">${data.difficulty.toFixed(1)}</span>
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted);">
+                        * This factor represents the relative difficulty of the course setup compared to a standard benchmark.
+                    </div>
+                </div>
+            `;
+        }
+
+        contentEl.innerHTML = html;
+        modal.classList.remove('hidden');
+    }
+
+    closeMetricBreakdown() {
+        const modal = document.getElementById('metric-math-modal');
+        if (modal) modal.classList.add('hidden');
     }
 
     exportHandicapHistoryCSV() {
