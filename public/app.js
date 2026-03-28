@@ -1908,6 +1908,29 @@ class App {
             const easiest = sortedByDiff[sortedByDiff.length - 1];
             setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
             setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
+
+            // Average Metrics Calculation
+            const sumPerf = history.reduce((acc, h) => acc + h.performance, 0);
+            const sumDiff = history.reduce((acc, h) => acc + h.difficulty, 0);
+            const count = history.length;
+
+            const avgPerf = sumPerf / count;
+            const avgDiff = sumDiff / count;
+
+            const avgPerfEl = document.getElementById('stat-avg-perf');
+            if (avgPerfEl) {
+                avgPerfEl.textContent = (avgPerf > 0 ? '+' : '') + avgPerf.toFixed(1);
+                avgPerfEl.style.color = '#3b82f6'; // Neutral blue for averages
+            }
+
+            const avgDiffEl = document.getElementById('stat-avg-diff');
+            if (avgDiffEl) {
+                avgDiffEl.textContent = avgDiff.toFixed(1);
+                avgDiffEl.style.color = 'var(--warning)';
+            }
+
+            const avgDiffDescEl = document.getElementById('stat-avg-diff-desc');
+            if (avgDiffDescEl) avgDiffDescEl.textContent = 'Average Difficulty';
         }
 
         // Grouping Logic
