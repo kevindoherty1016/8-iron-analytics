@@ -1629,6 +1629,8 @@ class App {
     }
 
     render() {
+        this.updateHandicapDisplay();
+
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
         } else if (this.currentView === 'history') {
@@ -1646,6 +1648,80 @@ class App {
         }
     }
 
+    calculateHandicapIndex() {
+        if (!this.rounds || this.rounds.length === 0) return 'NH';
+
+        const validDifferentials = [];
+
+        // Iterate through rounds (newest first) to find up to 20 valid differentials
+        for (const r of this.rounds) {
+            if (validDifferentials.length >= 20) break;
+
+            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
+            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+
+            const tee = course.tees[r.teeName];
+            const rating = tee.rating || 0;
+            const slope = tee.slope || 0;
+
+            if (rating > 0 && slope > 0 && r.score > 0) {
+                // Scale 9-hole rounds
+                const holes = r.holes || 18;
+                const multiplier = 18 / holes;
+                const adjustedScore = r.score * multiplier;
+
+                const diff = (113 / slope) * (adjustedScore - rating);
+                validDifferentials.push(diff);
+            }
+        }
+
+        const count = validDifferentials.length;
+        if (count < 3) return 'NH';
+
+        // Sort ascending
+        validDifferentials.sort((a, b) => a - b);
+
+        let numsToAverage = 1;
+        let adjustment = 0;
+
+        if (count === 3) { numsToAverage = 1; adjustment = -2.0; }
+        else if (count === 4) { numsToAverage = 1; adjustment = -1.0; }
+        else if (count === 5) { numsToAverage = 1; }
+        else if (count === 6) { numsToAverage = 2; adjustment = -1.0; }
+        else if (count >= 7 && count <= 8) { numsToAverage = 2; }
+        else if (count >= 9 && count <= 11) { numsToAverage = 3; }
+        else if (count >= 12 && count <= 14) { numsToAverage = 4; }
+        else if (count >= 15 && count <= 16) { numsToAverage = 5; }
+        else if (count >= 17 && count <= 19) { numsToAverage = 6; }
+        else if (count >= 20) { numsToAverage = 8; }
+
+        const selected = validDifferentials.slice(0, numsToAverage);
+        const sum = selected.reduce((acc, val) => acc + val, 0);
+        let hdcp = (sum / numsToAverage) + adjustment;
+
+        // WHS maximum handicap index is 54.0
+        if (hdcp > 54.0) hdcp = 54.0;
+
+        const formatted = (Math.round(Math.abs(hdcp) * 10) / 10).toFixed(1);
+        return hdcp < 0 ? `+${formatted}` : formatted;
+    }
+
+    updateHandicapDisplay() {
+        const hdcp = this.calculateHandicapIndex();
+        
+        const headerContainer = document.getElementById('header-handicap-display');
+        const headerVal = document.getElementById('header-handicap-val');
+        if (headerContainer && headerVal) {
+            headerContainer.style.display = 'flex';
+            headerVal.textContent = hdcp;
+        }
+
+        const profileInput = document.getElementById('profile-handicap');
+        if (profileInput) {
+            profileInput.value = hdcp;
+        }
+    }
+
     renderProfile() {
         const setVal = (id, val) => {
             const el = document.getElementById(id);
@@ -1654,7 +1730,7 @@ class App {
 
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
-        setVal('profile-handicap', this.profile.handicap);
+        this.updateHandicapDisplay();
     }
 
     renderCourseManagement() {
