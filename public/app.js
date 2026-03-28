@@ -2011,7 +2011,7 @@ class App {
                 plugins: {
                     legend: {
                         position: 'top',
-                        labels: { color: '#e2e8f0', font: { family: 'Inter', size: 12 } }
+                        labels: { color: '#000000', font: { family: 'Inter', size: 12, weight: 'bold' } }
                     },
                     tooltip: {
                         backgroundColor: '#1e293b',
@@ -2029,22 +2029,22 @@ class App {
                 },
                 scales: {
                     x: {
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#94a3b8', font: { size: 10 } }
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000', font: { size: 10, weight: '500' } }
                     },
                     y: {
-                        title: { display: true, text: getStatLabel(primaryStat), color: '#94a3b8' },
-                        grid: { color: 'rgba(255,255,255,0.1)' },
-                        ticks: { color: '#cbd5e1' },
-                        reverse: primaryStat === 'handicap'
+                        title: { display: true, text: getStatLabel(primaryStat), color: '#000000', font: { weight: 'bold' } },
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000' },
+                        reverse: false
                     },
                     y1: {
                         display: secondaryStat !== 'none',
                         position: 'right',
-                        title: { display: true, text: getStatLabel(secondaryStat), color: '#94a3b8' },
+                        title: { display: true, text: getStatLabel(secondaryStat), color: '#000000', font: { weight: 'bold' } },
                         grid: { drawOnChartArea: false },
-                        ticks: { color: '#cbd5e1' },
-                        reverse: secondaryStat === 'handicap'
+                        ticks: { color: '#000000' },
+                        reverse: false
                     }
                 }
             }
