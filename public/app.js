@@ -1803,7 +1803,61 @@ class App {
     }
 
     renderCourseAnalytics() {
-        const history = this.calculateHandicapHistory();
+        // 1. Render/Update Filters
+        let filterContainer = document.getElementById('course-analytics-filters');
+        const view = document.getElementById('view-course-analytics');
+        const header = view ? view.querySelector('.dashboard-header') : null;
+        if (!filterContainer && header) {
+            filterContainer = document.createElement('div');
+            filterContainer.id = 'course-analytics-filters';
+            header.parentNode.insertBefore(filterContainer, header.nextSibling);
+        }
+        if (filterContainer) {
+            this.renderFilters('course-analytics-filters', () => this.renderCourseAnalytics());
+        }
+
+        let history = this.calculateHandicapHistory();
+        
+        // 2. Apply Year/Month Filters
+        history = history.filter(h => {
+             const est = this.getEST(h.date);
+             return (this.filterYears.length === 0 || this.filterYears.includes(est.y)) &&
+                    (this.filterMonths.length === 0 || this.filterMonths.includes(est.m));
+        });
+
+        // 3. Grouping Logic
+        if (this.chartGroupBy !== 'round') {
+            const groups = {};
+            history.forEach(h => {
+                const est = this.getEST(h.date);
+                const d = new Date(est.iso + 'T12:00:00');
+                let key = '';
+                let label = '';
+
+                if (this.chartGroupBy === 'week') {
+                    const firstDayOfYear = new Date(est.y, 0, 1);
+                    const pastDaysOfYear = (d - firstDayOfYear) / 86400000;
+                    const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+                    key = `${est.y}-W${weekNum}`;
+                    label = `Wk ${weekNum} '${String(est.y).slice(-2)}`;
+                } else if (this.chartGroupBy === 'month') {
+                    key = `${est.y}-${String(est.m + 1).padStart(2, '0')}`;
+                    label = `${d.toLocaleString('default', { month: 'short' })} '${String(est.y).slice(-2)}`;
+                } else if (this.chartGroupBy === 'quarter') {
+                    const q = Math.floor(est.m / 3) + 1;
+                    key = `${est.y}-Q${q}`;
+                    label = `Q${q} '${String(est.y).slice(-2)}`;
+                } else if (this.chartGroupBy === 'year') {
+                    key = `${est.y}`;
+                    label = `${est.y}`;
+                }
+                
+                // For handicap trend, we take the LATEST index in that period
+                groups[key] = { date: h.date, index: h.index, label: label };
+            });
+            history = Object.values(groups).sort((a, b) => new Date(a.date) - new Date(b.date));
+        }
+
         const emptyState = document.getElementById('course-analytics-empty');
         const contentState = document.getElementById('course-analytics-content');
         const currentHdcp = document.getElementById('course-analytics-current-hdcp');
@@ -1830,7 +1884,7 @@ class App {
             this.handicapChartInstance.destroy();
         }
 
-        const labels = history.map(h => this.formatDateDisplay(h.date));
+        const labels = history.map(h => this.chartGroupBy === 'round' ? this.formatDateDisplay(h.date) : h.label);
         const dataPoints = history.map(h => h.index);
 
         this.handicapChartInstance = new Chart(ctx, {
