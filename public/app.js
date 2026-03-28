@@ -1806,10 +1806,13 @@ class App {
                     if (hdcpVal > 54.0) hdcpVal = 54.0;
                 }
 
-                // Expected Score: Rating + (Slope / 113) * Current Handicap
+                // Expected Score Calculation: Requires at least 3 rounds to have an established index
                 const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
-                const expected = rating + (slope / 113) * currentHdcp;
-                const performance = expected - adjustedScore;
+                let performance = null;
+                if (history.length >= 3) {
+                    const expected = rating + (slope / 113) * currentHdcp;
+                    performance = expected - adjustedScore;
+                }
 
                 history.push({
                     date: r.date,
@@ -1870,7 +1873,7 @@ class App {
         });
 
         // Tiles Calculation
-        const perfHistory = history.filter(h => h.holes === 18);
+        const perfHistory = history.filter(h => h.holes === 18 && h.performance !== null);
         const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
 
         const setTile = (id, val, desc, data, type) => {
@@ -1899,8 +1902,8 @@ class App {
             setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
             setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
         } else {
-            setTile('stat-best-perf', '--', 'No 18-hole rounds', null, 'performance');
-            setTile('stat-worst-perf', '--', 'No 18-hole rounds', null, 'performance');
+            setTile('stat-best-perf', '--', 'Need established handicap', null, 'performance');
+            setTile('stat-worst-perf', '--', 'Need established handicap', null, 'performance');
         }
 
         if (history.length > 0) {
@@ -1910,17 +1913,23 @@ class App {
             setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
 
             // Average Metrics Calculation
-            const sumPerf = history.reduce((acc, h) => acc + h.performance, 0);
+            const validPerf = history.filter(h => h.performance !== null);
+            const sumPerf = validPerf.reduce((acc, h) => acc + h.performance, 0);
             const sumDiff = history.reduce((acc, h) => acc + h.difficulty, 0);
             const count = history.length;
 
-            const avgPerf = sumPerf / count;
+            const avgPerf = validPerf.length > 0 ? sumPerf / validPerf.length : 0;
             const avgDiff = sumDiff / count;
 
             const avgPerfEl = document.getElementById('stat-avg-perf');
             if (avgPerfEl) {
-                avgPerfEl.textContent = (avgPerf > 0 ? '+' : '') + avgPerf.toFixed(1);
-                avgPerfEl.style.color = '#3b82f6'; // Neutral blue for averages
+                if (validPerf.length > 0) {
+                    avgPerfEl.textContent = (avgPerf > 0 ? '+' : '') + avgPerf.toFixed(1);
+                    avgPerfEl.style.color = '#3b82f6'; // Neutral blue for averages
+                } else {
+                    avgPerfEl.textContent = '--';
+                    avgPerfEl.style.color = 'var(--text-muted)';
+                }
             }
 
             const avgDiffEl = document.getElementById('stat-avg-diff');
