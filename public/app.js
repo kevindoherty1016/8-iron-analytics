@@ -1667,8 +1667,13 @@ class App {
             if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
 
             const tee = course.tees[r.teeName];
-            const rating = tee.rating || 0;
+            let rating = tee.rating || 0;
             const slope = tee.slope || 0;
+
+            // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+            if (rating >= 30 && rating < 45) {
+                rating = rating * 2;
+            }
 
             if (rating > 0 && slope > 0 && r.score > 0) {
                 // Scale 9-hole rounds
@@ -1748,8 +1753,15 @@ class App {
             if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
 
             const tee = course.tees[r.teeName];
-            const rating = tee.rating || 0;
+            let rating = tee.rating || 0;
             const slope = tee.slope || 0;
+            let ratingAdjusted = false;
+
+            // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+            if (rating >= 30 && rating < 45) {
+                rating = rating * 2;
+                ratingAdjusted = true;
+            }
 
             if (rating > 0 && slope > 0 && r.score > 0) {
                 const holes = r.holes || 18;
@@ -1811,6 +1823,7 @@ class App {
                     adjustedScore: adjustedScore,
                     rating: rating,
                     slope: slope,
+                    ratingAdjusted: ratingAdjusted,
                     prevHandicap: currentHdcp,
                     holes: holes
                 });
@@ -2097,8 +2110,13 @@ class App {
                 
                 if (course && course.tees && course.tees[teeName]) {
                     const tee = course.tees[teeName];
-                    const rating = tee.rating || 0;
+                    let rating = tee.rating || 0;
                     const slope = tee.slope || 0;
+                    
+                    // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+                    if (rating >= 30 && rating < 45) {
+                        rating = rating * 2;
+                    }
                     
                     const res = this.calculateHandicapIndex();
                     let handicap = 0;
@@ -2141,7 +2159,7 @@ class App {
             html = `
                 <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">1. Expected Score Calculation</div>
                 <div style="margin-left: 10px; margin-bottom: 20px;">
-                    Rating: ${data.rating}<br>
+                    Rating: ${data.rating} ${data.ratingAdjusted ? '<span style="font-size: 0.8rem; color: var(--warning);">(doubled for 18h equivalent)</span>' : ''}<br>
                     Slope: ${data.slope}<br>
                     Handicap at time: ${data.prevHandicap.toFixed(1)}<br>
                     <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Rating + (Slope / 113) * Handicap</div>
@@ -2167,7 +2185,7 @@ class App {
             html = `
                 <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Difficulty Factor Calculation</div>
                 <div style="margin-left: 10px;">
-                    Rating: ${data.rating}<br>
+                    Rating: ${data.rating} ${data.ratingAdjusted ? '<span style="font-size: 0.8rem; color: var(--warning);">(doubled for 18h equivalent)</span>' : ''}<br>
                     Slope: ${data.slope}<br>
                     <div style="margin-top: 15px; font-style: italic; opacity: 0.8;">Formula: (Rating - 67) * 5 + (Slope - 113)</div>
                     <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; font-size: 1.1rem;">
