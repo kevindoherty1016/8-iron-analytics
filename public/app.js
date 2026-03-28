@@ -62,6 +62,7 @@ class App {
         this.chartSortDir = 'chrono-asc'; // Default chart sort direction
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
+        this.monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         this.filterCourses = []; // Array of selected courses. Empty means all.
         this.filterEvents = []; // Array of selected events. Empty means all.
         this.filterHoles = []; // Array of selected holes [9, 18]. Empty means all.
@@ -1909,10 +1910,10 @@ class App {
                     key = weekStart.toISOString().split('T')[0];
                     label = 'Week of ' + this.formatDateDisplay(key);
                 } else if (this.chartGroupBy === 'month') {
-                    key = `${est.y}-${est.m.toString().padStart(2, '0')}-01`;
-                    label = `${this.monthNames[est.m - 1]} ${est.y}`;
+                    key = `${est.y}-${(est.m + 1).toString().padStart(2, '0')}-01`;
+                    label = `${this.monthNames[est.m]} ${est.y}`;
                 } else if (this.chartGroupBy === 'quarter') {
-                    const q = Math.ceil(est.m / 3);
+                    const q = Math.ceil((est.m + 1) / 3);
                     key = `${est.y}-Q${q}`;
                     label = `Q${q} ${est.y}`;
                 } else { // year
