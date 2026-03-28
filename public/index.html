@@ -358,8 +358,12 @@
                     <div class="card" style="margin-bottom: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                             <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Handicap & Performance Trend</h3>
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <div id="course-analytics-current-hdcp" style="font-size: 1rem; font-weight: bold; color: var(--primary-green); background: rgba(16, 185, 129, 0.1); padding: 4px 12px; border-radius: 12px;">--</div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <select id="course-primary-stat" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                                    <option value="handicap">Primary: Handicap</option>
+                                    <option value="performance">Primary: Performance</option>
+                                    <option value="difficulty">Primary: Difficulty</option>
+                                </select>
                                 <select id="course-secondary-stat" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                                     <option value="none">Secondary: None</option>
                                     <option value="performance">Secondary: Performance</option>
