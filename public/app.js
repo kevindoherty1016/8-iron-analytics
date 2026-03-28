@@ -1865,12 +1865,12 @@ class App {
                 },
                 scales: {
                     x: {
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: 'rgba(255, 255, 255, 0.5)' }
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#6B7280' }
                     },
                     y: {
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        ticks: { color: 'rgba(255, 255, 255, 0.5)' },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#6B7280' },
                         reverse: true
                     }
                 }
