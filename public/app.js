@@ -1870,8 +1870,7 @@ class App {
                     },
                     y: {
                         grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { color: '#6B7280' },
-                        reverse: true
+                        ticks: { color: '#6B7280' }
                     }
                 }
             }
