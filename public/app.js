@@ -1793,6 +1793,11 @@ class App {
                     if (hdcpVal > 54.0) hdcpVal = 54.0;
                 }
 
+                // Expected Score: Rating + (Slope / 113) * Current Handicap
+                const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
+                const expected = rating + (slope / 113) * currentHdcp;
+                const performance = expected - adjustedScore;
+
                 history.push({
                     date: r.date,
                     count: count,
