@@ -1629,6 +1629,8 @@ class App {
     }
 
     render() {
+        this.updateHandicapDisplay();
+
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
         } else if (this.currentView === 'history') {
@@ -1646,6 +1648,151 @@ class App {
         }
     }
 
+    calculateHandicapIndex() {
+        if (!this.rounds || this.rounds.length === 0) return { value: 'NH', history: [] };
+
+        const validRounds = [];
+
+        // Iterate through rounds (newest first) to find up to 20 valid differentials
+        for (const r of this.rounds) {
+            if (validRounds.length >= 20) break;
+
+            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
+            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+
+            const tee = course.tees[r.teeName];
+            const rating = tee.rating || 0;
+            const slope = tee.slope || 0;
+
+            if (rating > 0 && slope > 0 && r.score > 0) {
+                // Scale 9-hole rounds
+                const holes = r.holes || 18;
+                const multiplier = 18 / holes;
+                const adjustedScore = r.score * multiplier;
+
+                const diff = (113 / slope) * (adjustedScore - rating);
+                // Keep the round object to render later
+                validRounds.push({
+                    date: r.date,
+                    course: r.course || course.name,
+                    score: r.score,
+                    adjustedScore: adjustedScore,
+                    holes: holes,
+                    rating: rating,
+                    slope: slope,
+                    diff: diff,
+                    isUsed: false
+                });
+            }
+        }
+
+        const count = validRounds.length;
+        if (count < 3) return { value: 'NH', history: validRounds };
+        
+        // Determine how many scores to use for the average
+        let numsToAverage = 1;
+        let adjustment = 0;
+
+        if (count === 3) { numsToAverage = 1; adjustment = -2.0; }
+        else if (count === 4) { numsToAverage = 1; adjustment = -1.0; }
+        else if (count === 5) { numsToAverage = 1; }
+        else if (count === 6) { numsToAverage = 2; adjustment = -1.0; }
+        else if (count >= 7 && count <= 8) { numsToAverage = 2; }
+        else if (count >= 9 && count <= 11) { numsToAverage = 3; }
+        else if (count >= 12 && count <= 14) { numsToAverage = 4; }
+        else if (count >= 15 && count <= 16) { numsToAverage = 5; }
+        else if (count >= 17 && count <= 19) { numsToAverage = 6; }
+        else if (count >= 20) { numsToAverage = 8; }
+
+        // Sort a copy ascending to find the lowest N differentials
+        const sortedDiffs = [...validRounds].sort((a, b) => a.diff - b.diff);
+        const selectedForAverage = sortedDiffs.slice(0, numsToAverage);
+        
+        // Mark the used rounds in the original array
+        selectedForAverage.forEach(sr => {
+            sr.isUsed = true;
+        });
+
+        const sum = selectedForAverage.reduce((acc, val) => acc + val.diff, 0);
+        let hdcp = (sum / numsToAverage) + adjustment;
+
+        // WHS maximum handicap index is 54.0
+        if (hdcp > 54.0) hdcp = 54.0;
+
+        const formatted = (Math.round(Math.abs(hdcp) * 10) / 10).toFixed(1);
+        const finalValue = hdcp < 0 ? `+${formatted}` : formatted;
+
+        return {
+            value: finalValue,
+            history: validRounds,
+            adjustment: adjustment,
+            counted: numsToAverage
+        };
+    }
+
+    updateHandicapDisplay() {
+        const hdcpData = this.calculateHandicapIndex();
+        
+        const headerContainer = document.getElementById('header-handicap-display');
+        const headerVal = document.getElementById('header-handicap-val');
+        if (headerContainer && headerVal) {
+            headerContainer.style.display = 'flex';
+            headerVal.textContent = hdcpData.value;
+        }
+
+        const profileInput = document.getElementById('profile-handicap');
+        if (profileInput) {
+            profileInput.value = hdcpData.value;
+        }
+    }
+
+    showHandicapBreakdown() {
+        const hdcpData = this.calculateHandicapIndex();
+        
+        document.getElementById('breakdown-hdcp-val').textContent = hdcpData.value;
+        
+        let explanation = '';
+        if (hdcpData.history.length < 3) {
+            explanation = `You need at least 3 eligible 18-hole rounds to compute a handicap. You currently have ${hdcpData.history.length}.`;
+        } else {
+            explanation = `Based on your ${hdcpData.history.length} eligible rounds, your handicap is the average of your lowest ${hdcpData.counted} differentials${hdcpData.adjustment !== 0 ? ` with a ${hdcpData.adjustment} adjustment` : ''}. Rounds used in the calculation are highlighted in green.`;
+        }
+        document.getElementById('breakdown-explanation').innerHTML = explanation;
+
+        const tbody = document.getElementById('breakdown-table-body');
+        if (!tbody) return;
+
+        if (hdcpData.history.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">No eligible rounds found.</td></tr>`;
+        } else {
+            tbody.innerHTML = hdcpData.history.map(r => {
+                const isSelected = r.isUsed;
+                const scoreDisplay = r.holes !== 18 ? `${r.score} <span style="font-size: 0.8em; color: var(--text-muted);">(scaled to ${Math.round(r.adjustedScore)})</span>` : r.score;
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-color); ${isSelected ? 'background: rgba(16, 185, 129, 0.1);' : ''}">
+                        <td style="padding: 12px 15px; color: var(--text-muted); white-space: nowrap;">${this.formatDateDisplay(r.date)}</td>
+                        <td style="padding: 12px 15px; font-weight: 500;">${r.course}</td>
+                        <td style="padding: 12px 15px; text-align: center;">${scoreDisplay}</td>
+                        <td style="padding: 12px 15px; text-align: center; color: var(--text-muted);">${r.rating} / ${r.slope}</td>
+                        <td style="padding: 12px 15px; text-align: right; font-weight: bold; color: ${isSelected ? 'var(--primary-green)' : 'var(--text-primary)'};">${r.diff.toFixed(1)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const modal = document.getElementById('handicap-breakdown-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+    }
+
+    closeHandicapBreakdown() {
+        const modal = document.getElementById('handicap-breakdown-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
     renderProfile() {
         const setVal = (id, val) => {
             const el = document.getElementById(id);
@@ -1654,7 +1801,7 @@ class App {
 
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
-        setVal('profile-handicap', this.profile.handicap);
+        this.updateHandicapDisplay();
     }
 
     renderCourseManagement() {

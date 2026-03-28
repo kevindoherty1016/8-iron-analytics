@@ -268,6 +268,10 @@
             <header class="top-header hidden" id="top-header">
                 <h1 id="page-title">Round Analytics</h1>
                 <div style="display: flex; align-items: center; gap: 20px;">
+                    <div id="header-handicap-display" style="cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text-light); border: 1px solid var(--border-color); padding: 6px 16px; border-radius: 20px; background: rgba(255,255,255,0.03); display: none; align-items: center; justify-content: center;" onclick="window.app.showHandicapBreakdown()" title="View Handicap Breakdown">
+                        <span style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; margin-right: 8px; letter-spacing: 0.5px;">Current Handicap</span>
+                        <span id="header-handicap-val" style="color: var(--primary-green); font-size: 1.1rem;">--</span>
+                    </div>
                     <button class="btn btn-primary" onclick="window.app.openAddRoundModal()" style="gap: 8px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2.5">
@@ -899,8 +903,11 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="profile-handicap">Current Handicap</label>
-                                <input type="number" id="profile-handicap" name="handicap" step="0.1">
+                                <label for="profile-handicap">Calculated Handicap</label>
+                                <div onclick="window.app.showHandicapBreakdown()" style="cursor: pointer;" title="Click to view calculation breakdown">
+                                    <input type="text" id="profile-handicap" name="handicap" readonly style="background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer; border-color: rgba(255,255,255,0.2);">
+                                </div>
+                                <small style="display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.8rem;">Computed automatically from your last 20 eligible rounds. <a href="#" onclick="window.app.showHandicapBreakdown(); return false;" style="color: var(--primary-green); text-decoration: none;">View math &rarr;</a></small>
                             </div>
                         </div>
 
@@ -1103,6 +1110,51 @@
                 style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
             <div id="round-details-content">
                 <!-- Content injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Handicap Breakdown Modal -->
+    <div id="handicap-breakdown-modal" class="modal-overlay hidden"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1001; display: flex; justify-content: center; align-items: flex-start; backdrop-filter: blur(4px); padding-top: 5vh; overflow-y: auto;">
+        <div class="card" style="max-width: 800px; width: 95%; padding: 30px; margin-bottom: 5vh; position: relative;">
+            <button class="btn-close" onclick="window.app.closeHandicapBreakdown()"
+                style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; margin-top: 5px;">
+                <div>
+                    <h2 style="margin: 0;">Handicap Details</h2>
+                    <p class="subtitle" style="margin-top: 5px;">Your WHS calculation breakdown based on your last 20 eligible rounds.</p>
+                </div>
+                <div style="font-size: 2.2rem; font-weight: bold; color: var(--primary-green); text-align: right;" id="breakdown-hdcp-val">--</div>
+            </div>
+
+            <div style="margin-bottom: 20px; font-size: 0.9rem; color: var(--text-muted); background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <strong style="color: var(--text-light);">How is it calculated?</strong><br>
+                We calculate a "Differential" for each of your recent rounds using the formula: <br>
+                <code style="background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; margin-top: 5px; display: inline-block; color: var(--primary-green)">(Adjusted Score - Course Rating) × 113 / Slope Rating</code><br>
+                <div style="margin-top: 8px;" id="breakdown-explanation"></div>
+            </div>
+
+            <div style="overflow-x: auto; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border-color);">
+                <table class="data-table" style="min-width: 600px; margin: 0; width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color);">
+                            <th style="padding: 12px 15px; text-align: left;">Date</th>
+                            <th style="padding: 12px 15px; text-align: left;">Course</th>
+                            <th style="padding: 12px 15px; text-align: center;">Score</th>
+                            <th style="padding: 12px 15px; text-align: center;">Rating / Slope</th>
+                            <th style="padding: 12px 15px; text-align: right;">Differential</th>
+                        </tr>
+                    </thead>
+                    <tbody id="breakdown-table-body">
+                        <!-- Injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="btn btn-secondary" onclick="window.app.closeHandicapBreakdown()">Close</button>
             </div>
         </div>
     </div>
