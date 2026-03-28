@@ -1908,6 +1908,28 @@ class App {
             const easiest = sortedByDiff[sortedByDiff.length - 1];
             setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
             setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
+
+            // Average Metrics Calculation
+            const sumPerf = history.reduce((acc, h) => acc + h.performance, 0);
+            const sumScore = history.reduce((acc, h) => acc + h.adjustedScore, 0);
+            const sumRating = history.reduce((acc, h) => acc + h.rating, 0);
+            const count = history.length;
+
+            const avgPerf = sumPerf / count;
+            const avgScore = sumScore / count;
+            const avgRating = sumRating / count;
+
+            const avgPerfEl = document.getElementById('stat-avg-perf');
+            if (avgPerfEl) {
+                avgPerfEl.textContent = (avgPerf > 0 ? '+' : '') + avgPerf.toFixed(1);
+                avgPerfEl.style.color = avgPerf >= 0 ? 'var(--primary-green)' : 'var(--danger)';
+            }
+
+            const avgScoreEl = document.getElementById('stat-avg-score');
+            if (avgScoreEl) avgScoreEl.textContent = avgScore.toFixed(1);
+
+            const baselineEl = document.getElementById('stat-avg-score-desc');
+            if (baselineEl) baselineEl.textContent = `Baseline: ${avgRating.toFixed(1)}`;
         }
 
         // Grouping Logic
