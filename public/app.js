@@ -1850,28 +1850,42 @@ class App {
         });
 
         // Tiles Calculation
-        if (history.length > 0) {
-            const bestPerf = [...history].sort((a, b) => b.performance - a.performance)[0];
-            const worstPerf = [...history].sort((a, b) => a.performance - b.performance)[0];
-            const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
-            const hardest = sortedByDiff[0];
-            const easiest = sortedByDiff[sortedByDiff.length - 1];
+        const perfHistory = history.filter(h => h.holes === 18);
+        const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
 
-            const setTile = (id, val, desc, data, type) => {
-                const card = document.getElementById(id)?.closest('.card');
-                const valEl = document.getElementById(id);
-                const descEl = document.getElementById(id + '-desc');
-                if (valEl) valEl.textContent = val;
-                if (descEl) descEl.textContent = desc;
-                if (card) {
+        const setTile = (id, val, desc, data, type) => {
+            const card = document.getElementById(id)?.closest('.card');
+            const valEl = document.getElementById(id);
+            const descEl = document.getElementById(id + '-desc');
+            if (valEl) valEl.textContent = val;
+            if (descEl) descEl.textContent = desc;
+            if (card) {
+                if (data) {
                     card.style.cursor = 'pointer';
                     card.onclick = () => this.showMetricBreakdown(type, data);
                     card.title = "Click to see calculation";
+                } else {
+                    card.style.cursor = 'default';
+                    card.onclick = null;
+                    card.title = "";
                 }
-            };
+            }
+        };
+
+        if (perfHistory.length > 0) {
+            const bestPerf = [...perfHistory].sort((a, b) => b.performance - a.performance)[0];
+            const worstPerf = [...perfHistory].sort((a, b) => a.performance - b.performance)[0];
 
             setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
             setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
+        } else {
+            setTile('stat-best-perf', '--', 'No 18-hole rounds', null, 'performance');
+            setTile('stat-worst-perf', '--', 'No 18-hole rounds', null, 'performance');
+        }
+
+        if (history.length > 0) {
+            const hardest = sortedByDiff[0];
+            const easiest = sortedByDiff[sortedByDiff.length - 1];
             setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
             setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
         }
