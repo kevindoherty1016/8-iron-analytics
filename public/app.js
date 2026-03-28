@@ -62,6 +62,7 @@ class App {
         this.chartSortDir = 'chrono-asc'; // Default chart sort direction
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
+        this.monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         this.filterCourses = []; // Array of selected courses. Empty means all.
         this.filterEvents = []; // Array of selected events. Empty means all.
         this.filterHoles = []; // Array of selected holes [9, 18]. Empty means all.
@@ -1820,7 +1821,6 @@ class App {
     }
 
     renderCourseAnalytics() {
-        // 1. Render/Update Filters
         let filterContainer = document.getElementById('course-analytics-filters');
         const view = document.getElementById('view-course-analytics');
         const header = view ? view.querySelector('.dashboard-header') : null;
@@ -1833,11 +1833,18 @@ class App {
             this.renderFilters('course-analytics-filters', () => this.renderCourseAnalytics());
         }
 
+        const primarySelect = document.getElementById('course-primary-stat');
+        if (primarySelect && !primarySelect._listenerAdded) {
+            primarySelect.addEventListener('change', () => this.renderCourseAnalytics());
+            primarySelect._listenerAdded = true;
+        }
         const secondarySelect = document.getElementById('course-secondary-stat');
         if (secondarySelect && !secondarySelect._listenerAdded) {
             secondarySelect.addEventListener('change', () => this.renderCourseAnalytics());
             secondarySelect._listenerAdded = true;
         }
+
+        const primaryStat = primarySelect ? primarySelect.value : 'handicap';
         const secondaryStat = secondarySelect ? secondarySelect.value : 'none';
 
         let history = this.calculateHandicapHistory();
@@ -1850,28 +1857,42 @@ class App {
         });
 
         // Tiles Calculation
-        if (history.length > 0) {
-            const bestPerf = [...history].sort((a, b) => b.performance - a.performance)[0];
-            const worstPerf = [...history].sort((a, b) => a.performance - b.performance)[0];
-            const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
-            const hardest = sortedByDiff[0];
-            const easiest = sortedByDiff[sortedByDiff.length - 1];
+        const perfHistory = history.filter(h => h.holes === 18);
+        const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
 
-            const setTile = (id, val, desc, data, type) => {
-                const card = document.getElementById(id)?.closest('.card');
-                const valEl = document.getElementById(id);
-                const descEl = document.getElementById(id + '-desc');
-                if (valEl) valEl.textContent = val;
-                if (descEl) descEl.textContent = desc;
-                if (card) {
+        const setTile = (id, val, desc, data, type) => {
+            const card = document.getElementById(id)?.closest('.card');
+            const valEl = document.getElementById(id);
+            const descEl = document.getElementById(id + '-desc');
+            if (valEl) valEl.textContent = val;
+            if (descEl) descEl.textContent = desc;
+            if (card) {
+                if (data) {
                     card.style.cursor = 'pointer';
                     card.onclick = () => this.showMetricBreakdown(type, data);
                     card.title = "Click to see calculation";
+                } else {
+                    card.style.cursor = 'default';
+                    card.onclick = null;
+                    card.title = "";
                 }
-            };
+            }
+        };
+
+        if (perfHistory.length > 0) {
+            const bestPerf = [...perfHistory].sort((a, b) => b.performance - a.performance)[0];
+            const worstPerf = [...perfHistory].sort((a, b) => a.performance - b.performance)[0];
 
             setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
             setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
+        } else {
+            setTile('stat-best-perf', '--', 'No 18-hole rounds', null, 'performance');
+            setTile('stat-worst-perf', '--', 'No 18-hole rounds', null, 'performance');
+        }
+
+        if (history.length > 0) {
+            const hardest = sortedByDiff[0];
+            const easiest = sortedByDiff[sortedByDiff.length - 1];
             setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
             setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
         }
@@ -1881,38 +1902,39 @@ class App {
             const groups = {};
             history.forEach(h => {
                 const est = this.getEST(h.date);
-                const d = new Date(est.iso + 'T12:00:00');
-                let key = '';
-                let label = '';
-
+                let key, label;
                 if (this.chartGroupBy === 'week') {
-                    const firstDayOfYear = new Date(est.y, 0, 1);
-                    const pastDaysOfYear = (d - firstDayOfYear) / 86400000;
-                    const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-                    key = `${est.y}-W${weekNum}`;
-                    label = `Wk ${weekNum} '${String(est.y).slice(-2)}`;
+                    const d = new Date(est.iso);
+                    const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                    const weekStart = new Date(d.setDate(diff));
+                    key = weekStart.toISOString().split('T')[0];
+                    label = 'Week of ' + this.formatDateDisplay(key);
                 } else if (this.chartGroupBy === 'month') {
-                    key = `${est.y}-${String(est.m + 1).padStart(2, '0')}`;
-                    label = `${d.toLocaleString('default', { month: 'short' })} '${String(est.y).slice(-2)}`;
+                    key = `${est.y}-${(est.m + 1).toString().padStart(2, '0')}-01`;
+                    label = `${this.monthNames[est.m]} ${est.y}`;
                 } else if (this.chartGroupBy === 'quarter') {
-                    const q = Math.floor(est.m / 3) + 1;
+                    const q = Math.ceil((est.m + 1) / 3);
                     key = `${est.y}-Q${q}`;
-                    label = `Q${q} '${String(est.y).slice(-2)}`;
-                } else if (this.chartGroupBy === 'year') {
-                    key = `${est.y}`;
-                    label = `${est.y}`;
+                    label = `Q${q} ${est.y}`;
+                } else { // year
+                    key = `${est.y}-01-01`;
+                    label = est.y.toString();
                 }
-                
-                // For handicap trend, we take the LATEST index in that period
-                groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, label: label };
+
+                if (!groups[key]) {
+                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, label: label, count: 0 };
+                }
+                groups[key].index = h.index; // Take latest
+                groups[key].performance = h.performance; // Take latest
+                groups[key].difficulty = h.difficulty; // Take latest
+                groups[key].count++;
             });
             history = Object.values(groups).sort((a, b) => new Date(a.date) - new Date(b.date));
         }
 
         const emptyState = document.getElementById('course-analytics-empty');
         const contentState = document.getElementById('course-analytics-content');
-        const currentHdcp = document.getElementById('course-analytics-current-hdcp');
-        
+
         if (!history || history.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (contentState) contentState.style.display = 'none';
@@ -1921,12 +1943,8 @@ class App {
 
         if (emptyState) emptyState.style.display = 'none';
         if (contentState) contentState.style.display = 'block';
-        
-        const latest = history[history.length - 1];
-        if (currentHdcp) {
-            currentHdcp.textContent = latest.index < 0 ? `+${Math.abs(latest.index).toFixed(1)}` : latest.index.toFixed(1);
-        }
 
+        // Chart.js Rendering
         const ctxId = 'handicapTrendChart';
         const ctx = document.getElementById(ctxId);
         if (!ctx) return;
@@ -1935,45 +1953,51 @@ class App {
             this.handicapChartInstance.destroy();
         }
 
-        const labels = history.map(h => this.chartGroupBy === 'round' ? this.formatDateDisplay(h.date) : h.label);
-        const handicapData = history.map(h => h.index);
+        const labels = history.map((h, i) => this.chartGroupBy === 'round' ? this.formatDateDisplay(h.date) : h.label);
+        
+        const getStatData = (stat, item) => {
+            if (stat === 'handicap') return item.index;
+            if (stat === 'performance') return item.performance;
+            if (stat === 'difficulty') return item.difficulty;
+            return null;
+        };
+
+        const getStatLabel = (stat) => {
+            if (stat === 'handicap') return 'Handicap Index';
+            if (stat === 'performance') return 'Performance (+ Better)';
+            if (stat === 'difficulty') return 'Course Difficulty';
+            return '';
+        };
+
+        const getStatColor = (stat) => {
+            if (stat === 'handicap') return '#10b981'; // Green
+            if (stat === 'performance') return '#3b82f6'; // Blue
+            if (stat === 'difficulty') return '#f59e0b'; // Amber
+            return '#94a3b8';
+        };
 
         const datasets = [{
-            label: 'Handicap Index',
-            data: handicapData,
-            borderColor: '#10B981',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            borderWidth: 2,
-            pointRadius: 4,
-            pointBackgroundColor: '#10B981',
+            label: getStatLabel(primaryStat),
+            data: history.map(h => getStatData(primaryStat, h)),
+            borderColor: getStatColor(primaryStat),
+            backgroundColor: getStatColor(primaryStat) + '22',
+            borderWidth: 3,
             fill: true,
             tension: 0.3,
+            pointRadius: 4,
             yAxisID: 'y'
         }];
 
-        let secondaryData = [];
-        let secondaryLabel = '';
-        let secondaryColor = '#f59e0b';
-
-        if (secondaryStat === 'performance') {
-            secondaryData = history.map(h => h.performance);
-            secondaryLabel = 'Performance';
-            secondaryColor = '#6366f1';
-        } else if (secondaryStat === 'difficulty') {
-            secondaryData = history.map(h => h.difficulty);
-            secondaryLabel = 'Difficulty';
-            secondaryColor = '#f59e0b';
-        }
-
         if (secondaryStat !== 'none') {
             datasets.push({
-                label: secondaryLabel,
-                data: secondaryData,
-                borderColor: secondaryColor,
+                label: getStatLabel(secondaryStat),
+                data: history.map(h => getStatData(secondaryStat, h)),
+                borderColor: getStatColor(secondaryStat),
                 backgroundColor: 'transparent',
                 borderWidth: 2,
-                pointRadius: 3,
+                borderDash: [5, 5],
                 tension: 0.3,
+                pointRadius: 4,
                 yAxisID: 'y1'
             });
         }
@@ -1984,30 +2008,56 @@ class App {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#000000', font: { family: 'Inter', size: 12, weight: 'bold' } }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#f8fafc',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        padding: 12,
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
                 scales: {
-                    y: { 
-                        position: 'left',
-                        title: { display: true, text: 'Handicap Index', color: '#10B981' },
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { color: '#6B7280' }
+                    x: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000', font: { size: 10, weight: '500' } }
+                    },
+                    y: {
+                        title: { display: true, text: getStatLabel(primaryStat), color: '#000000', font: { weight: 'bold' } },
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000' },
+                        reverse: false
                     },
                     y1: {
                         display: secondaryStat !== 'none',
                         position: 'right',
-                        title: { display: true, text: secondaryLabel, color: secondaryColor },
+                        title: { display: true, text: getStatLabel(secondaryStat), color: '#000000', font: { weight: 'bold' } },
                         grid: { drawOnChartArea: false },
-                        ticks: { color: secondaryColor }
-                    },
-                    x: {
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { color: '#6B7280' }
+                        ticks: { color: '#000000' },
+                        reverse: false
                     }
-                },
-                plugins: {
-                    legend: { display: secondaryStat !== 'none' }
                 }
             }
         });
+
+        // Current Handicap display in chart card
+        const currentHdcpEl = document.getElementById('course-analytics-current-hdcp');
+        if (currentHdcpEl) {
+            const latest = history[history.length - 1];
+            currentHdcpEl.textContent = `Index: ${latest.index.toFixed(1)}`;
+            currentHdcpEl.style.display = primaryStat === 'handicap' || secondaryStat === 'handicap' ? 'block' : 'none';
+        }
 
         this.renderExpectedScoreCalculator();
     }

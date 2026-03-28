@@ -333,29 +333,37 @@
                             <div class="stat-label">Best Performance</div>
                             <div class="stat-value" id="stat-best-perf" style="color: var(--primary-green);">--</div>
                             <div class="stat-desc" id="stat-best-perf-desc">--</div>
+                            <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">+ = Better / - = Worse (18H Only)</div>
                         </div>
                         <div class="card stat-card">
                             <div class="stat-label">Worst Performance</div>
                             <div class="stat-value" id="stat-worst-perf" style="color: var(--danger);">--</div>
                             <div class="stat-desc" id="stat-worst-perf-desc">--</div>
+                            <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">+ = Better / - = Worse (18H Only)</div>
                         </div>
                         <div class="card stat-card">
                             <div class="stat-label">Hardest Course</div>
                             <div class="stat-value" id="stat-hardest-course" style="color: var(--warning);">--</div>
                             <div class="stat-desc" id="stat-hardest-course-desc">--</div>
+                            <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">Higher = Harder</div>
                         </div>
                         <div class="card stat-card">
                             <div class="stat-label">Easiest Course</div>
                             <div class="stat-value" id="stat-easiest-course" style="color: var(--primary-green);">--</div>
                             <div class="stat-desc" id="stat-easiest-course-desc">--</div>
+                            <div class="stat-scale" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; opacity: 0.8;">Higher = Harder</div>
                         </div>
                     </div>
 
                     <div class="card" style="margin-bottom: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                             <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Handicap & Performance Trend</h3>
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <div id="course-analytics-current-hdcp" style="font-size: 1rem; font-weight: bold; color: var(--primary-green); background: rgba(16, 185, 129, 0.1); padding: 4px 12px; border-radius: 12px;">--</div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <select id="course-primary-stat" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                                    <option value="handicap">Primary: Handicap</option>
+                                    <option value="performance">Primary: Performance</option>
+                                    <option value="difficulty">Primary: Difficulty</option>
+                                </select>
                                 <select id="course-secondary-stat" class="form-control" style="width: auto; padding: 0.25rem 0.5rem; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
                                     <option value="none">Secondary: None</option>
                                     <option value="performance">Secondary: Performance</option>
