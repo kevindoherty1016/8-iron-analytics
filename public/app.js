@@ -1887,11 +1887,22 @@ class App {
 
         let history = this.calculateHandicapHistory();
         
-        // Apply Year/Month Filters
+        // Apply All Active Filters
         history = history.filter(h => {
              const est = this.getEST(h.date);
-             return (this.filterYears.length === 0 || this.filterYears.includes(est.y)) &&
-                    (this.filterMonths.length === 0 || this.filterMonths.includes(est.m));
+             const yr = est.y;
+             const mo = est.m;
+             const hCount = h.holes;
+             const cName = this.normalizeCourse(h.courseName);
+             const eName = (h.event || '').trim();
+
+             const yearMatch = this.filterYears.length === 0 || this.filterYears.includes(yr);
+             const monthMatch = this.filterMonths.length === 0 || this.filterMonths.includes(mo);
+             const holeMatch = this.filterHoles.length === 0 || this.filterHoles.includes(hCount);
+             const courseMatch = this.filterCourses.length === 0 || this.filterCourses.includes(cName);
+             const eventMatch = this.filterEvents.length === 0 || this.filterEvents.includes(eName) || (eName === '' && this.filterEvents.includes('none'));
+
+             return yearMatch && monthMatch && holeMatch && courseMatch && eventMatch;
         });
 
         // Tiles Calculation
@@ -3540,7 +3551,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
 
@@ -3811,7 +3822,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             if (filteredRounds.length === 0) {
@@ -4615,10 +4626,13 @@ class App {
                 const mo = est.m;
                 const normalizedRCourse = this.normalizeCourse(r.course);
                 const origHoles = this.getRoundOriginalHoles(r);
+                const rEvent = (r.event || '').trim();
 
                 return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
-                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse));
+                    (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
+                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             // Apply Search Filter
