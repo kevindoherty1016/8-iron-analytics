@@ -128,7 +128,7 @@ class App {
                         document.body.classList.remove('landing-mode');
                         document.getElementById('sidebar').classList.remove('hidden');
                         document.getElementById('top-header').classList.remove('hidden');
-                        document.getElementById('user-avatar').textContent = user.email.charAt(0).toUpperCase();
+                        this.updateAvatar();
 
                         // Switch view IMMEDIATELY, then load data in background
                         this.switchView('dashboard');
@@ -494,6 +494,8 @@ class App {
                 if (this.profile.insightsTargetType) this.insightsTargetType = this.profile.insightsTargetType;
                 if (this.profile.insightsTargetValue) this.insightsTargetValue = this.profile.insightsTargetValue;
                 if (this.profile.insightsHoles) this.insightsHoles = this.profile.insightsHoles;
+                
+                this.updateAvatar();
             }
         } catch (e) {
             console.error("Error loading profile:", e);
@@ -506,6 +508,7 @@ class App {
             const { doc, setDoc } = window.firebaseDB;
             await setDoc(doc(this.db, 'users', this.user.uid, 'settings', 'profile'), profileData, { merge: true });
             this.profile = { ...this.profile, ...profileData };
+            this.updateAvatar();
             alert("Profile saved successfully!");
         } catch (e) {
             console.error("Error saving profile:", e);
@@ -1639,6 +1642,8 @@ class App {
             this.renderInsights();
         } else if (this.currentView === 'profile') {
             this.renderProfile();
+        } else if (this.currentView === 'course-analytics') {
+            this.renderCourseAnalytics();
         } else if (this.currentView === 'hole-dash') {
             this.renderHoleDash();
         } else if (this.currentView === 'data-dictionary') {
@@ -1730,6 +1735,177 @@ class App {
         };
     }
 
+    calculateHandicapHistory() {
+        if (!this.rounds || this.rounds.length === 0) return [];
+        
+        // Process chronologically, from oldest to newest
+        const chronologicalRounds = [...this.rounds].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const history = [];
+        const runningValidRounds = [];
+
+        for (const r of chronologicalRounds) {
+            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
+            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+
+            const tee = course.tees[r.teeName];
+            const rating = tee.rating || 0;
+            const slope = tee.slope || 0;
+
+            if (rating > 0 && slope > 0 && r.score > 0) {
+                const holes = r.holes || 18;
+                const multiplier = 18 / holes;
+                const adjustedScore = r.score * multiplier;
+                const diff = (113 / slope) * (adjustedScore - rating);
+
+                runningValidRounds.push({
+                    date: r.date,
+                    diff: diff
+                });
+
+                // Keep only the last 20 up to this point
+                if (runningValidRounds.length > 20) {
+                    runningValidRounds.shift();
+                }
+
+                const count = runningValidRounds.length;
+                if (count >= 3) {
+                    let numsToAverage = 1;
+                    let adjustment = 0;
+
+                    if (count === 3) { numsToAverage = 1; adjustment = -2.0; }
+                    else if (count === 4) { numsToAverage = 1; adjustment = -1.0; }
+                    else if (count === 5) { numsToAverage = 1; }
+                    else if (count === 6) { numsToAverage = 2; adjustment = -1.0; }
+                    else if (count >= 7 && count <= 8) { numsToAverage = 2; }
+                    else if (count >= 9 && count <= 11) { numsToAverage = 3; }
+                    else if (count >= 12 && count <= 14) { numsToAverage = 4; }
+                    else if (count >= 15 && count <= 16) { numsToAverage = 5; }
+                    else if (count >= 17 && count <= 19) { numsToAverage = 6; }
+                    else if (count >= 20) { numsToAverage = 8; }
+
+                    const sortedDiffs = [...runningValidRounds].sort((a, b) => a.diff - b.diff);
+                    const selected = sortedDiffs.slice(0, numsToAverage);
+                    const sum = selected.reduce((acc, val) => acc + val.diff, 0);
+                    let hdcp = (sum / numsToAverage) + adjustment;
+
+                    if (hdcp > 54.0) hdcp = 54.0;
+                    
+                    history.push({
+                        date: r.date,
+                        count: count,
+                        index: parseFloat((Math.round(Math.abs(hdcp) * 10) / 10).toFixed(1)) * (hdcp < 0 ? -1 : 1)
+                    });
+                }
+            }
+        }
+        
+        return history;
+    }
+
+    renderCourseAnalytics() {
+        const history = this.calculateHandicapHistory();
+        const emptyState = document.getElementById('course-analytics-empty');
+        const contentState = document.getElementById('course-analytics-content');
+        const currentHdcp = document.getElementById('course-analytics-current-hdcp');
+        
+        if (!history || history.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (contentState) contentState.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        if (contentState) contentState.style.display = 'block';
+        
+        const latest = history[history.length - 1];
+        if (currentHdcp) {
+            currentHdcp.textContent = latest.index < 0 ? `+${Math.abs(latest.index).toFixed(1)}` : latest.index.toFixed(1);
+        }
+
+        const ctxId = 'handicapTrendChart';
+        const ctx = document.getElementById(ctxId);
+        if (!ctx) return;
+
+        if (this.handicapChartInstance) {
+            this.handicapChartInstance.destroy();
+        }
+
+        const labels = history.map(h => this.formatDateDisplay(h.date));
+        const dataPoints = history.map(h => h.index);
+
+        this.handicapChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Handicap Index',
+                    data: dataPoints,
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#10B981',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const val = context.parsed.y;
+                                return `Index: ${val < 0 ? '+' : ''}${Math.abs(val).toFixed(1)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#6B7280' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#6B7280' }
+                    }
+                }
+            }
+        });
+    }
+
+    exportHandicapHistoryCSV() {
+        const history = this.calculateHandicapHistory();
+        if (!history || history.length === 0) {
+            alert("No handicap history available to export.");
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Date,Rounds Counted,Computed Index\n";
+
+        // Reverse to export newest first, or keep oldest first as you wish. 
+        // We'll export newest first to match the UI table
+        const exportHistory = [...history].reverse();
+
+        exportHistory.forEach(row => {
+            const formattedDate = this.formatDateDisplay(row.date).replace(/,/g, '');
+            const indexStr = row.index < 0 ? `+${Math.abs(row.index).toFixed(1)}` : row.index.toFixed(1);
+            csvContent += `${formattedDate},${row.count},${indexStr}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Handicap_History_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     updateHandicapDisplay() {
         const hdcpData = this.calculateHandicapIndex();
         
@@ -1793,6 +1969,21 @@ class App {
         }
     }
 
+    updateAvatar() {
+        const avatar = document.getElementById('user-avatar');
+        if (!avatar) return;
+        
+        if (this.profile && this.profile.firstName && this.profile.lastName) {
+            const firstInitial = this.profile.firstName.trim().charAt(0).toUpperCase();
+            const lastInitial = this.profile.lastName.trim().charAt(0).toUpperCase();
+            avatar.textContent = `${firstInitial}.${lastInitial}.`;
+        } else if (this.user && this.user.email) {
+            avatar.textContent = this.user.email.charAt(0).toUpperCase();
+        } else {
+            avatar.textContent = 'U';
+        }
+    }
+
     renderProfile() {
         const setVal = (id, val) => {
             const el = document.getElementById(id);
@@ -1801,7 +1992,29 @@ class App {
 
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
+        setVal('profile-email', this.user ? this.user.email : 'local@example.com');
         this.updateHandicapDisplay();
+
+        const tbody = document.getElementById('profile-handicap-history-body');
+        if (tbody) {
+            const history = this.calculateHandicapHistory();
+            if (!history || history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">No history available. Play more rounds to establish a handicap.</td></tr>`;
+            } else {
+                // Show newest first in the table
+                const reversedHistory = [...history].reverse();
+                tbody.innerHTML = reversedHistory.map(row => {
+                    const indexStr = row.index < 0 ? `+${Math.abs(row.index).toFixed(1)}` : row.index.toFixed(1);
+                    return `
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 10px 12px; color: var(--text-muted);">${this.formatDateDisplay(row.date)}</td>
+                            <td style="padding: 10px 12px; text-align: center;">${row.count}</td>
+                            <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: var(--primary-green);">${indexStr}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
     }
 
     renderCourseManagement() {
