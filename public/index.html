@@ -59,6 +59,16 @@
                     </a>
                 </li>
                 <li>
+                    <a href="#" class="nav-item" data-view="course-analytics">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                            <line x1="4" y1="22" x2="4" y2="15"></line>
+                        </svg>
+                        Course Analytics
+                    </a>
+                </li>
+                <li>
                     <a href="#" class="nav-item" data-view="hole-dash">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -889,39 +899,62 @@
                     <p class="subtitle">Manage your account and performance goals.</p>
                 </div>
 
-                <div class="card form-container" style="max-width: 600px;">
-                    <form id="profile-form">
-                        <div class="form-row">
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="profile-first-name">First Name</label>
-                                <input type="text" id="profile-first-name" name="firstName">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="profile-last-name">Last Name</label>
-                                <input type="text" id="profile-last-name" name="lastName">
-                            </div>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 15px;">
-                            <label for="profile-email">Login Email</label>
-                            <input type="text" id="profile-email" name="email" readonly style="background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: not-allowed;" title="This is your permanent login identifier.">
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="profile-handicap">Calculated Handicap</label>
-                                <div onclick="window.app.showHandicapBreakdown()" style="cursor: pointer;" title="Click to view calculation breakdown">
-                                    <input type="text" id="profile-handicap" name="handicap" readonly style="background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer; border-color: rgba(255,255,255,0.2);">
+                <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: start; max-width: 1200px; width: 100%;">
+                    <div class="card form-container" style="width: 100%; margin: 0;">
+                        <form id="profile-form">
+                            <div class="form-row">
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="profile-first-name">First Name</label>
+                                    <input type="text" id="profile-first-name" name="firstName">
                                 </div>
-                                <small style="display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.8rem;">Computed automatically from your last 20 eligible rounds. <a href="#" onclick="window.app.showHandicapBreakdown(); return false;" style="color: var(--primary-green); text-decoration: none;">View math &rarr;</a></small>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="profile-last-name">Last Name</label>
+                                    <input type="text" id="profile-last-name" name="lastName">
+                                </div>
                             </div>
-                        </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label for="profile-email">Login Email</label>
+                                <input type="text" id="profile-email" name="email" readonly style="background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: not-allowed;" title="This is your permanent login identifier.">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <label for="profile-handicap">Calculated Handicap</label>
+                                    <div onclick="window.app.showHandicapBreakdown()" style="cursor: pointer;" title="Click to view calculation breakdown">
+                                        <input type="text" id="profile-handicap" name="handicap" readonly style="background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer; border-color: rgba(255,255,255,0.2);">
+                                    </div>
+                                    <small style="display: block; margin-top: 5px; color: var(--text-muted); font-size: 0.8rem;">Computed automatically from your last 20 eligible rounds. <a href="#" onclick="window.app.showHandicapBreakdown(); return false;" style="color: var(--primary-green); text-decoration: none;">View math &rarr;</a></small>
+                                </div>
+                            </div>
 
 
-                        <div style="margin-top: 10px;">
-                            <button type="submit" class="btn btn-primary" style="width: 100%;"
-                                id="save-profile-btn">Save
-                                Settings</button>
+                            <div style="margin-top: 10px;">
+                                <button type="submit" class="btn btn-primary" style="width: 100%;"
+                                    id="save-profile-btn">Save
+                                    Settings</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card" style="width: 100%; margin: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Handicap History</h3>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="window.app.exportHandicapHistoryCSV()">Export CSV</button>
                         </div>
-                    </form>
+                        <div style="overflow-x: auto; max-height: 400px; border: 1px solid var(--border-color); border-radius: 8px;">
+                            <table class="data-table" style="min-width: 400px; margin: 0; width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                <thead style="position: sticky; top: 0; background: var(--bg-dark); z-index: 1;">
+                                    <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color);">
+                                        <th style="padding: 10px 12px; text-align: left;">Date</th>
+                                        <th style="padding: 10px 12px; text-align: center;">Rounds Found</th>
+                                        <th style="padding: 10px 12px; text-align: right; color: var(--primary-green);">Computed Index</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="profile-handicap-history-body">
+                                    <tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">Calculating history...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
