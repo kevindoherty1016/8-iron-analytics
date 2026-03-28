@@ -60,6 +60,7 @@ class App {
         this.filterEndDate = null;
         this.chartGroupBy = 'round'; // Default group by
         this.chartSortDir = 'chrono-asc'; // Default chart sort direction
+        this.courseChartSortDir = 'chrono-asc'; // Default course analytics chart sort direction
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
         this.monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1872,6 +1873,15 @@ class App {
             secondarySelect._listenerAdded = true;
         }
 
+        const sortSelect = document.getElementById('course-chart-sort');
+        if (sortSelect && !sortSelect._listenerAdded) {
+            sortSelect.addEventListener('change', (e) => {
+                this.courseChartSortDir = e.target.value;
+                this.renderCourseAnalytics();
+            });
+            sortSelect._listenerAdded = true;
+        }
+
         const primaryStat = primarySelect ? primarySelect.value : 'handicap';
         const secondaryStat = secondarySelect ? secondarySelect.value : 'none';
 
@@ -1957,10 +1967,12 @@ class App {
             const validRatings = history.filter(h => h.roundRating !== null);
             if (validRatings.length > 0) {
                 const bestRatingEntry = [...validRatings].sort((a, b) => b.roundRating - a.roundRating)[0];
+                const worstRatingEntry = [...validRatings].sort((a, b) => a.roundRating - b.roundRating)[0];
                 const latestRatingEntry = validRatings[validRatings.length - 1];
                 const avgRatingVal = validRatings.reduce((acc, h) => acc + h.roundRating, 0) / validRatings.length;
 
                 setTile('stat-best-rating', bestRatingEntry.roundRating.toFixed(1), `${bestRatingEntry.roundRatingLabel} (${bestRatingEntry.courseName})`, bestRatingEntry, 'rating');
+                setTile('stat-worst-rating', worstRatingEntry.roundRating.toFixed(1), `${worstRatingEntry.roundRatingLabel} (${worstRatingEntry.courseName})`, worstRatingEntry, 'rating');
                 setTile('stat-latest-rating', latestRatingEntry.roundRating.toFixed(1), `${latestRatingEntry.roundRatingLabel} (${latestRatingEntry.courseName})`, latestRatingEntry, 'rating');
                 
                 const avgRatingEl = document.getElementById('stat-avg-rating');
@@ -1978,6 +1990,7 @@ class App {
                 }
             } else {
                 setTile('stat-best-rating', '--', 'Need 3 rounds', null, 'rating');
+                setTile('stat-worst-rating', '--', 'Need 3 rounds', null, 'rating');
                 setTile('stat-latest-rating', '--', 'Need 3 rounds', null, 'rating');
                 const avgRatingEl = document.getElementById('stat-avg-rating');
                 if (avgRatingEl) avgRatingEl.textContent = '--';
@@ -2017,7 +2030,27 @@ class App {
                 groups[key].difficulty = h.difficulty; // Take latest
                 groups[key].count++;
             });
-            history = Object.values(groups).sort((a, b) => new Date(a.date) - new Date(b.date));
+            history = Object.values(groups);
+        }
+
+        // Apply Course Chart Sorting (After Grouping)
+        const getCourseVal = (r, stat) => {
+            if (stat === 'handicap') return r.index;
+            if (stat === 'performance') return r.performance;
+            if (stat === 'difficulty') return r.difficulty;
+            if (stat === 'rating') return r.rating !== undefined ? r.rating : r.roundRating;
+            return null;
+        };
+
+        if (this.courseChartSortDir === 'val-asc') {
+            history.sort((a, b) => (getCourseVal(a, primaryStat) || 0) - (getCourseVal(b, primaryStat) || 0));
+        } else if (this.courseChartSortDir === 'val-desc') {
+            history.sort((a, b) => (getCourseVal(b, primaryStat) || 0) - (getCourseVal(a, primaryStat) || 0));
+        } else if (this.courseChartSortDir === 'chrono-desc') {
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } else {
+            // Default: oldest first
+            history.sort((a, b) => new Date(a.date) - new Date(b.date));
         }
 
         const emptyState = document.getElementById('course-analytics-empty');
