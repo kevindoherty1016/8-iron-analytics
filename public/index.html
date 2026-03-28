@@ -316,6 +316,27 @@
                 </div>
             </div>
 
+            <div class="view-container hidden" id="view-course-analytics">
+                <div class="dashboard-header">
+                    <h2>Course Analytics</h2>
+                    <p class="subtitle">Track your handicap progression over time.</p>
+                </div>
+                
+                <div class="empty-state" id="course-analytics-empty" style="display: none;">
+                    <p>Not enough rounds recorded to calculate a handicap history.</p>
+                </div>
+
+                <div class="card" id="course-analytics-content" style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Handicap History trend</h3>
+                        <div id="course-analytics-current-hdcp" style="font-size: 1.2rem; font-weight: bold; color: var(--primary-green);">--</div>
+                    </div>
+                    <div class="chart-container" style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="handicapTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="view-container hidden" id="view-hole-dash">
                 <div class="dashboard-header">
                     <h2>Hole Analytics</h2>
