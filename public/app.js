@@ -1809,9 +1809,19 @@ class App {
                 // Expected Score Calculation: Requires at least 3 rounds to have an established index
                 const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
                 let performance = null;
+                let roundRating = null;
+                let roundRatingLabel = "";
                 if (history.length >= 3) {
                     const expected = rating + (slope / 113) * currentHdcp;
                     performance = expected - adjustedScore;
+                    
+                    // Round Rating Formula: 50 + (Performance * 5) + (Difficulty / 5)
+                    roundRating = 50 + (performance * 5) + (diffMetric / 5);
+                    if (roundRating >= 90) roundRatingLabel = "Elite";
+                    else if (roundRating >= 75) roundRatingLabel = "Excellent";
+                    else if (roundRating >= 60) roundRatingLabel = "Good";
+                    else if (roundRating >= 45) roundRatingLabel = "Average";
+                    else roundRatingLabel = "Needs work";
                 }
 
                 history.push({
@@ -1827,6 +1837,8 @@ class App {
                     rating: rating,
                     slope: slope,
                     ratingAdjusted: ratingAdjusted,
+                    roundRating: roundRating,
+                    roundRatingLabel: roundRatingLabel,
                     prevHandicap: currentHdcp,
                     holes: holes
                 });
@@ -1940,6 +1952,36 @@ class App {
 
             const avgDiffDescEl = document.getElementById('stat-avg-diff-desc');
             if (avgDiffDescEl) avgDiffDescEl.textContent = 'Average Difficulty';
+
+            // Round Rating Metrics
+            const validRatings = history.filter(h => h.roundRating !== null);
+            if (validRatings.length > 0) {
+                const bestRatingEntry = [...validRatings].sort((a, b) => b.roundRating - a.roundRating)[0];
+                const latestRatingEntry = validRatings[validRatings.length - 1];
+                const avgRatingVal = validRatings.reduce((acc, h) => acc + h.roundRating, 0) / validRatings.length;
+
+                setTile('stat-best-rating', bestRatingEntry.roundRating.toFixed(1), `${bestRatingEntry.roundRatingLabel} (${bestRatingEntry.courseName})`, bestRatingEntry, 'rating');
+                setTile('stat-latest-rating', latestRatingEntry.roundRating.toFixed(1), `${latestRatingEntry.roundRatingLabel} (${latestRatingEntry.courseName})`, latestRatingEntry, 'rating');
+                
+                const avgRatingEl = document.getElementById('stat-avg-rating');
+                if (avgRatingEl) {
+                    avgRatingEl.textContent = avgRatingVal.toFixed(1);
+                    let avgLabel = "";
+                    if (avgRatingVal >= 90) avgLabel = "Elite";
+                    else if (avgRatingVal >= 75) avgLabel = "Excellent";
+                    else if (avgRatingVal >= 60) avgLabel = "Good";
+                    else if (avgRatingVal >= 45) avgLabel = "Average";
+                    else avgLabel = "Needs work";
+                    
+                    const avgRatingDesc = document.getElementById('stat-avg-rating-desc');
+                    if (avgRatingDesc) avgRatingDesc.textContent = `Avg: ${avgLabel}`;
+                }
+            } else {
+                setTile('stat-best-rating', '--', 'Need 3 rounds', null, 'rating');
+                setTile('stat-latest-rating', '--', 'Need 3 rounds', null, 'rating');
+                const avgRatingEl = document.getElementById('stat-avg-rating');
+                if (avgRatingEl) avgRatingEl.textContent = '--';
+            }
         }
 
         // Grouping Logic
@@ -1967,10 +2009,11 @@ class App {
                 }
 
                 if (!groups[key]) {
-                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, label: label, count: 0 };
+                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, rating: h.roundRating, label: label, count: 0 };
                 }
                 groups[key].index = h.index; // Take latest
-                groups[key].performance = h.performance; // Take latest
+                if (h.performance !== null) groups[key].performance = h.performance;
+                if (h.roundRating !== null) groups[key].rating = h.roundRating;
                 groups[key].difficulty = h.difficulty; // Take latest
                 groups[key].count++;
             });
@@ -2004,6 +2047,7 @@ class App {
             if (stat === 'handicap') return item.index;
             if (stat === 'performance') return item.performance;
             if (stat === 'difficulty') return item.difficulty;
+            if (stat === 'rating') return item.rating;
             return null;
         };
 
@@ -2011,6 +2055,7 @@ class App {
             if (stat === 'handicap') return 'Handicap Index';
             if (stat === 'performance') return 'Performance (+ Better)';
             if (stat === 'difficulty') return 'Course Difficulty';
+            if (stat === 'rating') return 'Round Rating';
             return '';
         };
 
@@ -2018,6 +2063,7 @@ class App {
             if (stat === 'handicap') return '#10b981'; // Green
             if (stat === 'performance') return '#3b82f6'; // Blue
             if (stat === 'difficulty') return '#f59e0b'; // Amber
+            if (stat === 'rating') return '#8b5cf6'; // Purple
             return '#94a3b8';
         };
 
@@ -2226,6 +2272,37 @@ class App {
                     <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted);">
                         * This factor represents the relative difficulty of the course setup compared to a standard benchmark.
                     </div>
+                </div>
+            `;
+        } else if (type === 'rating') {
+            titleEl.textContent = "Round Rating Breakdown";
+            subtitleEl.textContent = `${data.courseName} - ${this.formatDateDisplay(data.date)}`;
+
+            const perfBonus = (data.performance || 0) * 5;
+            const diffBonus = (data.difficulty || 0) / 5;
+            
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Round Rating Calculation</div>
+                <div style="margin-left: 10px; margin-bottom: 20px;">
+                    Base Score: 50<br>
+                    Performance Bonus: ${perfBonus.toFixed(1)} <span style="font-size: 0.8rem; opacity: 0.8;">(Perf: ${data.performance?.toFixed(1)} &times; 5)</span><br>
+                    Difficulty Bonus: ${diffBonus.toFixed(1)} <span style="font-size: 0.8rem; opacity: 0.8;">(Diff: ${data.difficulty?.toFixed(1)} / 5)</span><br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: 50 + (Perf &times; 5) + (Diff / 5)</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; font-size: 1.2rem;">
+                        50 + ${perfBonus.toFixed(1)} + ${diffBonus.toFixed(1)} = <span style="color: #a855f7; font-weight: bold;">${data.roundRating.toFixed(1)}</span>
+                    </div>
+                    <div style="margin-top: 5px; color: var(--text-muted); font-weight: bold;">
+                        Status: <span style="color: #a855f7;">${data.roundRatingLabel}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 10px; color: var(--text-light); font-weight: bold; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">Rating Tiers</div>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <span style="color: #a855f7;">90+ Elite:</span> A legendary performance<br>
+                    <span style="color: #3b82f6;">75-89 Excellent:</span> Outstanding play<br>
+                    <span style="color: #10b981;">60-74 Good:</span> Solid round<br>
+                    <span style="color: #94a3b8;">45-59 Average:</span> Standard performance<br>
+                    <span style="color: var(--danger);"><45 Needs work:</span> Below your average level
                 </div>
             `;
         }
