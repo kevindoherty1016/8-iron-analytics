@@ -1738,7 +1738,6 @@ class App {
     calculateHandicapHistory() {
         if (!this.rounds || this.rounds.length === 0) return [];
         
-        // Process chronologically, from oldest to newest
         const chronologicalRounds = [...this.rounds].sort((a, b) => new Date(a.date) - new Date(b.date));
         const history = [];
         const runningValidRounds = [];
@@ -1757,17 +1756,20 @@ class App {
                 const adjustedScore = r.score * multiplier;
                 const diff = (113 / slope) * (adjustedScore - rating);
 
+                // Difficulty Formula: (Rating - 67)*5 + (Slope - 113)
+                const diffMetric = (rating - 67) * 5 + (slope - 113);
+
                 runningValidRounds.push({
                     date: r.date,
                     diff: diff
                 });
 
-                // Keep only the last 20 up to this point
                 if (runningValidRounds.length > 20) {
                     runningValidRounds.shift();
                 }
 
                 const count = runningValidRounds.length;
+                let hdcpVal = 0;
                 if (count >= 3) {
                     let numsToAverage = 1;
                     let adjustment = 0;
@@ -1786,16 +1788,31 @@ class App {
                     const sortedDiffs = [...runningValidRounds].sort((a, b) => a.diff - b.diff);
                     const selected = sortedDiffs.slice(0, numsToAverage);
                     const sum = selected.reduce((acc, val) => acc + val.diff, 0);
-                    let hdcp = (sum / numsToAverage) + adjustment;
+                    hdcpVal = (sum / numsToAverage) + adjustment;
 
-                    if (hdcp > 54.0) hdcp = 54.0;
-                    
-                    history.push({
-                        date: r.date,
-                        count: count,
-                        index: parseFloat((Math.round(Math.abs(hdcp) * 10) / 10).toFixed(1)) * (hdcp < 0 ? -1 : 1)
-                    });
+                    if (hdcpVal > 54.0) hdcpVal = 54.0;
                 }
+
+                // Expected Score: Rating + (Slope / 113) * Current Handicap
+                const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
+                const expected = rating + (slope / 113) * currentHdcp;
+                const performance = expected - adjustedScore;
+
+                history.push({
+                    date: r.date,
+                    count: count,
+                    index: parseFloat((Math.round(Math.abs(hdcpVal) * 10) / 10).toFixed(1)) * (hdcpVal < 0 ? -1 : 1),
+                    performance: performance,
+                    difficulty: diffMetric,
+                    courseName: r.course || course.name,
+                    teeName: r.teeName,
+                    score: r.score,
+                    adjustedScore: adjustedScore,
+                    rating: rating,
+                    slope: slope,
+                    prevHandicap: currentHdcp,
+                    holes: holes
+                });
             }
         }
         
@@ -1816,16 +1833,50 @@ class App {
             this.renderFilters('course-analytics-filters', () => this.renderCourseAnalytics());
         }
 
+        const secondarySelect = document.getElementById('course-secondary-stat');
+        if (secondarySelect && !secondarySelect._listenerAdded) {
+            secondarySelect.addEventListener('change', () => this.renderCourseAnalytics());
+            secondarySelect._listenerAdded = true;
+        }
+        const secondaryStat = secondarySelect ? secondarySelect.value : 'none';
+
         let history = this.calculateHandicapHistory();
         
-        // 2. Apply Year/Month Filters
+        // Apply Year/Month Filters
         history = history.filter(h => {
              const est = this.getEST(h.date);
              return (this.filterYears.length === 0 || this.filterYears.includes(est.y)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(est.m));
         });
 
-        // 3. Grouping Logic
+        // Tiles Calculation
+        if (history.length > 0) {
+            const bestPerf = [...history].sort((a, b) => b.performance - a.performance)[0];
+            const worstPerf = [...history].sort((a, b) => a.performance - b.performance)[0];
+            const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
+            const hardest = sortedByDiff[0];
+            const easiest = sortedByDiff[sortedByDiff.length - 1];
+
+            const setTile = (id, val, desc, data, type) => {
+                const card = document.getElementById(id)?.closest('.card');
+                const valEl = document.getElementById(id);
+                const descEl = document.getElementById(id + '-desc');
+                if (valEl) valEl.textContent = val;
+                if (descEl) descEl.textContent = desc;
+                if (card) {
+                    card.style.cursor = 'pointer';
+                    card.onclick = () => this.showMetricBreakdown(type, data);
+                    card.title = "Click to see calculation";
+                }
+            };
+
+            setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
+            setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
+            setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
+            setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
+        }
+
+        // Grouping Logic
         if (this.chartGroupBy !== 'round') {
             const groups = {};
             history.forEach(h => {
@@ -1853,7 +1904,7 @@ class App {
                 }
                 
                 // For handicap trend, we take the LATEST index in that period
-                groups[key] = { date: h.date, index: h.index, label: label };
+                groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, label: label };
             });
             history = Object.values(groups).sort((a, b) => new Date(a.date) - new Date(b.date));
         }
@@ -1885,50 +1936,207 @@ class App {
         }
 
         const labels = history.map(h => this.chartGroupBy === 'round' ? this.formatDateDisplay(h.date) : h.label);
-        const dataPoints = history.map(h => h.index);
+        const handicapData = history.map(h => h.index);
+
+        const datasets = [{
+            label: 'Handicap Index',
+            data: handicapData,
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: '#10B981',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y'
+        }];
+
+        let secondaryData = [];
+        let secondaryLabel = '';
+        let secondaryColor = '#f59e0b';
+
+        if (secondaryStat === 'performance') {
+            secondaryData = history.map(h => h.performance);
+            secondaryLabel = 'Performance';
+            secondaryColor = '#6366f1';
+        } else if (secondaryStat === 'difficulty') {
+            secondaryData = history.map(h => h.difficulty);
+            secondaryLabel = 'Difficulty';
+            secondaryColor = '#f59e0b';
+        }
+
+        if (secondaryStat !== 'none') {
+            datasets.push({
+                label: secondaryLabel,
+                data: secondaryData,
+                borderColor: secondaryColor,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 3,
+                tension: 0.3,
+                yAxisID: 'y1'
+            });
+        }
 
         this.handicapChartInstance = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Handicap Index',
-                    data: dataPoints,
-                    borderColor: '#10B981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#10B981',
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
+            data: { labels, datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                const val = context.parsed.y;
-                                return `Index: ${val < 0 ? '+' : ''}${Math.abs(val).toFixed(1)}`;
-                            }
-                        }
-                    }
-                },
                 scales: {
-                    x: {
+                    y: { 
+                        position: 'left',
+                        title: { display: true, text: 'Handicap Index', color: '#10B981' },
                         grid: { color: 'rgba(0, 0, 0, 0.05)' },
                         ticks: { color: '#6B7280' }
                     },
-                    y: {
+                    y1: {
+                        display: secondaryStat !== 'none',
+                        position: 'right',
+                        title: { display: true, text: secondaryLabel, color: secondaryColor },
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: secondaryColor }
+                    },
+                    x: {
                         grid: { color: 'rgba(0, 0, 0, 0.05)' },
                         ticks: { color: '#6B7280' }
                     }
+                },
+                plugins: {
+                    legend: { display: secondaryStat !== 'none' }
                 }
             }
         });
+
+        this.renderExpectedScoreCalculator();
+    }
+
+    renderExpectedScoreCalculator() {
+        const courseSelect = document.getElementById('calc-course-select');
+        const teeSelect = document.getElementById('calc-tee-select');
+        const resultEl = document.getElementById('expected-score-val');
+        const detailsEl = document.getElementById('expected-score-details');
+        
+        if (!courseSelect || !teeSelect) return;
+
+        // Only setup if needed
+        if (!courseSelect.innerHTML) {
+            const sortedCourses = [...this.courseLayouts].sort((a, b) => a.name.localeCompare(b.name));
+            courseSelect.innerHTML = '<option value="">-- Select a Course --</option>' + 
+                sortedCourses.map(c => `<option value="${c.courseId}">${c.name}</option>`).join('');
+            
+            courseSelect.addEventListener('change', () => {
+                const cid = courseSelect.value;
+                const course = this.courseLayouts.find(c => c.courseId === cid);
+                if (course && course.tees) {
+                    const tees = Object.keys(course.tees).sort();
+                    teeSelect.innerHTML = '<option value="">-- Select Tee --</option>' + 
+                        tees.map(t => `<option value="${t}">${t}</option>`).join('');
+                } else {
+                    teeSelect.innerHTML = '';
+                    resultEl.textContent = '--';
+                    detailsEl.textContent = 'Select a course to calculate';
+                }
+            });
+
+            teeSelect.addEventListener('change', () => {
+                const cid = courseSelect.value;
+                const teeName = teeSelect.value;
+                const course = this.courseLayouts.find(c => c.courseId === cid);
+                
+                if (course && course.tees && course.tees[teeName]) {
+                    const tee = course.tees[teeName];
+                    const rating = tee.rating || 0;
+                    const slope = tee.slope || 0;
+                    
+                    const res = this.calculateHandicapIndex();
+                    let handicap = 0;
+                    if (res.value !== 'NH') {
+                        if (res.value.startsWith('+')) {
+                            handicap = -parseFloat(res.value.substring(1));
+                        } else {
+                            handicap = parseFloat(res.value);
+                        }
+                    }
+
+                    if (rating > 0 && slope > 0) {
+                        const expected = rating + (slope / 113) * handicap;
+                        resultEl.textContent = Math.round(expected);
+                        detailsEl.textContent = `Based on index ${res.value} and ${teeName} tees (R: ${rating}, S: ${slope})`;
+                    }
+                } else {
+                    resultEl.textContent = '--';
+                    detailsEl.textContent = 'Invalid tee selected';
+                }
+            });
+        }
+    }
+
+    showMetricBreakdown(type, data) {
+        const modal = document.getElementById('metric-math-modal');
+        const titleEl = document.getElementById('metric-modal-title');
+        const subtitleEl = document.getElementById('metric-modal-subtitle');
+        const contentEl = document.getElementById('metric-modal-content');
+
+        if (!modal || !contentEl) return;
+
+        let html = '';
+        if (type === 'performance') {
+            titleEl.textContent = "Performance Breakdown";
+            subtitleEl.textContent = `${data.courseName} - ${this.formatDateDisplay(data.date)}`;
+            
+            const expected = data.rating + (data.slope / 113) * data.prevHandicap;
+            
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">1. Expected Score Calculation</div>
+                <div style="margin-left: 10px; margin-bottom: 20px;">
+                    Rating: ${data.rating}<br>
+                    Slope: ${data.slope}<br>
+                    Handicap at time: ${data.prevHandicap.toFixed(1)}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Rating + (Slope / 113) * Handicap</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${data.rating} + (${data.slope} / 113) * ${data.prevHandicap.toFixed(1)} = <span style="color: var(--primary-green);">${expected.toFixed(2)}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">2. Performance Score</div>
+                <div style="margin-left: 10px;">
+                    Expected Score: ${expected.toFixed(2)}<br>
+                    Actual Score: ${data.score} ${data.holes !== 18 ? `(Scales to ${data.adjustedScore.toFixed(1)} for 18h)` : ''}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Expected - Actual</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${expected.toFixed(2)} - ${data.adjustedScore.toFixed(2)} = <span style="color: ${data.performance >= 0 ? 'var(--primary-green)' : 'var(--danger)'}; font-weight: bold;">${(data.performance > 0 ? '+' : '') + data.performance.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        } else if (type === 'difficulty') {
+            titleEl.textContent = "Course Difficulty Breakdown";
+            subtitleEl.textContent = `${data.courseName} (${data.teeName} Tees)`;
+
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Difficulty Factor Calculation</div>
+                <div style="margin-left: 10px;">
+                    Rating: ${data.rating}<br>
+                    Slope: ${data.slope}<br>
+                    <div style="margin-top: 15px; font-style: italic; opacity: 0.8;">Formula: (Rating - 67) * 5 + (Slope - 113)</div>
+                    <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; font-size: 1.1rem;">
+                        (${data.rating} - 67) * 5 + (${data.slope} - 113) = <span style="color: var(--warning); font-weight: bold;">${data.difficulty.toFixed(1)}</span>
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted);">
+                        * This factor represents the relative difficulty of the course setup compared to a standard benchmark.
+                    </div>
+                </div>
+            `;
+        }
+
+        contentEl.innerHTML = html;
+        modal.classList.remove('hidden');
+    }
+
+    closeMetricBreakdown() {
+        const modal = document.getElementById('metric-math-modal');
+        if (modal) modal.classList.add('hidden');
     }
 
     exportHandicapHistoryCSV() {
