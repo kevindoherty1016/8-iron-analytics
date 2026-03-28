@@ -1826,14 +1826,14 @@ class App {
         const ctx = document.getElementById(ctxId);
         if (!ctx) return;
 
-        if (this.charts[ctxId]) {
-            this.charts[ctxId].destroy();
+        if (this.handicapChartInstance) {
+            this.handicapChartInstance.destroy();
         }
 
         const labels = history.map(h => this.formatDateDisplay(h.date));
         const dataPoints = history.map(h => h.index);
 
-        this.charts[ctxId] = new Chart(ctx, {
+        this.handicapChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
