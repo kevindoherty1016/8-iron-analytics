@@ -31,8 +31,8 @@ const prodConfig = {
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
 
-// 3. Select configuration based on environment
-const firebaseConfig = isDev ? devConfig : prodConfig;
+// 3. Always use production Firebase so your data persists on dev (per user request)
+const firebaseConfig = prodConfig;
 
 
 class App {
