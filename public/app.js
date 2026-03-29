@@ -1887,11 +1887,22 @@ class App {
 
         let history = this.calculateHandicapHistory();
         
-        // Apply Year/Month Filters
+        // Apply All Active Filters
         history = history.filter(h => {
              const est = this.getEST(h.date);
-             return (this.filterYears.length === 0 || this.filterYears.includes(est.y)) &&
-                    (this.filterMonths.length === 0 || this.filterMonths.includes(est.m));
+             const yr = est.y;
+             const mo = est.m;
+             const hCount = h.holes;
+             const cName = this.normalizeCourse(h.courseName);
+             const eName = (h.event || '').trim();
+
+             const yearMatch = this.filterYears.length === 0 || this.filterYears.includes(yr);
+             const monthMatch = this.filterMonths.length === 0 || this.filterMonths.includes(mo);
+             const holeMatch = this.filterHoles.length === 0 || this.filterHoles.includes(hCount);
+             const courseMatch = this.filterCourses.length === 0 || this.filterCourses.includes(cName);
+             const eventMatch = this.filterEvents.length === 0 || this.filterEvents.includes(eName) || (eName === '' && this.filterEvents.includes('none'));
+
+             return yearMatch && monthMatch && holeMatch && courseMatch && eventMatch;
         });
 
         // Tiles Calculation
@@ -2022,11 +2033,11 @@ class App {
                 }
 
                 if (!groups[key]) {
-                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, rating: h.roundRating, label: label, count: 0 };
+                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, roundRating: h.roundRating, label: label, count: 0 };
                 }
                 groups[key].index = h.index; // Take latest
                 if (h.performance !== null) groups[key].performance = h.performance;
-                if (h.roundRating !== null) groups[key].rating = h.roundRating;
+                if (h.roundRating !== null) groups[key].roundRating = h.roundRating;
                 groups[key].difficulty = h.difficulty; // Take latest
                 groups[key].count++;
             });
@@ -2038,7 +2049,7 @@ class App {
             if (stat === 'handicap') return r.index;
             if (stat === 'performance') return r.performance;
             if (stat === 'difficulty') return r.difficulty;
-            if (stat === 'rating') return r.rating !== undefined ? r.rating : r.roundRating;
+            if (stat === 'round_rating') return r.roundRating;
             return null;
         };
 
@@ -2080,7 +2091,7 @@ class App {
             if (stat === 'handicap') return item.index;
             if (stat === 'performance') return item.performance;
             if (stat === 'difficulty') return item.difficulty;
-            if (stat === 'rating') return item.rating;
+            if (stat === 'round_rating') return item.roundRating;
             return null;
         };
 
@@ -2088,7 +2099,7 @@ class App {
             if (stat === 'handicap') return 'Handicap Index';
             if (stat === 'performance') return 'Performance (+ Better)';
             if (stat === 'difficulty') return 'Course Difficulty';
-            if (stat === 'rating') return 'Round Rating';
+            if (stat === 'round_rating') return 'Round Rating';
             return '';
         };
 
@@ -2096,7 +2107,7 @@ class App {
             if (stat === 'handicap') return '#10b981'; // Green
             if (stat === 'performance') return '#3b82f6'; // Blue
             if (stat === 'difficulty') return '#f59e0b'; // Amber
-            if (stat === 'rating') return '#8b5cf6'; // Purple
+            if (stat === 'round_rating') return '#8b5cf6'; // Purple
             return '#94a3b8';
         };
 
@@ -3540,7 +3551,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
 
@@ -3811,7 +3822,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             if (filteredRounds.length === 0) {
@@ -4615,10 +4626,13 @@ class App {
                 const mo = est.m;
                 const normalizedRCourse = this.normalizeCourse(r.course);
                 const origHoles = this.getRoundOriginalHoles(r);
+                const rEvent = (r.event || '').trim();
 
                 return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
-                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse));
+                    (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
+                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             // Apply Search Filter
