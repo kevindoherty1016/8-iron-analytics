@@ -1,5 +1,39 @@
+/**
+ * 8 Iron Analytics
+ * Core Application Logic
+ */
+
+// Check if the current URL is a dev/test environment
+const isDev = window.location.hostname.includes('dev-permanent') ||
+    window.location.hostname.includes('ironanalytics-dev') ||
+    window.location.hostname.includes('8iron-dev') ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+// 1. Your DEV project configuration
+const devConfig = {
+    apiKey: "AIzaSyAS3gZqAR6XjXxuz-NvIxNqzCXSFrwMaxQ",
+    authDomain: "ironanalytics-dev.firebaseapp.com",
+    projectId: "ironanalytics-dev",
+    storageBucket: "ironanalytics-dev.firebasestorage.app",
+    messagingSenderId: "1084506018668",
+    appId: "1:1084506018668:web:be7a01d8aed35f4e365949",
+    measurementId: "G-NYYVEJV9JE"
+};
+
+// 2. Your PRODUCTION project configuration 
+const prodConfig = {
+    apiKey: "AIzaSyC7KiIYFW8KdDpdZEe42x6xxJZ16m5UPyo",
+    authDomain: "ironanalytics-cda1d.firebaseapp.com",
+    projectId: "ironanalytics-cda1d",
+    storageBucket: "ironanalytics-cda1d.firebasestorage.app",
+    messagingSenderId: "137015757592",
+    appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
+};
+
 // 3. Select configuration based on environment
 const firebaseConfig = isDev ? devConfig : prodConfig;
+
 
 class App {
     constructor() {
