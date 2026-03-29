@@ -771,6 +771,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
         transform: translateX(-100%);
         transition: transform var(--transition-normal);
         width: 280px;
+        z-index: 2000; /* Ensure it's above everything including active filters */
     }
 
     .sidebar.open {
@@ -779,6 +780,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
     .sidebar.open + .sidebar-backdrop {
         display: block;
+        z-index: 1999;
     }
 
     body.sidebar-open {
@@ -787,6 +789,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
     .sidebar-backdrop.active {
         display: block;
+        z-index: 1999;
     }
 
     .main-content {
