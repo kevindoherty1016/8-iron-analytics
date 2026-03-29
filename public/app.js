@@ -2033,11 +2033,11 @@ class App {
                 }
 
                 if (!groups[key]) {
-                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, rating: h.roundRating, label: label, count: 0 };
+                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, roundRating: h.roundRating, label: label, count: 0 };
                 }
                 groups[key].index = h.index; // Take latest
                 if (h.performance !== null) groups[key].performance = h.performance;
-                if (h.roundRating !== null) groups[key].rating = h.roundRating;
+                if (h.roundRating !== null) groups[key].roundRating = h.roundRating;
                 groups[key].difficulty = h.difficulty; // Take latest
                 groups[key].count++;
             });
@@ -2049,7 +2049,7 @@ class App {
             if (stat === 'handicap') return r.index;
             if (stat === 'performance') return r.performance;
             if (stat === 'difficulty') return r.difficulty;
-            if (stat === 'rating') return r.rating !== undefined ? r.rating : r.roundRating;
+            if (stat === 'round_rating') return r.roundRating;
             return null;
         };
 
@@ -2091,7 +2091,7 @@ class App {
             if (stat === 'handicap') return item.index;
             if (stat === 'performance') return item.performance;
             if (stat === 'difficulty') return item.difficulty;
-            if (stat === 'rating') return item.rating;
+            if (stat === 'round_rating') return item.roundRating;
             return null;
         };
 
@@ -2099,7 +2099,7 @@ class App {
             if (stat === 'handicap') return 'Handicap Index';
             if (stat === 'performance') return 'Performance (+ Better)';
             if (stat === 'difficulty') return 'Course Difficulty';
-            if (stat === 'rating') return 'Round Rating';
+            if (stat === 'round_rating') return 'Round Rating';
             return '';
         };
 
@@ -2107,7 +2107,7 @@ class App {
             if (stat === 'handicap') return '#10b981'; // Green
             if (stat === 'performance') return '#3b82f6'; // Blue
             if (stat === 'difficulty') return '#f59e0b'; // Amber
-            if (stat === 'rating') return '#8b5cf6'; // Purple
+            if (stat === 'round_rating') return '#8b5cf6'; // Purple
             return '#94a3b8';
         };
 
