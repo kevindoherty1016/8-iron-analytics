@@ -540,7 +540,19 @@ class App {
     }
 
     bindEvents() {
+        // Mobile Menu
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+        if (mobileMenuToggle) {
+            mobileMenuToggle.addEventListener('click', () => this.toggleMobileMenu());
+        }
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', () => this.closeMobileMenu());
+        }
+
         // Auth / Login Form
+
         const loginForm = document.getElementById('login-form');
         const loginSubmitBtn = document.getElementById('login-submit-btn');
         const toggleSignup = document.getElementById('toggle-signup');
@@ -1445,7 +1457,25 @@ class App {
         }
     }
 
+    toggleMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('active');
+        document.body.classList.toggle('sidebar-open');
+    }
+
+    closeMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+    }
+
     switchView(viewId) {
+        this.closeMobileMenu();
+
         // Security check: Don't allow app views if not logged in
         const publicViews = ['login', 'forgot-password', 'home'];
         if (!this.user && !publicViews.includes(viewId)) {

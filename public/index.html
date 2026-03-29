@@ -26,6 +26,8 @@
 <body class="landing-mode">
 
     <div class="app-container">
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
         <!-- Landing Header (Home Page Only) -->
         <header class="landing-header" id="landing-header">
             <div class="logo">
@@ -276,7 +278,15 @@
             </div>
 
             <header class="top-header hidden" id="top-header">
+                <button class="menu-toggle" id="mobile-menu-toggle" aria-label="Toggle Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
                 <h1 id="page-title">Round Analytics</h1>
+
                 <div style="display: flex; align-items: center; gap: 20px;">
                     <div id="header-handicap-display" style="cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text-light); border: 1px solid var(--border-color); padding: 6px 16px; border-radius: 20px; background: rgba(255,255,255,0.03); display: none; align-items: center; justify-content: center;" onclick="window.app.showHandicapBreakdown()" title="View Handicap Breakdown">
                         <span style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; margin-right: 8px; letter-spacing: 0.5px;">Current Handicap</span>
