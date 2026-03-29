@@ -729,13 +729,87 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+    .view-container {
+        padding: 24px;
+    }
+    
+    .top-header {
+        padding: 0 24px;
+    }
+}
+
+.menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 12px;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
 @media (max-width: 768px) {
+    .menu-toggle {
+        display: block;
+    }
+
     .sidebar {
         transform: translateX(-100%);
+        transition: transform var(--transition-normal);
+        width: 280px;
+        z-index: 2000; /* Ensure it's above everything including active filters */
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar.open + .sidebar-backdrop {
+        display: block;
+        z-index: 1999;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
+    .sidebar-backdrop.active {
+        display: block;
+        z-index: 1999;
     }
 
     .main-content {
         margin-left: 0;
+    }
+
+    .top-header h1 {
+        font-size: 1.25rem;
+    }
+
+    .dashboard-header h2 {
+        font-size: 1.5rem;
+    }
+
+    .view-container {
+        padding: 16px;
+    }
+
+    .hero-content h1 {
+        font-size: 2.5rem;
     }
 }
 

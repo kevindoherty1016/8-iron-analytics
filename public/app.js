@@ -1,15 +1,8 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-analytics.js";
-
-// Your existing code starts here...
-
 /**
  * 8 Iron Analytics
  * Core Application Logic
  */
 
-// WARNING: TO MAKE THE APP PUBLIC, PASTE YOUR FIREBASE WEB CONFIG OBJECT HERE
 // Check if the current URL is a dev/test environment
 const isDev = window.location.hostname.includes('dev-permanent') ||
     window.location.hostname.includes('ironanalytics-dev') ||
@@ -17,7 +10,7 @@ const isDev = window.location.hostname.includes('dev-permanent') ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
 
-// 1. Your DEV project configuration (The one you just shared)
+// 1. Your DEV project configuration
 const devConfig = {
     apiKey: "AIzaSyAS3gZqAR6XjXxuz-NvIxNqzCXSFrwMaxQ",
     authDomain: "ironanalytics-dev.firebaseapp.com",
@@ -27,8 +20,8 @@ const devConfig = {
     appId: "1:1084506018668:web:be7a01d8aed35f4e365949",
     measurementId: "G-NYYVEJV9JE"
 };
+
 // 2. Your PRODUCTION project configuration 
-// (Replace these placeholders with your original project keys)
 const prodConfig = {
     apiKey: "AIzaSyC7KiIYFW8KdDpdZEe42x6xxJZ16m5UPyo",
     authDomain: "ironanalytics-cda1d.firebaseapp.com",
@@ -37,12 +30,10 @@ const prodConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
-// 3. Always use production Firebase so your data persists on dev
+
+// 3. Always use production Firebase so your data persists on dev (per user request)
 const firebaseConfig = prodConfig;
 
-// Initialize Firebase using the selected config
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 
 class App {
     constructor() {
@@ -540,7 +531,19 @@ class App {
     }
 
     bindEvents() {
+        // Mobile Menu
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+        if (mobileMenuToggle) {
+            mobileMenuToggle.addEventListener('click', () => this.toggleMobileMenu());
+        }
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', () => this.closeMobileMenu());
+        }
+
         // Auth / Login Form
+
         const loginForm = document.getElementById('login-form');
         const loginSubmitBtn = document.getElementById('login-submit-btn');
         const toggleSignup = document.getElementById('toggle-signup');
@@ -1445,7 +1448,25 @@ class App {
         }
     }
 
+    toggleMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('active');
+        document.body.classList.toggle('sidebar-open');
+    }
+
+    closeMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+    }
+
     switchView(viewId) {
+        this.closeMobileMenu();
+
         // Security check: Don't allow app views if not logged in
         const publicViews = ['login', 'forgot-password', 'home'];
         if (!this.user && !publicViews.includes(viewId)) {
