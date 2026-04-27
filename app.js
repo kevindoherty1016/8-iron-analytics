@@ -926,6 +926,7 @@ class App {
         newRound.winnings = parseFloat(formData.get('roundWinnings') || 0) || 0;
         newRound.event = (formData.get('roundEvent') || '').trim();
         newRound.group = (formData.get('roundGroup') || '').trim();
+        newRound.isTeamTournament = formData.get('teamTournament') === 'on';
 
         newRound.scoreToPar = newRound.score - newRound.coursePar;
         newRound.puttsPerHole = newRound.holes > 0 ? (newRound.putts / newRound.holes).toFixed(2) : 0;
@@ -1356,6 +1357,11 @@ class App {
         setVal('roundWinnings', round.winnings || '');
         setVal('roundEvent', round.event || '');
         setVal('roundGroup', round.group || '');
+
+        const teamTournamentCheckbox = document.getElementById('teamTournament');
+        if (teamTournamentCheckbox) {
+            teamTournamentCheckbox.checked = !!round.isTeamTournament;
+        }
 
         document.getElementById('add-round-title').textContent = 'Edit Round';
         document.getElementById('save-round-btn').textContent = 'Update Round';
@@ -2531,7 +2537,7 @@ class App {
 
             // 2. Safely filter out empty/garbage rounds (e.g. score of 0 or absurdly low partials like 4)
             // A realistic 9-hole score is at least 25.
-            const scoringRounds = filteredRounds.filter(r => (Number(r.score) || 0) > 20);
+            const scoringRounds = filteredRounds.filter(r => (Number(r.score) || 0) > 20 && !r.isTeamTournament);
 
             // 3. Math Denominator: What fraction of 18 holes does the stored SCORE represent?
             const getScoringHoles = (r) => {
@@ -2768,7 +2774,7 @@ class App {
             this.renderFilters('hole-dash-filters', () => this.renderHoleDash());
 
             // Apply Filters
-            const filteredRounds = roundsWithDetails.filter(r => {
+            const filteredRounds = roundsWithDetails.filter(r => !r.isTeamTournament).filter(r => {
                 const est = this.getEST(r.date);
                 const yr = est.y;
                 const mo = est.m;
@@ -3391,7 +3397,7 @@ class App {
 
             if (!groups[key]) {
                 groups[key] = {
-                    label: label, count: 0, holes: 0, score: 0, putts: 0, gir: 0, fir: 0,
+                    label: label, count: 0, holes: 0, scoringHoles: 0, score: 0, putts: 0, gir: 0, fir: 0,
                     eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubleBogeys: 0, tripleBogeys: 0,
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
@@ -3402,26 +3408,30 @@ class App {
             const g = groups[key];
             g.count++;
             g.holes += (r.holes || 18);
-            g.score += (r.score || 0);
-            g.putts += (r.putts || 0);
-            g.gir += (r.gir || 0);
-            g.fir += (r.fir || 0);
-            g.eagles += (r.eagles || 0);
-            g.birdies += (r.birdies || 0);
-            g.pars += (r.pars || 0);
-            g.bogeys += (r.bogeys || 0);
-            g.doubleBogeys += (r.doubleBogeys || 0);
-            g.tripleBogeys += (r.tripleBogeys || 0);
-            g.otherScore += (r.otherScore || 0);
-            g.upDownChances += (r.upDownChances || 0);
-            g.upDownSuccesses += (r.upDownSuccesses || 0);
-            g.firChances += (r.firChances || 0);
-            g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
-            g.penaltyStrokes += (r.penaltyStrokes || 0);
-            g.scoreToPar += (r.scoreToPar || 0);
             g.cost += (r.cost || 0);
             g.winnings += (r.winnings || 0);
+
+            if (!r.isTeamTournament) {
+                g.scoringHoles += (r.holes || 18);
+                g.score += (r.score || 0);
+                g.putts += (r.putts || 0);
+                g.gir += (r.gir || 0);
+                g.fir += (r.fir || 0);
+                g.eagles += (r.eagles || 0);
+                g.birdies += (r.birdies || 0);
+                g.pars += (r.pars || 0);
+                g.bogeys += (r.bogeys || 0);
+                g.doubleBogeys += (r.doubleBogeys || 0);
+                g.tripleBogeys += (r.tripleBogeys || 0);
+                g.otherScore += (r.otherScore || 0);
+                g.upDownChances += (r.upDownChances || 0);
+                g.upDownSuccesses += (r.upDownSuccesses || 0);
+                g.firChances += (r.firChances || 0);
+                g.threePutts += (r.threePutts || 0);
+                g.penaltyStrokes += (r.penaltyStrokes || 0);
+                g.scoreToPar += (r.scoreToPar || 0);
+            }
             if (r.course && !g.courses.includes(r.course)) {
                 g.courses.push(r.course);
             }
@@ -3432,7 +3442,7 @@ class App {
         const benchmarkHoles = is9HoleOnly ? 9 : 18;
 
         const chartData = Object.values(groups).map(g => {
-            const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
+            const factorBenchmark = g.scoringHoles > 0 ? (benchmarkHoles / g.scoringHoles) : 0;
             return {
                 ...g,
                 score: g.score * factorBenchmark,
@@ -3441,10 +3451,10 @@ class App {
                 fir: g.fir * factorBenchmark,
                 scoreToPar: g.scoreToPar * factorBenchmark,
                 roundCount: g.count,
-                girPercent: g.holes > 0 ? (g.gir / g.holes) * 100 : 0,
+                girPercent: g.scoringHoles > 0 ? (g.gir / g.scoringHoles) * 100 : 0,
                 firPercent: g.firChances > 0 ? (g.fir / g.firChances) * 100 : 0,
                 upDownPercent: g.upDownChances > 0 ? (g.upDownSuccesses / g.upDownChances) * 100 : 0,
-                puttsPerHole: g.holes > 0 ? (g.putts / g.holes) : 0,
+                puttsPerHole: g.scoringHoles > 0 ? (g.putts / g.scoringHoles) : 0,
                 cost: g.cost,
                 winnings: g.winnings,
                 courses: g.courses
@@ -4199,7 +4209,7 @@ class App {
             }
 
             // Get recent valid rounds (up to 20)
-            const recent = this.rounds.slice(0, 20);
+            const recent = this.rounds.filter(r => !r.isTeamTournament).slice(0, 20);
 
             let totalHoles = 0;
             let totalScore = 0;
