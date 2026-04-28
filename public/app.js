@@ -781,7 +781,8 @@ class App {
             teeName: teeName,
             teeId: (courseLayout.tees && courseLayout.tees[teeName]) ? courseLayout.tees[teeName].teeId : '',
             timestamp: new Date().toISOString(),
-            putter: formData.get('putter') || ''
+            putter: formData.get('putter') || '',
+            isTeamTournament: document.getElementById('isTeamTournament') ? document.getElementById('isTeamTournament').checked : false
         };
 
         if (entryMode === 'quick') {
@@ -1438,6 +1439,8 @@ class App {
         setVal('weather', round.weather || '');
         setVal('temperature', round.temperature || '');
         setVal('roundNotes', round.notes || '');
+        const teamTournCb = document.getElementById('isTeamTournament');
+        if (teamTournCb) teamTournCb.checked = !!round.isTeamTournament;
 
         document.getElementById('add-round-title').textContent = 'Edit Round';
         document.getElementById('save-round-btn').textContent = 'Update Round';
@@ -1771,6 +1774,8 @@ class App {
         const runningValidRounds = [];
 
         for (const r of chronologicalRounds) {
+            if (r.isTeamTournament) continue; // Exclude team tournaments from handicap
+
             const course = this.courseLayouts.find(c => c.courseId === r.courseId);
             if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
 
@@ -3593,7 +3598,8 @@ class App {
 
             // 2. Safely filter out empty/garbage rounds (e.g. score of 0 or absurdly low partials like 4)
             // A realistic 9-hole score is at least 25.
-            const scoringRounds = filteredRounds.filter(r => (Number(r.score) || 0) > 20);
+            // Exclude Team Tournaments from performance metrics.
+            const scoringRounds = filteredRounds.filter(r => !r.isTeamTournament && (Number(r.score) || 0) > 20);
 
             // 3. Math Denominator: What fraction of 18 holes does the stored SCORE represent?
             const getScoringHoles = (r) => {
@@ -3832,6 +3838,7 @@ class App {
 
             // Apply Filters
             const filteredRounds = roundsWithDetails.filter(r => {
+                if (r.isTeamTournament) return false; // Exclude from Hole Analytics
                 const est = this.getEST(r.date);
                 const yr = est.y;
                 const mo = est.m;
@@ -4721,7 +4728,10 @@ class App {
                 <tr onclick="window.app.showRoundDetails('${round.id}')" style="cursor: pointer;">
                     <td style="text-align:center;" onclick="event.stopPropagation()"><input type="checkbox" class="history-row-checkbox" value="${round.id}"></td>
                     <td style="color:var(--text-muted); font-size:0.8rem; white-space:nowrap;">#${num}</td>
-                    <td>${this.formatDateDisplay(round.date)}</td>
+                    <td style="white-space:nowrap;">
+                        ${this.formatDateDisplay(round.date)}
+                        ${round.isTeamTournament ? '<span style="background:var(--primary-blue);color:white;padding:2px 6px;border-radius:12px;font-size:0.7em;margin-left:4px;" title="Team Tournament">Team</span>' : ''}
+                    </td>
                     <td style="font-weight: 500; color: var(--primary-green)">${String(round.course || 'Unknown').trim()}</td>
                     <td style="font-weight: 500; color: var(--text-primary)">${round.teeName || '---'}</td>
                     <td style="font-weight: 700;">${score}</td>
