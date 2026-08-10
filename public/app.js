@@ -189,6 +189,7 @@ class App {
             score: target,
             girPercent: Math.round(girTarget),
             firPercent: Math.round(firTarget),
+            goodShotsPercent: Math.max(20, Math.min(95, Math.round(80 - (target - 72) * 1.5))),
             putts: Math.round(puttsTarget * 10) / 10,
             upDownPercent: Math.round(upDownTarget),
             penalties: 0.5,
@@ -813,6 +814,8 @@ class App {
             newRound.upDownChances = parseInt(formData.get('upDownChances') || 0, 10);
             newRound.upDownSuccesses = parseInt(formData.get('upDownSuccesses') || 0, 10);
             newRound.threePutts = parseInt(formData.get('threePutts') || 0, 10);
+            newRound.goodShots = parseInt(formData.get('goodShots') || 0, 10);
+            newRound.goodShotsTarget = parseInt(formData.get('goodShotsTarget') || (holesCount === 9 ? 18 : 36), 10);
         } else {
             // For detailed mode, we are much more robust about saving all data
             const holesSelect = document.getElementById('detail-holes-select');
@@ -846,6 +849,16 @@ class App {
                 const putts = hole.putts || 0;
                 const fir = hole.fir;
                 const gir = hole.gir || false;
+                const targetShots = Math.max(1, par - 2);
+                let goodShotsArr = [];
+                let goodShotsCount = 0;
+                if (Array.isArray(hole.goodShots)) {
+                    goodShotsArr = hole.goodShots;
+                    goodShotsCount = hole.goodShots.filter(Boolean).length;
+                } else if (typeof hole.goodShots === 'number') {
+                    goodShotsCount = hole.goodShots;
+                    goodShotsArr = Array(targetShots).fill(false).map((_, idx) => idx < hole.goodShots);
+                }
 
                 const holeObj = {
                     hole: parseInt(i),
@@ -855,6 +868,9 @@ class App {
                     putts: putts,
                     fir: fir,
                     gir: gir,
+                    goodShots: goodShotsArr,
+                    goodShotsCount: goodShotsCount,
+                    goodShotsTarget: targetShots,
                     scrambling: (!gir && score > 0 && par > 0) ? (score <= par) : false
                 };
                 newRound.holeData.push(holeObj);
@@ -869,6 +885,7 @@ class App {
             let firChances = 0;
             let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
             let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
+            let goodShotsTotal = 0, goodShotsTargetTotal = 0;
 
             newRound.holeData.forEach(h => {
                 totalScore += h.score;
@@ -884,6 +901,8 @@ class App {
                     if (diff <= -2) eagles++; else if (diff === -1) birdies++; else if (diff === 0) pars++;
                     else if (diff === 1) bogeys++; else if (diff === 2) doubleBogeys++; else if (diff >= 3) tripleBogeys++;
                 }
+                goodShotsTotal += (h.goodShotsCount || 0);
+                goodShotsTargetTotal += (h.goodShotsTarget || Math.max(1, (h.par || 4) - 2));
             });
 
             newRound.score = totalScore;
@@ -901,6 +920,8 @@ class App {
             newRound.upDownChances = upDownChances;
             newRound.upDownSuccesses = upDownSuccesses;
             newRound.threePutts = threePutts;
+            newRound.goodShots = goodShotsTotal;
+            newRound.goodShotsTarget = goodShotsTargetTotal;
             newRound.holes = newRound.holeData.length;
         }
 
@@ -1095,9 +1116,11 @@ class App {
                             <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
                         </td>
                         <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green); pointer-events: none; opacity: 0.7;" tabindex="-1" ${existing && existing.gir ? 'checked' : ''}></td>
+                        <td style="padding: 10px 5px;" id="detail-goodshots-container-${holeNum}"></td>
                     `;
                     tbody.appendChild(tr);
                     this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
+                    this.updateHoleGoodShots(holeNum, true);
 
                     // Re-apply FIR state (in case updateHoleFIR changed the structure)
                     if (existing && existing.fir !== undefined) {
@@ -1150,6 +1173,36 @@ class App {
         }
     }
 
+    updateHoleGoodShots(holeNum, skipTotals = false) {
+        const parInput = document.getElementById(`detail-par-${holeNum}`);
+        if (!parInput) return;
+        const par = parseInt(parInput.value) || 4;
+        const targetShots = Math.max(1, par - 2);
+        const container = document.getElementById(`detail-goodshots-container-${holeNum}`);
+        if (!container) return;
+
+        const existing = this.tempHoleData[holeNum];
+        const savedShots = Array.isArray(existing?.goodShots)
+            ? existing.goodShots
+            : (typeof existing?.goodShots === 'number'
+                ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShots)
+                : (typeof existing?.goodShotsCount === 'number'
+                    ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShotsCount)
+                    : []));
+
+        let checkboxesHtml = '<div style="display: flex; gap: 5px; justify-content: center; align-items: center;">';
+        for (let s = 1; s <= targetShots; s++) {
+            const isChecked = savedShots[s - 1] === true;
+            checkboxesHtml += `<input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 15px; height: 15px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Good Shot ${s} of ${targetShots}" ${isChecked ? 'checked' : ''}>`;
+        }
+        checkboxesHtml += '</div>';
+        container.innerHTML = checkboxesHtml;
+
+        if (!skipTotals) {
+            this.calculateDetailedTotals();
+        }
+    }
+
     syncHoleDataFromDOM(hNum) {
         const parInput = document.getElementById(`detail-par-${hNum}`);
         const scoreInput = document.getElementById(`detail-score-${hNum}`);
@@ -1179,6 +1232,13 @@ class App {
 
         const firValue = (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false));
 
+        const targetShots = Math.max(1, parVal - 2);
+        const goodShotsArr = [];
+        for (let s = 1; s <= targetShots; s++) {
+            const gsEl = document.getElementById(`detail-goodshot-${hNum}-${s}`);
+            goodShotsArr.push(gsEl ? gsEl.checked : false);
+        }
+
         // Update the central data store
         this.tempHoleData[hNum] = {
             hole: parseInt(hNum),
@@ -1186,13 +1246,17 @@ class App {
             score: scoreVal,
             putts: puttsVal,
             gir: gir,
-            fir: firValue
+            fir: firValue,
+            goodShots: goodShotsArr,
+            goodShotsCount: goodShotsArr.filter(Boolean).length,
+            goodShotsTarget: targetShots
         };
 
-        // Handle FIR updates if par changes
+        // Handle FIR and Good Shots updates if par changes
         const currentEvent = typeof event !== 'undefined' ? event : null;
         if (parInput === document.activeElement || (currentEvent && currentEvent.target === parInput)) {
             this.updateHoleFIR(hNum, true);
+            this.updateHoleGoodShots(hNum, true);
         }
 
         this.calculateDetailedTotals();
@@ -1204,12 +1268,13 @@ class App {
         let totalPar = 0;
         let totalScore = 0;
         let totalPutts = 0;
-        // ... (rest of the calculation logic remains, but NO sync from DOM here)
         let girCount = 0;
         let firCount = 0;
         let firChances = 0;
         let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
         let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
+        let goodShotsCount = 0;
+        let goodShotsTarget = 0;
 
         const segment = document.getElementById('detail-holes-select')?.value || "18";
         let targetHoles = [];
@@ -1242,6 +1307,16 @@ class App {
                 }
             }
 
+            const tForHole = Math.max(1, (h.par || 4) - 2);
+            goodShotsTarget += tForHole;
+            if (Array.isArray(h.goodShots)) {
+                goodShotsCount += h.goodShots.filter(Boolean).length;
+            } else if (typeof h.goodShotsCount === 'number') {
+                goodShotsCount += h.goodShotsCount;
+            } else if (typeof h.goodShots === 'number') {
+                goodShotsCount += h.goodShots;
+            }
+
             if (!h.gir && h.score > 0 && h.par > 0) {
                 upDownChances++;
                 if (h.score <= h.par) upDownSuccesses++;
@@ -1262,6 +1337,11 @@ class App {
         document.getElementById('calc-total-par').innerText = totalPar;
         document.getElementById('calc-total-score').innerText = totalScore;
         document.getElementById('calc-total-putts').innerText = totalPutts;
+        const gsFooter = document.getElementById('calc-total-goodshots');
+        if (gsFooter) {
+            const gsPct = goodShotsTarget > 0 ? Math.round((goodShotsCount / goodShotsTarget) * 100) : 0;
+            gsFooter.innerText = `${goodShotsCount} / ${goodShotsTarget} (${gsPct}%)`;
+        }
 
         // Sync all quick-entry fields so switching modes shows correct totals
         const setQ = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
@@ -1271,6 +1351,8 @@ class App {
         setQ('gir', girCount);
         setQ('fir', firCount);
         setQ('firChances', firChances);
+        setQ('goodShots', goodShotsCount);
+        setQ('goodShotsTarget', goodShotsTarget);
         setQ('eagles', eagles);
         setQ('birdies', birdies);
         setQ('pars', pars);
@@ -1431,6 +1513,8 @@ class App {
         setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
         setVal('threePutts', (round.threePutts / divisor) || 0);
         setVal('lostBalls', (round.lostBalls / divisor) || 0);
+        setVal('goodShots', (round.goodShots / divisor) || 0);
+        setVal('goodShotsTarget', (round.goodShotsTarget / divisor) || (round.holes === 9 ? 18 : 36));
         setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
         setVal('roundCost', round.cost || '');
         setVal('roundWinnings', round.winnings || '');
@@ -3658,6 +3742,15 @@ class App {
             const totalCost = filteredRounds.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
             const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
 
+            const totalGoodShots = scoringRounds.reduce((acc, r) => {
+                let gs = Number(r.goodShots) || 0;
+                return acc + (gs * scalingFactor(r));
+            }, 0);
+            const totalGoodShotsTarget = scoringRounds.reduce((acc, r) => {
+                let gst = Number(r.goodShotsTarget) || (getScoringHoles(r) === 9 ? 18 : 36);
+                return acc + (gst * scalingFactor(r));
+            }, 0);
+
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
             const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
@@ -3667,6 +3760,9 @@ class App {
             const girPercent = mathScoringCount > 0 ? (totalGIR / (mathScoringCount * benchmarkHoles)) * 100 : 0;
             const firPercent = totalFIRC > 0 ? (totalFIR / totalFIRC) * 100 : 0;
             const scramblingPercent = totalUDC > 0 ? (totalUDS / totalUDC) * 100 : 0;
+            const avgGoodShotsPerRound = mathScoringCount > 0 ? (totalGoodShots / mathScoringCount) : 0;
+            const avgGoodShotsTargetPerRound = mathScoringCount > 0 ? (totalGoodShotsTarget / mathScoringCount) : (benchmarkHoles === 9 ? 18 : 36);
+            const goodShotsPercent = totalGoodShotsTarget > 0 ? (totalGoodShots / totalGoodShotsTarget) * 100 : 0;
 
             // Count rounds where specific metrics were actually tracked
             const roundsWithFIR = scoringRounds.filter(r => (Number(r.firChances) || 0) > 0).length;
@@ -3770,6 +3866,11 @@ class App {
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.upDownPercent}% (${Math.round(displayTargets.upDownPercent / 100 * avgUDCPerRound)}/${Math.round(avgUDCPerRound)})</div>
                 </div>
                 <div class="card stat-card">
+                    <div class="stat-title">Good Shots %</div>
+                    <div class="stat-value" style="color: ${totalGoodShotsTarget > 0 ? getColor(goodShotsPercent, displayTargets.goodShotsPercent, false) : 'var(--text-muted)'};">${totalGoodShotsTarget > 0 ? goodShotsPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${avgGoodShotsPerRound.toFixed(1)}/${Math.round(avgGoodShotsTargetPerRound)})</span></div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
+                </div>
+                <div class="card stat-card">
                     <div class="stat-title">Avg Putts (${benchmarkHoles} Holes)</div>
                     <div class="stat-value" style="color: ${getColor(avgPutts, displayTargets.putts, true)};">${Math.round(avgPutts)}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${Math.round(displayTargets.putts)}</div>
@@ -3783,11 +3884,6 @@ class App {
                     <div class="stat-title">Best Score (${benchmarkHoles} Holes)</div>
                     <div class="stat-value" style="color: var(--primary-green);">${bestScore}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">(${bestScoreToPar > 0 ? '+' : ''}${bestScoreToPar} to par)</div>
-                </div>
-                <div class="card stat-card">
-                    <div class="stat-title">Most Played</div>
-                    <div class="stat-value" style="color: var(--primary-green); font-size: 1.1rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${mostPlayedCourse}">${mostPlayedCourse}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">(${maxCourseCount} rounds • ${Math.round((maxCourseCount / count) * 100)}%)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Total Cost</div>
@@ -3863,7 +3959,7 @@ class App {
             // Aggregate Hole Data
             const holeStats = {};
             for (let i = 1; i <= 18; i++) {
-                holeStats[i] = { hole: i, totalScore: 0, totalPutts: 0, totalGIR: 0, totalFIR: 0, count: 0, firChances: 0, par: 0, parCount: 0 };
+                holeStats[i] = { hole: i, totalScore: 0, totalPutts: 0, totalGIR: 0, totalFIR: 0, count: 0, firChances: 0, par: 0, parCount: 0, goodShots: 0, goodShotsTarget: 0 };
             }
 
             const parStats = {
@@ -3895,6 +3991,11 @@ class App {
                         s.totalScore += score;
                         s.totalPutts += putts;
                         if (isGIR) s.totalGIR++;
+
+                        const tShots = Math.max(1, hPar - 2);
+                        s.goodShotsTarget += tShots;
+                        const gHits = Array.isArray(hd.goodShots) ? hd.goodShots.filter(Boolean).length : (hd.goodShotsCount || (typeof hd.goodShots === 'number' ? hd.goodShots : 0));
+                        s.goodShots += gHits;
 
                         if (hPar > 3) {
                             if (hd.fir === true || hd.fir === 'true' || (Array.isArray(hd.fir) && hd.fir.some(f => f === true || f === 'true'))) {
@@ -3952,6 +4053,7 @@ class App {
                         <th>Avg Putts</th>
                         <th>GIR %</th>
                         <th>FIR %</th>
+                        <th>Good Shots %</th>
                         <th>Rounds</th>
                     </tr>
                 </thead>
@@ -3966,6 +4068,7 @@ class App {
                 const avgPutts = s.totalPutts / s.count;
                 const girPct = (s.totalGIR / s.count) * 100;
                 const firPct = s.firChances > 0 ? (s.totalFIR / s.firChances) * 100 : 0;
+                const gsPct = s.goodShotsTarget > 0 ? (s.goodShots / s.goodShotsTarget) * 100 : 0;
 
                 tableHtml += `
                     <tr>
@@ -3975,6 +4078,7 @@ class App {
                         <td>${avgPutts.toFixed(1)}</td>
                         <td>${girPct.toFixed(0)}%</td>
                         <td>${s.firChances > 0 ? firPct.toFixed(0) + '%' : 'N/A'}</td>
+                        <td>${s.goodShotsTarget > 0 ? `${gsPct.toFixed(0)}% <span style="font-size: 0.75rem; color: var(--text-muted);">(${s.goodShots}/${s.goodShotsTarget})</span>` : 'N/A'}</td>
                         <td style="font-size: 0.8rem; color: var(--text-muted);">${s.count}</td>
                     </tr>
                 `;
@@ -4356,6 +4460,8 @@ class App {
             { value: 'girPercent', label: 'GIR %' },
             { value: 'fir', label: 'Fairways in Regulation' },
             { value: 'firPercent', label: 'FIR %' },
+            { value: 'goodShots', label: 'Good Shots' },
+            { value: 'goodShotsPercent', label: 'Good Shots %' },
             { value: 'upDownChances', label: 'Scrambling Chances' },
             { value: 'upDownSuccesses', label: 'Scrambling Successes' },
             { value: 'upDownPercent', label: 'Scrambling %' },
@@ -4364,6 +4470,7 @@ class App {
             { value: 'penaltyStrokes', label: 'Penalty Strokes' },
             { value: 'cost', label: 'Total Cost' },
             { value: 'winnings', label: 'Total Winnings' },
+            { value: 'holesPlayed', label: '# of Holes' },
             { value: 'roundCount', label: '# of Rounds' }
         ];
 
@@ -4465,6 +4572,7 @@ class App {
                     eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubleBogeys: 0, tripleBogeys: 0,
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
+                    goodShots: 0, goodShotsTarget: 0,
                     cost: 0, winnings: 0, courses: []
                 };
             }
@@ -4488,6 +4596,8 @@ class App {
             g.firChances += (r.firChances || 0);
             g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
+            g.goodShots += (r.goodShots || 0);
+            g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
             g.penaltyStrokes += (r.penaltyStrokes || 0);
             g.scoreToPar += (r.scoreToPar || 0);
             g.cost += (r.cost || 0);
@@ -4505,10 +4615,13 @@ class App {
             const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
             return {
                 ...g,
+                holesPlayed: g.holes,
                 score: g.score * factorBenchmark,
                 putts: g.putts * factorBenchmark,
                 gir: g.gir * factorBenchmark,
                 fir: g.fir * factorBenchmark,
+                goodShots: g.goodShots * factorBenchmark,
+                goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : 0,
                 scoreToPar: g.scoreToPar * factorBenchmark,
                 roundCount: g.count,
                 girPercent: g.holes > 0 ? (g.gir / g.holes) * 100 : 0,
@@ -4764,6 +4877,7 @@ class App {
         const girPercent = Math.round((round.gir || 0) / (round.holes || 18) * 100);
         const firPercent = (round.firChances || 0) > 0 ? Math.round((round.fir || 0) / (round.firChances || 0) * 100) : 0;
         const scramblingPercent = (round.upDownChances || 0) > 0 ? Math.round((round.upDownSuccesses || 0) / (round.upDownChances || 0) * 100) : 0;
+        const goodShotsPercent = (round.goodShotsTarget || 0) > 0 ? Math.round((round.goodShots || 0) / (round.goodShotsTarget || (round.holes === 9 ? 18 : 36)) * 100) : 0;
 
         const num = String(round.roundNum || '?').padStart(3, '0');
         content.innerHTML = `
@@ -4788,6 +4902,10 @@ class App {
                 <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
                     <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Fairways Hits (FIR)</div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${round.firChances > 0 ? `${round.fir}/${round.firChances} (${firPercent}%)` : 'N/A'}</div>
+                </div>
+                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Good Shots</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</div>
                 </div>
                 <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark); grid-column: span 2;">
                     <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">Putter Used</div>
@@ -4828,6 +4946,10 @@ class App {
                 <div>
                     <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Advanced Stats</h3>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Good Shots:</span>
+                            <span style="font-weight: 600; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</span>
+                        </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Scrambling:</span>
                             <span style="font-weight: 600;">${round.upDownSuccesses || 0}/${round.upDownChances || 0} (${scramblingPercent}%)</span>
@@ -4895,10 +5017,15 @@ class App {
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Putts</th>
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">FIR</th>
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">GIR</th>
+                                <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Good Shots</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${round.holeData.map((h, i) => h ? `
+                            ${round.holeData.map((h, i) => {
+                                if (!h) return '';
+                                const tShots = Math.max(1, (h.par || 4) - 2);
+                                const gHits = Array.isArray(h.goodShots) ? h.goodShots.filter(Boolean).length : (h.goodShotsCount || (typeof h.goodShots === 'number' ? h.goodShots : 0));
+                                return `
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 10px; text-align: center; font-weight: 600; color: var(--text-light);">${h.hole}</td>
                                     <td style="padding: 10px; text-align: center;">${h.par || '-'}</td>
@@ -4906,8 +5033,9 @@ class App {
                                     <td style="padding: 10px; text-align: center;">${h.putts || '-'}</td>
                                     <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : ((Array.isArray(h.fir) ? h.fir.some(v => v) : h.fir) ? '✅' : '❌')}</td>
                                     <td style="padding: 10px; text-align: center;">${h.gir ? '✅' : '❌'}</td>
+                                    <td style="padding: 10px; text-align: center;">${gHits}/${tShots}</td>
                                 </tr>
-                            ` : '').join('')}
+                            `;}).join('')}
                         </tbody>
                     </table>
                 </div>

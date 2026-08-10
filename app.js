@@ -1,22 +1,16 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-analytics.js";
-
-// Your existing code starts here...
-
 /**
  * 8 Iron Analytics
  * Core Application Logic
  */
 
-// WARNING: TO MAKE THE APP PUBLIC, PASTE YOUR FIREBASE WEB CONFIG OBJECT HERE
 // Check if the current URL is a dev/test environment
 const isDev = window.location.hostname.includes('dev-permanent') ||
     window.location.hostname.includes('ironanalytics-dev') ||
+    window.location.hostname.includes('8iron-dev') ||
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
 
-// 1. Your DEV project configuration (The one you just shared)
+// 1. Your DEV project configuration
 const devConfig = {
     apiKey: "AIzaSyAS3gZqAR6XjXxuz-NvIxNqzCXSFrwMaxQ",
     authDomain: "ironanalytics-dev.firebaseapp.com",
@@ -26,8 +20,8 @@ const devConfig = {
     appId: "1:1084506018668:web:be7a01d8aed35f4e365949",
     measurementId: "G-NYYVEJV9JE"
 };
+
 // 2. Your PRODUCTION project configuration 
-// (Replace these placeholders with your original project keys)
 const prodConfig = {
     apiKey: "AIzaSyC7KiIYFW8KdDpdZEe42x6xxJZ16m5UPyo",
     authDomain: "ironanalytics-cda1d.firebaseapp.com",
@@ -36,12 +30,10 @@ const prodConfig = {
     messagingSenderId: "137015757592",
     appId: "1:137015757592:web:173f425ed7542bcf70ac6d"
 };
-// 3. Select the config based on the environment
-const firebaseConfig = isDev ? devConfig : prodConfig;
 
-// Initialize Firebase using the selected config
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// 3. Always use production Firebase so your data persists on dev (per user request)
+const firebaseConfig = prodConfig;
+
 
 class App {
     constructor() {
@@ -59,8 +51,10 @@ class App {
         this.filterEndDate = null;
         this.chartGroupBy = 'round'; // Default group by
         this.chartSortDir = 'chrono-asc'; // Default chart sort direction
+        this.courseChartSortDir = 'chrono-asc'; // Default course analytics chart sort direction
         this.filterYears = []; // Array of selected years. Empty means all.
         this.filterMonths = []; // Array of month indices (0-11)
+        this.monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         this.filterCourses = []; // Array of selected courses. Empty means all.
         this.filterEvents = []; // Array of selected events. Empty means all.
         this.filterHoles = []; // Array of selected holes [9, 18]. Empty means all.
@@ -105,13 +99,13 @@ class App {
                 this.db = window.firebaseDB.getFirestore(firebaseApp);
                 window.db = this.db;
 
-                // Wrap the existing App Check logic so it skips Dev
-                if (window.firebaseAppCheck && !isDev) {  // Added !isDev here
+                // Initialize Firebase App Check logic (skips on dev)
+                if (window.firebaseAppCheck && !isDev) {
                     window.firebaseAppCheck.initializeAppCheck(firebaseApp, {
                         provider: new window.firebaseAppCheck.ReCaptchaEnterpriseProvider('6LfHn4ksAAAAAP9kqPa3C_dufZCjN-dvMureVHom'),
                         isTokenAutoRefreshEnabled: true
                     });
-                } else {
+                } else if (window.firebaseAppCheck) {
                     console.log("App Check skipped because we are in Dev mode.");
                 }
 
@@ -127,7 +121,7 @@ class App {
                         document.body.classList.remove('landing-mode');
                         document.getElementById('sidebar').classList.remove('hidden');
                         document.getElementById('top-header').classList.remove('hidden');
-                        document.getElementById('user-avatar').textContent = user.email.charAt(0).toUpperCase();
+                        this.updateAvatar();
 
                         // Switch view IMMEDIATELY, then load data in background
                         this.switchView('dashboard');
@@ -195,6 +189,7 @@ class App {
             score: target,
             girPercent: Math.round(girTarget),
             firPercent: Math.round(firTarget),
+            goodShotsPercent: Math.max(20, Math.min(95, Math.round(80 - (target - 72) * 1.5))),
             putts: Math.round(puttsTarget * 10) / 10,
             upDownPercent: Math.round(upDownTarget),
             penalties: 0.5,
@@ -493,6 +488,8 @@ class App {
                 if (this.profile.insightsTargetType) this.insightsTargetType = this.profile.insightsTargetType;
                 if (this.profile.insightsTargetValue) this.insightsTargetValue = this.profile.insightsTargetValue;
                 if (this.profile.insightsHoles) this.insightsHoles = this.profile.insightsHoles;
+                
+                this.updateAvatar();
             }
         } catch (e) {
             console.error("Error loading profile:", e);
@@ -505,6 +502,7 @@ class App {
             const { doc, setDoc } = window.firebaseDB;
             await setDoc(doc(this.db, 'users', this.user.uid, 'settings', 'profile'), profileData, { merge: true });
             this.profile = { ...this.profile, ...profileData };
+            this.updateAvatar();
             alert("Profile saved successfully!");
         } catch (e) {
             console.error("Error saving profile:", e);
@@ -534,7 +532,19 @@ class App {
     }
 
     bindEvents() {
+        // Mobile Menu
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+        if (mobileMenuToggle) {
+            mobileMenuToggle.addEventListener('click', () => this.toggleMobileMenu());
+        }
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', () => this.closeMobileMenu());
+        }
+
         // Auth / Login Form
+
         const loginForm = document.getElementById('login-form');
         const loginSubmitBtn = document.getElementById('login-submit-btn');
         const toggleSignup = document.getElementById('toggle-signup');
@@ -772,7 +782,8 @@ class App {
             teeName: teeName,
             teeId: (courseLayout.tees && courseLayout.tees[teeName]) ? courseLayout.tees[teeName].teeId : '',
             timestamp: new Date().toISOString(),
-            putter: formData.get('putter') || ''
+            putter: formData.get('putter') || '',
+            isTeamTournament: document.getElementById('isTeamTournament') ? document.getElementById('isTeamTournament').checked : false
         };
 
         if (entryMode === 'quick') {
@@ -803,56 +814,51 @@ class App {
             newRound.upDownChances = parseInt(formData.get('upDownChances') || 0, 10);
             newRound.upDownSuccesses = parseInt(formData.get('upDownSuccesses') || 0, 10);
             newRound.threePutts = parseInt(formData.get('threePutts') || 0, 10);
+            newRound.goodShots = parseInt(formData.get('goodShots') || 0, 10);
+            newRound.goodShotsTarget = parseInt(formData.get('goodShotsTarget') || (holesCount === 9 ? 18 : 36), 10);
         } else {
-            // DETAILED SCORECARD MODE
+            // For detailed mode, we are much more robust about saving all data
             const holesSelect = document.getElementById('detail-holes-select');
             const segment = holesSelect ? holesSelect.value : "18";
+
+            // Initial guess on holesCount based on segment
             let holesCount = 18;
             if (segment === "front9" || segment === "back9") holesCount = 9;
 
-            newRound.holes = holesCount;
             newRound.segment = segment;
-            newRound.originalHoles = holesCount;
             newRound.holeData = [];
 
-            let totalScore = 0;
-            let totalPar = 0;
-            let totalPutts = 0;
-            let girCount = 0;
-            let firCount = 0;
-            let upDownSuccesses = 0;
-            let upDownChances = 0;
-            let firChances = 0;
-
-            let eagles = 0;
-            let birdies = 0;
-            let pars = 0;
-            let bogeys = 0;
-            let doubleBogeys = 0;
-            let tripleBogeys = 0;
-            let threePutts = 0;
-
-            // Ensure any visible changes are synced to this.tempHoleData before saving
-            this.calculateDetailedTotals();
-
+            // Determine how many holes to save. 
+            // CRITICAL: We save EVERYTHING we have in tempHoleData if it has a score.
+            // This prevents accidental data loss if the segment dropdown is wrong.
             let holeIndices = [];
-            if (segment === "front9") holeIndices = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-            else if (segment === "back9") holeIndices = [10, 11, 12, 13, 14, 15, 16, 17, 18];
-            else {
-                // If segment is "18" or a number, we want all those holes
-                const limit = parseInt(segment) || 18;
-                for (let i = 1; i <= limit; i++) holeIndices.push(i);
+            for (let i = 1; i <= 18; i++) {
+                holeIndices.push(i);
             }
 
             holeIndices.forEach(i => {
                 const hole = this.tempHoleData[i];
                 if (!hole) return;
 
+                // Only save if it has a score or it's within the selected segment
+                const isInSegment = (segment === "18") || (segment === "front9" && i <= 9) || (segment === "back9" && i > 9 && i <= 18);
+                if (!isInSegment && (hole.score === 0 || !hole.score)) return;
+
                 const par = hole.par || 0;
                 const score = hole.score || 0;
                 const putts = hole.putts || 0;
                 const fir = hole.fir;
                 const gir = hole.gir || false;
+                const targetShots = Math.max(1, par - 2);
+                let goodShotsArr = [];
+                let goodShotsCount = 0;
+                if (Array.isArray(hole.goodShots)) {
+                    goodShotsArr = hole.goodShots;
+                    goodShotsCount = hole.goodShots.filter(Boolean).length;
+                } else if (typeof hole.goodShots === 'number') {
+                    goodShotsCount = hole.goodShots;
+                    goodShotsArr = Array(targetShots).fill(false).map((_, idx) => idx < hole.goodShots);
+                }
 
                 const holeObj = {
                     hole: parseInt(i),
@@ -862,61 +868,61 @@ class App {
                     putts: putts,
                     fir: fir,
                     gir: gir,
+                    goodShots: goodShotsArr,
+                    goodShotsCount: goodShotsCount,
+                    goodShotsTarget: targetShots,
                     scrambling: (!gir && score > 0 && par > 0) ? (score <= par) : false
                 };
                 newRound.holeData.push(holeObj);
-
-                // Aggregates
-                totalScore += score;
-                totalPar += par;
-                totalPutts += putts;
-                if (gir) girCount++;
-
-                if (par === 4) {
-                    firChances++;
-                    if (fir === true) firCount++;
-                } else if (par === 5) {
-                    firChances += 2;
-                    if (Array.isArray(fir)) {
-                        if (fir[0]) firCount++;
-                        if (fir[1]) firCount++;
-                    }
-                }
-
-                if (!gir && score > 0 && par > 0) {
-                    upDownChances++;
-                    if (score <= par) upDownSuccesses++;
-                }
-
-                // Scoring Breakdown
-                const diff = score - par;
-                if (score > 0 && par > 0) {
-                    if (diff <= -2) eagles++;
-                    else if (diff === -1) birdies++;
-                    else if (diff === 0) pars++;
-                    else if (diff === 1) bogeys++;
-                    else if (diff === 2) doubleBogeys++;
-                    else if (diff >= 3) tripleBogeys++;
-                }
-
-                if (putts >= 3) threePutts++;
             });
 
-            newRound.coursePar = totalPar;
+            // Recalculate totals from the holeData we JUST built to ensure absolute sync
+            let totalScore = 0;
+            let totalPar = 0;
+            let totalPutts = 0;
+            let girCount = 0;
+            let firCount = 0;
+            let firChances = 0;
+            let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
+            let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
+            let goodShotsTotal = 0, goodShotsTargetTotal = 0;
+
+            newRound.holeData.forEach(h => {
+                totalScore += h.score;
+                totalPar += h.par;
+                totalPutts += h.putts;
+                if (h.gir) girCount++;
+                if (h.putts >= 3) threePutts++;
+                if (h.par === 4) { firChances++; if (h.fir === true) firCount++; }
+                else if (h.par === 5) { firChances += 2; if (Array.isArray(h.fir)) { if (h.fir[0]) firCount++; if (h.fir[1]) firCount++; } }
+                if (!h.gir && h.score > 0 && h.par > 0) { upDownChances++; if (h.score <= h.par) upDownSuccesses++; }
+                if (h.score > 0 && h.par > 0) {
+                    const diff = h.score - h.par;
+                    if (diff <= -2) eagles++; else if (diff === -1) birdies++; else if (diff === 0) pars++;
+                    else if (diff === 1) bogeys++; else if (diff === 2) doubleBogeys++; else if (diff >= 3) tripleBogeys++;
+                }
+                goodShotsTotal += (h.goodShotsCount || 0);
+                goodShotsTargetTotal += (h.goodShotsTarget || Math.max(1, (h.par || 4) - 2));
+            });
+
             newRound.score = totalScore;
+            newRound.coursePar = totalPar;
             newRound.putts = totalPutts;
             newRound.gir = girCount;
             newRound.fir = firCount;
             newRound.firChances = firChances;
-            newRound.upDownSuccesses = upDownSuccesses;
-            newRound.upDownChances = upDownChances;
             newRound.eagles = eagles;
             newRound.birdies = birdies;
             newRound.pars = pars;
             newRound.bogeys = bogeys;
             newRound.doubleBogeys = doubleBogeys;
             newRound.tripleBogeys = tripleBogeys;
+            newRound.upDownChances = upDownChances;
+            newRound.upDownSuccesses = upDownSuccesses;
             newRound.threePutts = threePutts;
+            newRound.goodShots = goodShotsTotal;
+            newRound.goodShotsTarget = goodShotsTargetTotal;
+            newRound.holes = newRound.holeData.length;
         }
 
         // Apply mandatory extras to all entry modes
@@ -926,7 +932,9 @@ class App {
         newRound.winnings = parseFloat(formData.get('roundWinnings') || 0) || 0;
         newRound.event = (formData.get('roundEvent') || '').trim();
         newRound.group = (formData.get('roundGroup') || '').trim();
-        newRound.isTeamTournament = formData.get('teamTournament') === 'on';
+        newRound.weather = formData.get('weather') || '';
+        newRound.temperature = formData.get('temperature') || '';
+        newRound.notes = (formData.get('roundNotes') || '').trim();
 
         newRound.scoreToPar = newRound.score - newRound.coursePar;
         newRound.puttsPerHole = newRound.holes > 0 ? (newRound.putts / newRound.holes).toFixed(2) : 0;
@@ -973,7 +981,7 @@ class App {
     }
 
 
-    toggleDataEntryMode() {
+    toggleDataEntryMode(skipRegeneration = false) {
         const mode = document.getElementById('entry-mode-select').value;
         const quickSection = document.getElementById('section-quick-entry');
         const detailedSection = document.getElementById('section-detailed-entry');
@@ -1009,7 +1017,7 @@ class App {
 
             // Generate the scorecard if it hasn't been generated yet
             const segment = document.getElementById('detail-holes-select')?.value || "18";
-            if (document.getElementById('detailed-scorecard-body').children.length === 0) {
+            if (!skipRegeneration && document.getElementById('detailed-scorecard-body').children.length === 0) {
                 this.handleDetailedHoleChange(segment);
             }
         }
@@ -1032,82 +1040,118 @@ class App {
     }
 
     generateDetailedScorecard(segment = "18", prefilledHoles = null) {
-        // First ensure any currently visible data is saved before we clear,
-        // but ONLY if we are not already in the middle of a regeneration/load.
-        if (!this.isRegeneratingScorecard) {
-            this.calculateDetailedTotals();
-        }
+        console.debug('Generating scorecard:', segment, 'Prefilled:', prefilledHoles?.length, 'TempData Keys:', Object.keys(this.tempHoleData).length);
 
-        this.isRegeneratingScorecard = true;
+        try {
+            // First ensure any currently visible data is saved before we clear,
+            // but ONLY if we are not already in the middle of a regeneration/load.
+            if (!this.isRegeneratingScorecard) {
+                this.calculateDetailedTotals();
+            }
 
-        const tbody = document.getElementById('detailed-scorecard-body');
-        if (!tbody) return;
+            this.isRegeneratingScorecard = true;
 
-        tbody.innerHTML = '';
+            const tbody = document.getElementById('detailed-scorecard-body');
+            if (!tbody) {
+                console.error('detailed-scorecard-body not found!');
+                return;
+            }
 
-        let startIdx = 0;
-        let endIdx = 18;
+            tbody.innerHTML = '';
 
-        if (segment === "front9") {
-            startIdx = 0;
-            endIdx = 9;
-        } else if (segment === "back9") {
-            startIdx = 9;
-            endIdx = 18;
-        }
+            let startIdx = 0;
+            let endIdx = 18;
 
-        // If the tee only has 9 holes, we can only ever show 9
-        if (prefilledHoles && prefilledHoles.length === 9) {
-            startIdx = 0;
-            endIdx = 9;
-        }
-        // If we are showing "18", but the tee has a different number, use that
-        else if (segment === "18" && prefilledHoles) {
-            endIdx = prefilledHoles.length;
-        }
+            if (segment === "front9") {
+                startIdx = 0;
+                endIdx = 9;
+            } else if (segment === "back9") {
+                startIdx = 9;
+                endIdx = 18;
+            }
 
-        for (let i = startIdx; i < endIdx; i++) {
-            const holeNum = i + 1;
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            tr.id = `hole-row-${holeNum}`;
-
-            const preHole = prefilledHoles ? prefilledHoles[i] : null;
-            const existing = this.tempHoleData[holeNum];
-
-            tr.innerHTML = `
-                <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.updateHoleFIR(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.calculateDetailedTotals()"></td>
-                <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                    <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" ${existing && (existing.fir === true) ? 'checked' : ''}>
-                </td>
-                <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" ${existing && existing.gir ? 'checked' : ''}></td>
-            `;
-            tbody.appendChild(tr);
-            this.updateHoleFIR(holeNum);
-
-            // Re-apply FIR state (in case updateHoleFIR changed the structure)
-            if (existing && existing.fir !== undefined) {
-                const par = parseInt(document.getElementById(`detail-par-${holeNum}`).value);
-                if (par === 5 && Array.isArray(existing.fir)) {
-                    const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
-                    const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
-                    if (f1) f1.checked = existing.fir[0];
-                    if (f2) f2.checked = existing.fir[1];
-                } else {
-                    const fEl = document.getElementById(`detail-fir-${holeNum}`);
-                    if (fEl) fEl.checked = (existing.fir === true);
+            // If the tee has a specific hole count, use that as the secondary boundary IF it makes sense
+            if (prefilledHoles && prefilledHoles.length > 0) {
+                if (segment === "18") {
+                    endIdx = Math.max(18, prefilledHoles.length);
+                } else if (segment === "front9") {
+                    startIdx = 0;
+                    endIdx = 9;
+                } else if (segment === "back9") {
+                    startIdx = 9;
+                    endIdx = 18;
                 }
             }
+
+            // FINAL SAFETY: If we still have an invalid range or 0 holes, force 18
+            if (endIdx <= startIdx || isNaN(endIdx) || isNaN(startIdx)) {
+                console.warn('Invalid scorecard range detected, defaulting to 18 holes');
+                startIdx = 0;
+                endIdx = 18;
+            }
+
+            console.debug('Effective range:', startIdx, 'to', endIdx);
+
+            for (let i = startIdx; i < endIdx; i++) {
+                try {
+                    const holeNum = i + 1;
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                    tr.id = `hole-row-${holeNum}`;
+
+                    // Looping prefilledHoles: if it has 9 but we are at 10-18, loop back to 0-8
+                    let preHole = null;
+                    if (prefilledHoles && prefilledHoles.length > 0) {
+                        const lookupIdx = i % prefilledHoles.length;
+                        preHole = prefilledHoles[lookupIdx];
+                    }
+                    const existing = this.tempHoleData[holeNum];
+
+                    tr.innerHTML = `
+                        <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly' : ''}></td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
+                        <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
+                        <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
+                            <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
+                        </td>
+                        <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green); pointer-events: none; opacity: 0.7;" tabindex="-1" ${existing && existing.gir ? 'checked' : ''}></td>
+                        <td style="padding: 10px 5px;" id="detail-goodshots-container-${holeNum}"></td>
+                    `;
+                    tbody.appendChild(tr);
+                    this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
+                    this.updateHoleGoodShots(holeNum, true);
+
+                    // Re-apply FIR state (in case updateHoleFIR changed the structure)
+                    if (existing && existing.fir !== undefined) {
+                        const parInput = document.getElementById(`detail-par-${holeNum}`);
+                        const par = parInput ? parseInt(parInput.value) : 4;
+                        if (par === 5 && Array.isArray(existing.fir)) {
+                            const f1 = document.getElementById(`detail-fir-${holeNum}-1`);
+                            const f2 = document.getElementById(`detail-fir-${holeNum}-2`);
+                            if (f1) f1.checked = existing.fir[0];
+                            if (f2) f2.checked = existing.fir[1];
+                        } else {
+                            const fEl = document.getElementById(`detail-fir-${holeNum}`);
+                            if (fEl) fEl.checked = (existing.fir === true);
+                        }
+                    }
+                } catch (holeErr) {
+                    console.error(`Error rendering hole ${i + 1}:`, holeErr);
+                }
+            }
+        } catch (err) {
+            console.error('Fatal error in generateDetailedScorecard:', err);
+        } finally {
+            this.isRegeneratingScorecard = false;
+            this.calculateDetailedTotals();
         }
-        this.isRegeneratingScorecard = false;
-        this.calculateDetailedTotals();
     }
 
-    updateHoleFIR(holeNum) {
-        const par = parseInt(document.getElementById(`detail-par-${holeNum}`).value) || 0;
+    updateHoleFIR(holeNum, skipTotals = false) {
+        const parInput = document.getElementById(`detail-par-${holeNum}`);
+        if (!parInput) return;
+        const par = parseInt(parInput.value) || 0;
         const container = document.getElementById(`detail-fir-container-${holeNum}`);
         if (!container) return;
 
@@ -1116,14 +1160,105 @@ class App {
         } else if (par === 5) {
             container.innerHTML = `
                 <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
-                    <input type="checkbox" id="detail-fir-${holeNum}-1" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" title="Fairway 1">
-                    <input type="checkbox" id="detail-fir-${holeNum}-2" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()" title="Fairway 2">
+                    <input type="checkbox" id="detail-fir-${holeNum}-1" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 1">
+                    <input type="checkbox" id="detail-fir-${holeNum}-2" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 2">
                 </div>
             `;
         } else {
             // Par 4 or others
-            container.innerHTML = `<input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.calculateDetailedTotals()">`;
+            container.innerHTML = `<input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})">`;
         }
+        if (!skipTotals) {
+            this.calculateDetailedTotals();
+        }
+    }
+
+    updateHoleGoodShots(holeNum, skipTotals = false) {
+        const parInput = document.getElementById(`detail-par-${holeNum}`);
+        if (!parInput) return;
+        const par = parseInt(parInput.value) || 4;
+        const targetShots = Math.max(1, par - 2);
+        const container = document.getElementById(`detail-goodshots-container-${holeNum}`);
+        if (!container) return;
+
+        const existing = this.tempHoleData[holeNum];
+        const savedShots = Array.isArray(existing?.goodShots)
+            ? existing.goodShots
+            : (typeof existing?.goodShots === 'number'
+                ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShots)
+                : (typeof existing?.goodShotsCount === 'number'
+                    ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShotsCount)
+                    : []));
+
+        let checkboxesHtml = '<div style="display: flex; gap: 5px; justify-content: center; align-items: center;">';
+        for (let s = 1; s <= targetShots; s++) {
+            const isChecked = savedShots[s - 1] === true;
+            checkboxesHtml += `<input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 15px; height: 15px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Good Shot ${s} of ${targetShots}" ${isChecked ? 'checked' : ''}>`;
+        }
+        checkboxesHtml += '</div>';
+        container.innerHTML = checkboxesHtml;
+
+        if (!skipTotals) {
+            this.calculateDetailedTotals();
+        }
+    }
+
+    syncHoleDataFromDOM(hNum) {
+        const parInput = document.getElementById(`detail-par-${hNum}`);
+        const scoreInput = document.getElementById(`detail-score-${hNum}`);
+        const puttsInput = document.getElementById(`detail-putts-${hNum}`);
+
+        if (!parInput || !scoreInput || !puttsInput) return;
+
+        const parVal = parseInt(parInput.value) || 0;
+        const scoreVal = parseInt(scoreInput.value) || 0;
+        const puttsVal = parseInt(puttsInput.value) || 0;
+
+        // Auto-calculate GIR: reached the green in (par - 2) strokes or fewer.
+        // Formula: (score - putts) <= (par - 2)
+        // Only compute when we have valid score and putts; otherwise leave unchecked.
+        let gir = false;
+        if (scoreVal > 0 && puttsVal > 0 && parVal > 0) {
+            gir = (scoreVal - puttsVal) <= (parVal - 2);
+        }
+
+        // Reflect auto-calculated GIR back to the checkbox
+        const girEl = document.getElementById(`detail-gir-${hNum}`);
+        if (girEl) girEl.checked = gir;
+
+        const fEl = document.getElementById(`detail-fir-${hNum}`);
+        const f1 = document.getElementById(`detail-fir-${hNum}-1`);
+        const f2 = document.getElementById(`detail-fir-${hNum}-2`);
+
+        const firValue = (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false));
+
+        const targetShots = Math.max(1, parVal - 2);
+        const goodShotsArr = [];
+        for (let s = 1; s <= targetShots; s++) {
+            const gsEl = document.getElementById(`detail-goodshot-${hNum}-${s}`);
+            goodShotsArr.push(gsEl ? gsEl.checked : false);
+        }
+
+        // Update the central data store
+        this.tempHoleData[hNum] = {
+            hole: parseInt(hNum),
+            par: parVal,
+            score: scoreVal,
+            putts: puttsVal,
+            gir: gir,
+            fir: firValue,
+            goodShots: goodShotsArr,
+            goodShotsCount: goodShotsArr.filter(Boolean).length,
+            goodShotsTarget: targetShots
+        };
+
+        // Handle FIR and Good Shots updates if par changes
+        const currentEvent = typeof event !== 'undefined' ? event : null;
+        if (parInput === document.activeElement || (currentEvent && currentEvent.target === parInput)) {
+            this.updateHoleFIR(hNum, true);
+            this.updateHoleGoodShots(hNum, true);
+        }
+
         this.calculateDetailedTotals();
     }
 
@@ -1138,35 +1273,9 @@ class App {
         let firChances = 0;
         let eagles = 0, birdies = 0, pars = 0, bogeys = 0, doubleBogeys = 0, tripleBogeys = 0;
         let upDownChances = 0, upDownSuccesses = 0, threePutts = 0;
+        let goodShotsCount = 0;
+        let goodShotsTarget = 0;
 
-        const tbody = document.getElementById('detailed-scorecard-body');
-        if (!tbody) return;
-        const rows = tbody.querySelectorAll('tr');
-
-        // First, update tempHoleData with latest from DOM
-        rows.forEach(row => {
-            const hNum = row.id.split('-').pop();
-            const parVal = parseInt(document.getElementById(`detail-par-${hNum}`)?.value) || 0;
-            const scoreVal = parseInt(document.getElementById(`detail-score-${hNum}`)?.value) || 0;
-            const puttsVal = parseInt(document.getElementById(`detail-putts-${hNum}`)?.value) || 0;
-            const girEl = document.getElementById(`detail-gir-${hNum}`);
-            const gir = girEl ? girEl.checked : false;
-
-            const fEl = document.getElementById(`detail-fir-${hNum}`);
-            const f1 = document.getElementById(`detail-fir-${hNum}-1`);
-            const f2 = document.getElementById(`detail-fir-${hNum}-2`);
-
-            this.tempHoleData[hNum] = {
-                hole: parseInt(hNum),
-                par: parVal,
-                score: scoreVal,
-                putts: puttsVal,
-                gir: gir,
-                fir: (parVal === 5 ? [f1?.checked || false, f2?.checked || false] : (fEl?.checked || false))
-            };
-        });
-
-        // Determine current segment to calculate totals correctly
         const segment = document.getElementById('detail-holes-select')?.value || "18";
         let targetHoles = [];
         if (segment === "front9") targetHoles = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -1198,6 +1307,16 @@ class App {
                 }
             }
 
+            const tForHole = Math.max(1, (h.par || 4) - 2);
+            goodShotsTarget += tForHole;
+            if (Array.isArray(h.goodShots)) {
+                goodShotsCount += h.goodShots.filter(Boolean).length;
+            } else if (typeof h.goodShotsCount === 'number') {
+                goodShotsCount += h.goodShotsCount;
+            } else if (typeof h.goodShots === 'number') {
+                goodShotsCount += h.goodShots;
+            }
+
             if (!h.gir && h.score > 0 && h.par > 0) {
                 upDownChances++;
                 if (h.score <= h.par) upDownSuccesses++;
@@ -1218,6 +1337,11 @@ class App {
         document.getElementById('calc-total-par').innerText = totalPar;
         document.getElementById('calc-total-score').innerText = totalScore;
         document.getElementById('calc-total-putts').innerText = totalPutts;
+        const gsFooter = document.getElementById('calc-total-goodshots');
+        if (gsFooter) {
+            const gsPct = goodShotsTarget > 0 ? Math.round((goodShotsCount / goodShotsTarget) * 100) : 0;
+            gsFooter.innerText = `${goodShotsCount} / ${goodShotsTarget} (${gsPct}%)`;
+        }
 
         // Sync all quick-entry fields so switching modes shows correct totals
         const setQ = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
@@ -1227,6 +1351,8 @@ class App {
         setQ('gir', girCount);
         setQ('fir', firCount);
         setQ('firChances', firChances);
+        setQ('goodShots', goodShotsCount);
+        setQ('goodShotsTarget', goodShotsTarget);
         setQ('eagles', eagles);
         setQ('birdies', birdies);
         setQ('pars', pars);
@@ -1270,120 +1396,164 @@ class App {
     }
 
     editRound(id) {
+        console.debug('editRound called for id:', id);
         const round = this.rounds.find(r => r.id === id);
-        if (!round) return;
+        if (!round) {
+            console.error('Round not found for id:', id);
+            return;
+        }
 
-        // Note: tempHoleData is populated later in this function, just before handleTeeChange.
+        // 1. POPULATE TEMP DATA FIRST (Collision-Safe for legacy 1-9 twice data)
+        this.tempHoleData = {};
+        if (round.holeData) {
+            const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
+            console.debug('editRound: Populating from hData. length:', hData.length);
+            hData.forEach((h, idx) => {
+                if (h && h.hole !== undefined) {
+                    let hNum = parseInt(h.hole);
 
+                    // HEALER: If we see a hole number we've already seen (e.g. 1-9 repeating),
+                    // or if it's the second half of an 18-item array, shift it to 10-18.
+                    if (this.tempHoleData[hNum] !== undefined || (idx >= 9 && hNum <= 9 && hData.length > 9)) {
+                        if (hNum <= 9) {
+                            hNum += 9;
+                            console.debug(`  Auto-shifted hole ${h.hole} at idx ${idx} to ${hNum}`);
+                        }
+                    }
+
+                    this.tempHoleData[hNum] = { ...h, hole: hNum };
+                }
+            });
+            console.debug('Populated tempHoleData keys:', Object.keys(this.tempHoleData));
+        }
+
+        // 2. OPEN MODAL (Ensures DOM elements are active)
+        this.openAddRoundModal(true);
+
+        // 3. SYNCHRONOUS POPULATION
+        console.debug('Synchronous population starting for round:', id);
         const form = document.getElementById('add-round-form');
-        if (!form) return;
+        const entryModeSelect = document.getElementById('entry-mode-select');
+        if (!form || !entryModeSelect) {
+            console.error('Population failed: Form or EntryModeSelect not found!');
+            return;
+        }
 
-        // Note: For legacy rounds that were forcefully doubled and tagged with (9 Holes x2),
-        // we will divide them back down to their true physical 9-hole state so they can 
-        // finally be converted off the legacy string logic and explicitly saved as pure holes.
-        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
-        const divisor = isLegacyDoubledEntry ? 2 : 1;
+        // 4. SET ENTRY MODE
+        const isDetailed = !!(round.holeData && round.holeData.length > 0);
+        entryModeSelect.value = isDetailed ? 'detailed' : 'quick';
+        this.toggleDataEntryMode(true); // Skip immediate regeneration to avoid race
 
+        // 5. LOAD CORE DATA
         document.getElementById('edit-round-id').value = round.id;
+        const setVal = (fid, val) => {
+            const el = form.querySelector('#' + fid);
+            if (el) el.value = val !== undefined ? val : '';
+        };
 
-        // Format date string for input type="date"
         let dateVal = round.date;
         if (dateVal && dateVal.includes('/')) {
             const parts = dateVal.split('/');
             if (parts.length === 3) {
                 let year = parts[2];
-                if (year.length === 2) year = '20' + year; // very basic assumption
+                if (year.length === 2) year = '20' + year;
                 let month = parts[0].padStart(2, '0');
                 let day = parts[1].padStart(2, '0');
                 dateVal = `${year}-${month}-${day}`;
             }
         }
-
-        const setVal = (id, val) => {
-            const el = form.querySelector('#' + id);
-            if (el) el.value = val !== undefined ? val : '';
-        };
-
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
         this.handleCourseChangeRoundModal();
-        const segment = round.segment || (round.holes === 9 ? 'front9' : '18');
-        setVal('holes', segment);
-        setVal('detail-holes-select', segment);
-        setVal('round-tee-set', round.teeName || '');
 
-        // Ensure tempHoleData is fully populated BEFORE we render any scorecard
-        this.tempHoleData = {};
-        if (round.holeData) {
-            const hData = Array.isArray(round.holeData) ? round.holeData : Object.values(round.holeData);
-            hData.forEach(h => {
-                if (h && h.hole !== undefined) {
-                    const hNum = parseInt(h.hole);
-                    this.tempHoleData[hNum] = { ...h };
-                }
-            });
+        // 6. SETUP SEGMENT
+        let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
+
+        // DATA-DRIVEN HEALER: Count how many holes actually have ANY data. 
+        // If more than 9, or if we have keys above 9, we MUST show 18 holes to be useful.
+        const populatedHolesCount = Object.keys(this.tempHoleData).length;
+        const hasBackNineData = Object.keys(this.tempHoleData).some(hNum => parseInt(hNum) > 9);
+
+        if (populatedHolesCount > 9 || hasBackNineData) {
+            segment = '18';
         }
 
-        // Use the flag to prevent handleTeeChange -> generateScorecard -> calculateTotals
-        // from clearing the data we just loaded into tempHoleData.
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
+        const teeName = round.teeName || '';
+        const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
+
+        setVal('holes', segment);
+        setVal('detail-holes-select', segment);
+        setVal('round-tee-set', teeName);
+
+        // 7. RENDER SCORECARD (Immediate & Deterministic)
         this.isRegeneratingScorecard = true;
+        this.generateDetailedScorecard(segment, tee ? tee.holes : null);
+
+        // Also call the standard tee change handler to ensure all other side effects (like dropdowns) are synced
         this.handleTeeChangeRoundModal();
-        this.isRegeneratingScorecard = false;
 
+        // 8. POPULATE EXTRAS
+        const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
+        const divisor = isLegacyDoubledEntry ? 2 : 1;
         setVal('coursePar', (round.coursePar / divisor) || 72);
-
         setVal('score', (round.score / divisor) || 0);
         setVal('putts', (round.putts / divisor) || 0);
         setVal('gir', (round.gir / divisor) || 0);
         setVal('fir', (round.fir / divisor) || 0);
         setVal('firChances', (round.firChances / divisor) || 0);
-
         setVal('eagles', (round.eagles / divisor) || 0);
         setVal('birdies', (round.birdies / divisor) || 0);
         setVal('pars', (round.pars / divisor) || 0);
         setVal('bogeys', (round.bogeys / divisor) || 0);
         setVal('putter', round.putter || '');
-
         setVal('doubleBogeys', (round.doubleBogeys / divisor) || 0);
         setVal('tripleBogeys', (round.tripleBogeys / divisor) || 0);
-        setVal('otherScore', (round.otherScore / divisor) || 0);
-
         setVal('upDownChances', (round.upDownChances / divisor) || 0);
         setVal('upDownSuccesses', (round.upDownSuccesses / divisor) || 0);
         setVal('threePutts', (round.threePutts / divisor) || 0);
         setVal('lostBalls', (round.lostBalls / divisor) || 0);
+        setVal('goodShots', (round.goodShots / divisor) || 0);
+        setVal('goodShotsTarget', (round.goodShotsTarget / divisor) || (round.holes === 9 ? 18 : 36));
         setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
         setVal('roundCost', round.cost || '');
         setVal('roundWinnings', round.winnings || '');
         setVal('roundEvent', round.event || '');
         setVal('roundGroup', round.group || '');
-
-        const teamTournamentCheckbox = document.getElementById('teamTournament');
-        if (teamTournamentCheckbox) {
-            teamTournamentCheckbox.checked = !!round.isTeamTournament;
-        }
+        setVal('weather', round.weather || '');
+        setVal('temperature', round.temperature || '');
+        setVal('roundNotes', round.notes || '');
+        const teamTournCb = document.getElementById('isTeamTournament');
+        if (teamTournCb) teamTournCb.checked = !!round.isTeamTournament;
 
         document.getElementById('add-round-title').textContent = 'Edit Round';
         document.getElementById('save-round-btn').textContent = 'Update Round';
         document.getElementById('cancel-edit-btn').style.display = 'block';
 
-        // DETAILED SCORECARD MAPPING: If the round has hole-by-hole data, prepopulate the bottom table
-        // DETAILED SCORECARD MAPPING: Rely on tempHoleData and handleTeeChange
-        if (round.holeData && round.holeData.length > 0) {
-            document.getElementById('entry-mode-select').value = 'detailed';
-            this.toggleDataEntryMode();
-            // generateDetailedScorecard was already triggered by handleTeeChangeRoundModal at line 1316.
-            // This now correctly uses the tempHoleData.
-        } else if (true) {
-            // Quick entry mode default
-            document.getElementById('entry-mode-select').value = 'quick';
-            this.toggleDataEntryMode();
+        if (isDetailed) {
+            this.calculateDetailedTotals();
         }
+    }
 
-        this.openAddRoundModal(true);
+    toggleMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('active');
+        document.body.classList.toggle('sidebar-open');
+    }
+
+    closeMobileMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (sidebar) sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
     }
 
     switchView(viewId) {
+        this.closeMobileMenu();
+
         // Security check: Don't allow app views if not logged in
         const publicViews = ['login', 'forgot-password', 'home'];
         if (!this.user && !publicViews.includes(viewId)) {
@@ -1508,16 +1678,21 @@ class App {
                 if (!select) return;
                 const currentVal = select.value;
                 select.innerHTML = '';
-                if (holeCount === 18) {
-                    select.innerHTML = `
-                        <option value="18">18 Holes</option>
-                        <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
-                        <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
-                    `;
-                } else {
-                    select.innerHTML = `<option value="front9" selected>Front 9</option>`;
+
+                // ALWAYS allow 18 Holes if the user has/wants it.
+                // On a 9-hole course, it just loops the front 9.
+                select.innerHTML = `
+                    <option value="18" ${currentVal === '18' ? 'selected' : ''}>18 Holes</option>
+                    <option value="front9" ${currentVal === 'front9' ? 'selected' : ''}>Front 9</option>
+                    <option value="back9" ${currentVal === 'back9' ? 'selected' : ''}>Back 9</option>
+                `;
+
+                // Preserve the value if it exists in the new options, otherwise it defaults to first
+                if (currentVal && select.querySelector(`option[value="${currentVal}"]`)) {
+                    select.value = currentVal;
                 }
             };
+
 
             updateSegments(holesSelect);
             updateSegments(detailHolesSelect);
@@ -1528,10 +1703,18 @@ class App {
                 let totalPar = 0;
                 if (segment === "front9") {
                     totalPar = tee.holes.slice(0, 9).reduce((sum, h) => sum + h.par, 0);
-                } else if (segment === "back9" && holeCount === 18) {
-                    totalPar = tee.holes.slice(9, 18).reduce((sum, h) => sum + h.par, 0);
+                } else if (segment === "back9") {
+                    // Loop if only 9 holes available
+                    const backHoles = tee.holes.length === 18 ? tee.holes.slice(9, 18) : tee.holes.slice(0, 9);
+                    totalPar = backHoles.reduce((sum, h) => sum + h.par, 0);
                 } else {
-                    totalPar = tee.holes.reduce((sum, h) => sum + (h.par || 0), 0);
+                    // 18 Holes
+                    if (tee.holes.length === 18) {
+                        totalPar = tee.holes.reduce((sum, h) => sum + (h.par || 0), 0);
+                    } else {
+                        // Loop 9 holes twice
+                        totalPar = (tee.holes.reduce((sum, h) => sum + (h.par || 0), 0)) * 2;
+                    }
                 }
                 courseParInput.value = totalPar;
                 courseParInput.readOnly = true;
@@ -1559,6 +1742,8 @@ class App {
     }
 
     render() {
+        this.updateHandicapDisplay();
+
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
         } else if (this.currentView === 'history') {
@@ -1567,12 +1752,828 @@ class App {
             this.renderInsights();
         } else if (this.currentView === 'profile') {
             this.renderProfile();
+        } else if (this.currentView === 'course-analytics') {
+            this.renderCourseAnalytics();
         } else if (this.currentView === 'hole-dash') {
             this.renderHoleDash();
         } else if (this.currentView === 'data-dictionary') {
             // No dynamic rendering needed yet, just static HTML
         } else if (this.currentView === 'courses') {
             this.renderCourseManagement();
+        }
+    }
+
+    calculateHandicapIndex() {
+        if (!this.rounds || this.rounds.length === 0) return { value: 'NH', history: [] };
+
+        const validRounds = [];
+
+        // Iterate through rounds (newest first) to find up to 20 valid differentials
+        for (const r of this.rounds) {
+            if (validRounds.length >= 20) break;
+
+            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
+            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+
+            const tee = course.tees[r.teeName];
+            let rating = tee.rating || 0;
+            const slope = tee.slope || 0;
+
+            // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+            if (rating >= 30 && rating < 45) {
+                rating = rating * 2;
+            }
+
+            if (rating > 0 && slope > 0 && r.score > 0) {
+                // Scale 9-hole rounds
+                const holes = r.holes || 18;
+                const multiplier = 18 / holes;
+                const adjustedScore = r.score * multiplier;
+
+                const diff = (113 / slope) * (adjustedScore - rating);
+                // Keep the round object to render later
+                validRounds.push({
+                    date: r.date,
+                    course: r.course || course.name,
+                    score: r.score,
+                    adjustedScore: adjustedScore,
+                    holes: holes,
+                    rating: rating,
+                    slope: slope,
+                    diff: diff,
+                    isUsed: false
+                });
+            }
+        }
+
+        const count = validRounds.length;
+        if (count < 3) return { value: 'NH', history: validRounds };
+        
+        // Determine how many scores to use for the average
+        let numsToAverage = 1;
+        let adjustment = 0;
+
+        if (count === 3) { numsToAverage = 1; adjustment = -2.0; }
+        else if (count === 4) { numsToAverage = 1; adjustment = -1.0; }
+        else if (count === 5) { numsToAverage = 1; }
+        else if (count === 6) { numsToAverage = 2; adjustment = -1.0; }
+        else if (count >= 7 && count <= 8) { numsToAverage = 2; }
+        else if (count >= 9 && count <= 11) { numsToAverage = 3; }
+        else if (count >= 12 && count <= 14) { numsToAverage = 4; }
+        else if (count >= 15 && count <= 16) { numsToAverage = 5; }
+        else if (count >= 17 && count <= 19) { numsToAverage = 6; }
+        else if (count >= 20) { numsToAverage = 8; }
+
+        // Sort a copy ascending to find the lowest N differentials
+        const sortedDiffs = [...validRounds].sort((a, b) => a.diff - b.diff);
+        const selectedForAverage = sortedDiffs.slice(0, numsToAverage);
+        
+        // Mark the used rounds in the original array
+        selectedForAverage.forEach(sr => {
+            sr.isUsed = true;
+        });
+
+        const sum = selectedForAverage.reduce((acc, val) => acc + val.diff, 0);
+        let hdcp = (sum / numsToAverage) + adjustment;
+
+        // WHS maximum handicap index is 54.0
+        if (hdcp > 54.0) hdcp = 54.0;
+
+        const formatted = (Math.round(Math.abs(hdcp) * 10) / 10).toFixed(1);
+        const finalValue = hdcp < 0 ? `+${formatted}` : formatted;
+
+        return {
+            value: finalValue,
+            history: validRounds,
+            adjustment: adjustment,
+            counted: numsToAverage
+        };
+    }
+
+    calculateHandicapHistory() {
+        if (!this.rounds || this.rounds.length === 0) return [];
+        
+        const chronologicalRounds = [...this.rounds].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const history = [];
+        const runningValidRounds = [];
+
+        for (const r of chronologicalRounds) {
+            if (r.isTeamTournament) continue; // Exclude team tournaments from handicap
+
+            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
+            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+
+            const tee = course.tees[r.teeName];
+            let rating = tee.rating || 0;
+            const slope = tee.slope || 0;
+            let ratingAdjusted = false;
+
+            // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+            if (rating >= 30 && rating < 45) {
+                rating = rating * 2;
+                ratingAdjusted = true;
+            }
+
+            if (rating > 0 && slope > 0 && r.score > 0) {
+                const holes = r.holes || 18;
+                const multiplier = 18 / holes;
+                const adjustedScore = r.score * multiplier;
+                const diff = (113 / slope) * (adjustedScore - rating);
+
+                // Difficulty Formula: (Rating - 67)*5 + (Slope - 113)
+                const diffMetric = (rating - 67) * 5 + (slope - 113);
+
+                runningValidRounds.push({
+                    date: r.date,
+                    diff: diff
+                });
+
+                if (runningValidRounds.length > 20) {
+                    runningValidRounds.shift();
+                }
+
+                const count = runningValidRounds.length;
+                let hdcpVal = 0;
+                if (count >= 3) {
+                    let numsToAverage = 1;
+                    let adjustment = 0;
+
+                    if (count === 3) { numsToAverage = 1; adjustment = -2.0; }
+                    else if (count === 4) { numsToAverage = 1; adjustment = -1.0; }
+                    else if (count === 5) { numsToAverage = 1; }
+                    else if (count === 6) { numsToAverage = 2; adjustment = -1.0; }
+                    else if (count >= 7 && count <= 8) { numsToAverage = 2; }
+                    else if (count >= 9 && count <= 11) { numsToAverage = 3; }
+                    else if (count >= 12 && count <= 14) { numsToAverage = 4; }
+                    else if (count >= 15 && count <= 16) { numsToAverage = 5; }
+                    else if (count >= 17 && count <= 19) { numsToAverage = 6; }
+                    else if (count >= 20) { numsToAverage = 8; }
+
+                    const sortedDiffs = [...runningValidRounds].sort((a, b) => a.diff - b.diff);
+                    const selected = sortedDiffs.slice(0, numsToAverage);
+                    const sum = selected.reduce((acc, val) => acc + val.diff, 0);
+                    hdcpVal = (sum / numsToAverage) + adjustment;
+
+                    if (hdcpVal > 54.0) hdcpVal = 54.0;
+                }
+
+                // Expected Score Calculation: Requires at least 3 rounds to have an established index
+                const currentHdcp = history.length > 0 ? history[history.length - 1].index : 0;
+                let performance = null;
+                let roundRating = null;
+                let roundRatingLabel = "";
+                if (history.length >= 3) {
+                    const expected = rating + (slope / 113) * currentHdcp;
+                    performance = expected - adjustedScore;
+                    
+                    // Round Rating Formula: 50 + (Performance * 5) + (Difficulty / 5)
+                    roundRating = 50 + (performance * 5) + (diffMetric / 5);
+                    if (roundRating >= 90) roundRatingLabel = "Elite";
+                    else if (roundRating >= 75) roundRatingLabel = "Excellent";
+                    else if (roundRating >= 60) roundRatingLabel = "Good";
+                    else if (roundRating >= 45) roundRatingLabel = "Average";
+                    else roundRatingLabel = "Needs work";
+                }
+
+                history.push({
+                    date: r.date,
+                    count: count,
+                    index: parseFloat((Math.round(Math.abs(hdcpVal) * 10) / 10).toFixed(1)) * (hdcpVal < 0 ? -1 : 1),
+                    performance: performance,
+                    difficulty: diffMetric,
+                    courseName: r.course || course.name,
+                    teeName: r.teeName,
+                    score: r.score,
+                    adjustedScore: adjustedScore,
+                    rating: rating,
+                    slope: slope,
+                    ratingAdjusted: ratingAdjusted,
+                    roundRating: roundRating,
+                    roundRatingLabel: roundRatingLabel,
+                    prevHandicap: currentHdcp,
+                    holes: holes
+                });
+            }
+        }
+        
+        return history;
+    }
+
+    renderCourseAnalytics() {
+        let filterContainer = document.getElementById('course-analytics-filters');
+        const view = document.getElementById('view-course-analytics');
+        const header = view ? view.querySelector('.dashboard-header') : null;
+        if (!filterContainer && header) {
+            filterContainer = document.createElement('div');
+            filterContainer.id = 'course-analytics-filters';
+            header.parentNode.insertBefore(filterContainer, header.nextSibling);
+        }
+        if (filterContainer) {
+            this.renderFilters('course-analytics-filters', () => this.renderCourseAnalytics());
+        }
+
+        const primarySelect = document.getElementById('course-primary-stat');
+        if (primarySelect && !primarySelect._listenerAdded) {
+            primarySelect.addEventListener('change', () => this.renderCourseAnalytics());
+            primarySelect._listenerAdded = true;
+        }
+        const secondarySelect = document.getElementById('course-secondary-stat');
+        if (secondarySelect && !secondarySelect._listenerAdded) {
+            secondarySelect.addEventListener('change', () => this.renderCourseAnalytics());
+            secondarySelect._listenerAdded = true;
+        }
+
+        const sortSelect = document.getElementById('course-chart-sort');
+        if (sortSelect && !sortSelect._listenerAdded) {
+            sortSelect.addEventListener('change', (e) => {
+                this.courseChartSortDir = e.target.value;
+                this.renderCourseAnalytics();
+            });
+            sortSelect._listenerAdded = true;
+        }
+
+        const primaryStat = primarySelect ? primarySelect.value : 'handicap';
+        const secondaryStat = secondarySelect ? secondarySelect.value : 'none';
+
+        let history = this.calculateHandicapHistory();
+        
+        // Apply All Active Filters
+        history = history.filter(h => {
+             const est = this.getEST(h.date);
+             const yr = est.y;
+             const mo = est.m;
+             const hCount = h.holes;
+             const cName = this.normalizeCourse(h.courseName);
+             const eName = (h.event || '').trim();
+
+             const yearMatch = this.filterYears.length === 0 || this.filterYears.includes(yr);
+             const monthMatch = this.filterMonths.length === 0 || this.filterMonths.includes(mo);
+             const holeMatch = this.filterHoles.length === 0 || this.filterHoles.includes(hCount);
+             const courseMatch = this.filterCourses.length === 0 || this.filterCourses.includes(cName);
+             const eventMatch = this.filterEvents.length === 0 || this.filterEvents.includes(eName) || (eName === '' && this.filterEvents.includes('none'));
+
+             return yearMatch && monthMatch && holeMatch && courseMatch && eventMatch;
+        });
+
+        // Tiles Calculation
+        const perfHistory = history.filter(h => h.holes === 18 && h.performance !== null);
+        const sortedByDiff = [...history].sort((a, b) => b.difficulty - a.difficulty);
+
+        const setTile = (id, val, desc, data, type) => {
+            const card = document.getElementById(id)?.closest('.card');
+            const valEl = document.getElementById(id);
+            const descEl = document.getElementById(id + '-desc');
+            if (valEl) valEl.textContent = val;
+            if (descEl) descEl.textContent = desc;
+            if (card) {
+                if (data) {
+                    card.style.cursor = 'pointer';
+                    card.onclick = () => this.showMetricBreakdown(type, data);
+                    card.title = "Click to see calculation";
+                } else {
+                    card.style.cursor = 'default';
+                    card.onclick = null;
+                    card.title = "";
+                }
+            }
+        };
+
+        if (perfHistory.length > 0) {
+            const bestPerf = [...perfHistory].sort((a, b) => b.performance - a.performance)[0];
+            const worstPerf = [...perfHistory].sort((a, b) => a.performance - b.performance)[0];
+
+            setTile('stat-best-perf', (bestPerf.performance > 0 ? '+' : '') + bestPerf.performance.toFixed(1), bestPerf.courseName + ' (' + this.formatDateDisplay(bestPerf.date) + ')', bestPerf, 'performance');
+            setTile('stat-worst-perf', worstPerf.performance.toFixed(1), worstPerf.courseName + ' (' + this.formatDateDisplay(worstPerf.date) + ')', worstPerf, 'performance');
+        } else {
+            setTile('stat-best-perf', '--', 'Need established handicap', null, 'performance');
+            setTile('stat-worst-perf', '--', 'Need established handicap', null, 'performance');
+        }
+
+        if (history.length > 0) {
+            const hardest = sortedByDiff[0];
+            const easiest = sortedByDiff[sortedByDiff.length - 1];
+            setTile('stat-hardest-course', hardest.difficulty.toFixed(0), hardest.courseName, hardest, 'difficulty');
+            setTile('stat-easiest-course', easiest.difficulty.toFixed(0), easiest.courseName, easiest, 'difficulty');
+
+            // Average Metrics Calculation
+            const validPerf = history.filter(h => h.performance !== null);
+            const sumPerf = validPerf.reduce((acc, h) => acc + h.performance, 0);
+            const sumDiff = history.reduce((acc, h) => acc + h.difficulty, 0);
+            const count = history.length;
+
+            const avgPerf = validPerf.length > 0 ? sumPerf / validPerf.length : 0;
+            const avgDiff = sumDiff / count;
+
+            const avgPerfEl = document.getElementById('stat-avg-perf');
+            if (avgPerfEl) {
+                if (validPerf.length > 0) {
+                    avgPerfEl.textContent = (avgPerf > 0 ? '+' : '') + avgPerf.toFixed(1);
+                    avgPerfEl.style.color = '#3b82f6'; // Neutral blue for averages
+                } else {
+                    avgPerfEl.textContent = '--';
+                    avgPerfEl.style.color = 'var(--text-muted)';
+                }
+            }
+
+            const avgDiffEl = document.getElementById('stat-avg-diff');
+            if (avgDiffEl) {
+                avgDiffEl.textContent = avgDiff.toFixed(1);
+                avgDiffEl.style.color = 'var(--warning)';
+            }
+
+            const avgDiffDescEl = document.getElementById('stat-avg-diff-desc');
+            if (avgDiffDescEl) avgDiffDescEl.textContent = 'Average Difficulty';
+
+            // Round Rating Metrics
+            const validRatings = history.filter(h => h.roundRating !== null);
+            if (validRatings.length > 0) {
+                const bestRatingEntry = [...validRatings].sort((a, b) => b.roundRating - a.roundRating)[0];
+                const worstRatingEntry = [...validRatings].sort((a, b) => a.roundRating - b.roundRating)[0];
+                const latestRatingEntry = validRatings[validRatings.length - 1];
+                const avgRatingVal = validRatings.reduce((acc, h) => acc + h.roundRating, 0) / validRatings.length;
+
+                setTile('stat-best-rating', bestRatingEntry.roundRating.toFixed(1), `${bestRatingEntry.roundRatingLabel} (${bestRatingEntry.courseName})`, bestRatingEntry, 'rating');
+                setTile('stat-worst-rating', worstRatingEntry.roundRating.toFixed(1), `${worstRatingEntry.roundRatingLabel} (${worstRatingEntry.courseName})`, worstRatingEntry, 'rating');
+                setTile('stat-latest-rating', latestRatingEntry.roundRating.toFixed(1), `${latestRatingEntry.roundRatingLabel} (${latestRatingEntry.courseName})`, latestRatingEntry, 'rating');
+                
+                const avgRatingEl = document.getElementById('stat-avg-rating');
+                if (avgRatingEl) {
+                    avgRatingEl.textContent = avgRatingVal.toFixed(1);
+                    let avgLabel = "";
+                    if (avgRatingVal >= 90) avgLabel = "Elite";
+                    else if (avgRatingVal >= 75) avgLabel = "Excellent";
+                    else if (avgRatingVal >= 60) avgLabel = "Good";
+                    else if (avgRatingVal >= 45) avgLabel = "Average";
+                    else avgLabel = "Needs work";
+                    
+                    const avgRatingDesc = document.getElementById('stat-avg-rating-desc');
+                    if (avgRatingDesc) avgRatingDesc.textContent = `Avg: ${avgLabel}`;
+                }
+            } else {
+                setTile('stat-best-rating', '--', 'Need 3 rounds', null, 'rating');
+                setTile('stat-worst-rating', '--', 'Need 3 rounds', null, 'rating');
+                setTile('stat-latest-rating', '--', 'Need 3 rounds', null, 'rating');
+                const avgRatingEl = document.getElementById('stat-avg-rating');
+                if (avgRatingEl) avgRatingEl.textContent = '--';
+            }
+        }
+
+        // Grouping Logic
+        if (this.chartGroupBy !== 'round') {
+            const groups = {};
+            history.forEach(h => {
+                const est = this.getEST(h.date);
+                let key, label;
+                if (this.chartGroupBy === 'week') {
+                    const d = new Date(est.iso);
+                    const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                    const weekStart = new Date(d.setDate(diff));
+                    key = weekStart.toISOString().split('T')[0];
+                    label = 'Week of ' + this.formatDateDisplay(key);
+                } else if (this.chartGroupBy === 'month') {
+                    key = `${est.y}-${(est.m + 1).toString().padStart(2, '0')}-01`;
+                    label = `${this.monthNames[est.m]} ${est.y}`;
+                } else if (this.chartGroupBy === 'quarter') {
+                    const q = Math.ceil((est.m + 1) / 3);
+                    key = `${est.y}-Q${q}`;
+                    label = `Q${q} ${est.y}`;
+                } else { // year
+                    key = `${est.y}-01-01`;
+                    label = est.y.toString();
+                }
+
+                if (!groups[key]) {
+                    groups[key] = { date: h.date, index: h.index, performance: h.performance, difficulty: h.difficulty, roundRating: h.roundRating, label: label, count: 0 };
+                }
+                groups[key].index = h.index; // Take latest
+                if (h.performance !== null) groups[key].performance = h.performance;
+                if (h.roundRating !== null) groups[key].roundRating = h.roundRating;
+                groups[key].difficulty = h.difficulty; // Take latest
+                groups[key].count++;
+            });
+            history = Object.values(groups);
+        }
+
+        // Apply Course Chart Sorting (After Grouping)
+        const getCourseVal = (r, stat) => {
+            if (stat === 'handicap') return r.index;
+            if (stat === 'performance') return r.performance;
+            if (stat === 'difficulty') return r.difficulty;
+            if (stat === 'round_rating') return r.roundRating;
+            return null;
+        };
+
+        if (this.courseChartSortDir === 'val-asc') {
+            history.sort((a, b) => (getCourseVal(a, primaryStat) || 0) - (getCourseVal(b, primaryStat) || 0));
+        } else if (this.courseChartSortDir === 'val-desc') {
+            history.sort((a, b) => (getCourseVal(b, primaryStat) || 0) - (getCourseVal(a, primaryStat) || 0));
+        } else if (this.courseChartSortDir === 'chrono-desc') {
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } else {
+            // Default: oldest first
+            history.sort((a, b) => new Date(a.date) - new Date(b.date));
+        }
+
+        const emptyState = document.getElementById('course-analytics-empty');
+        const contentState = document.getElementById('course-analytics-content');
+
+        if (!history || history.length === 0) {
+            if (emptyState) emptyState.style.display = 'block';
+            if (contentState) contentState.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        if (contentState) contentState.style.display = 'block';
+
+        // Chart.js Rendering
+        const ctxId = 'handicapTrendChart';
+        const ctx = document.getElementById(ctxId);
+        if (!ctx) return;
+
+        if (this.handicapChartInstance) {
+            this.handicapChartInstance.destroy();
+        }
+
+        const labels = history.map((h, i) => this.chartGroupBy === 'round' ? this.formatDateDisplay(h.date) : h.label);
+        
+        const getStatData = (stat, item) => {
+            if (stat === 'handicap') return item.index;
+            if (stat === 'performance') return item.performance;
+            if (stat === 'difficulty') return item.difficulty;
+            if (stat === 'round_rating') return item.roundRating;
+            return null;
+        };
+
+        const getStatLabel = (stat) => {
+            if (stat === 'handicap') return 'Handicap Index';
+            if (stat === 'performance') return 'Performance (+ Better)';
+            if (stat === 'difficulty') return 'Course Difficulty';
+            if (stat === 'round_rating') return 'Round Rating';
+            return '';
+        };
+
+        const getStatColor = (stat) => {
+            if (stat === 'handicap') return '#10b981'; // Green
+            if (stat === 'performance') return '#3b82f6'; // Blue
+            if (stat === 'difficulty') return '#f59e0b'; // Amber
+            if (stat === 'round_rating') return '#8b5cf6'; // Purple
+            return '#94a3b8';
+        };
+
+        const datasets = [{
+            label: getStatLabel(primaryStat),
+            data: history.map(h => getStatData(primaryStat, h)),
+            borderColor: getStatColor(primaryStat),
+            backgroundColor: getStatColor(primaryStat) + '22',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            yAxisID: 'y'
+        }];
+
+        if (secondaryStat !== 'none') {
+            datasets.push({
+                label: getStatLabel(secondaryStat),
+                data: history.map(h => getStatData(secondaryStat, h)),
+                borderColor: getStatColor(secondaryStat),
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 4,
+                yAxisID: 'y1'
+            });
+        }
+
+        this.handicapChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#000000', font: { family: 'Inter', size: 12, weight: 'bold' } }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#f8fafc',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        padding: 12,
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.dataset.label}: ${context.parsed.y.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000', font: { size: 10, weight: '500' } }
+                    },
+                    y: {
+                        title: { display: true, text: getStatLabel(primaryStat), color: '#000000', font: { weight: 'bold' } },
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: '#000000' },
+                        reverse: false
+                    },
+                    y1: {
+                        display: secondaryStat !== 'none',
+                        position: 'right',
+                        title: { display: true, text: getStatLabel(secondaryStat), color: '#000000', font: { weight: 'bold' } },
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: '#000000' },
+                        reverse: false
+                    }
+                }
+            }
+        });
+
+        // Current Handicap display in chart card
+        const currentHdcpEl = document.getElementById('course-analytics-current-hdcp');
+        if (currentHdcpEl) {
+            const latest = history[history.length - 1];
+            currentHdcpEl.textContent = `Index: ${latest.index.toFixed(1)}`;
+            currentHdcpEl.style.display = primaryStat === 'handicap' || secondaryStat === 'handicap' ? 'block' : 'none';
+        }
+
+        this.renderExpectedScoreCalculator();
+    }
+
+    renderExpectedScoreCalculator() {
+        const courseSelect = document.getElementById('calc-course-select');
+        const teeSelect = document.getElementById('calc-tee-select');
+        const resultEl = document.getElementById('expected-score-val');
+        const detailsEl = document.getElementById('expected-score-details');
+        
+        if (!courseSelect || !teeSelect) return;
+
+        // Only setup if needed
+        if (!courseSelect.innerHTML) {
+            const sortedCourses = [...this.courseLayouts].sort((a, b) => a.name.localeCompare(b.name));
+            courseSelect.innerHTML = '<option value="">-- Select a Course --</option>' + 
+                sortedCourses.map(c => `<option value="${c.courseId}">${c.name}</option>`).join('');
+            
+            courseSelect.addEventListener('change', () => {
+                const cid = courseSelect.value;
+                const course = this.courseLayouts.find(c => c.courseId === cid);
+                if (course && course.tees) {
+                    const tees = Object.keys(course.tees).sort();
+                    teeSelect.innerHTML = '<option value="">-- Select Tee --</option>' + 
+                        tees.map(t => `<option value="${t}">${t}</option>`).join('');
+                } else {
+                    teeSelect.innerHTML = '';
+                    resultEl.textContent = '--';
+                    detailsEl.textContent = 'Select a course to calculate';
+                }
+            });
+
+            teeSelect.addEventListener('change', () => {
+                const cid = courseSelect.value;
+                const teeName = teeSelect.value;
+                const course = this.courseLayouts.find(c => c.courseId === cid);
+                
+                if (course && course.tees && course.tees[teeName]) {
+                    const tee = course.tees[teeName];
+                    let rating = tee.rating || 0;
+                    const slope = tee.slope || 0;
+                    
+                    // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
+                    if (rating >= 30 && rating < 45) {
+                        rating = rating * 2;
+                    }
+                    
+                    const res = this.calculateHandicapIndex();
+                    let handicap = 0;
+                    if (res.value !== 'NH') {
+                        if (res.value.startsWith('+')) {
+                            handicap = -parseFloat(res.value.substring(1));
+                        } else {
+                            handicap = parseFloat(res.value);
+                        }
+                    }
+
+                    if (rating > 0 && slope > 0) {
+                        const expected = rating + (slope / 113) * handicap;
+                        resultEl.textContent = Math.round(expected);
+                        detailsEl.textContent = `Based on index ${res.value} and ${teeName} tees (R: ${rating}, S: ${slope})`;
+                    }
+                } else {
+                    resultEl.textContent = '--';
+                    detailsEl.textContent = 'Invalid tee selected';
+                }
+            });
+        }
+    }
+
+    showMetricBreakdown(type, data) {
+        const modal = document.getElementById('metric-math-modal');
+        const titleEl = document.getElementById('metric-modal-title');
+        const subtitleEl = document.getElementById('metric-modal-subtitle');
+        const contentEl = document.getElementById('metric-modal-content');
+
+        if (!modal || !contentEl) return;
+
+        let html = '';
+        if (type === 'performance') {
+            titleEl.textContent = "Performance Breakdown";
+            subtitleEl.textContent = `${data.courseName} - ${this.formatDateDisplay(data.date)}`;
+            
+            const expected = data.rating + (data.slope / 113) * data.prevHandicap;
+            
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">1. Expected Score Calculation</div>
+                <div style="margin-left: 10px; margin-bottom: 20px;">
+                    Rating: ${data.rating} ${data.ratingAdjusted ? '<span style="font-size: 0.8rem; color: var(--warning);">(doubled for 18h equivalent)</span>' : ''}<br>
+                    Slope: ${data.slope}<br>
+                    Handicap at time: ${data.prevHandicap.toFixed(1)}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Rating + (Slope / 113) * Handicap</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${data.rating} + (${data.slope} / 113) * ${data.prevHandicap.toFixed(1)} = <span style="color: var(--primary-green);">${expected.toFixed(2)}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">2. Performance Score</div>
+                <div style="margin-left: 10px;">
+                    Expected Score: ${expected.toFixed(2)}<br>
+                    Actual Score: ${data.score} ${data.holes !== 18 ? `(Scales to ${data.adjustedScore.toFixed(1)} for 18h)` : ''}<br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: Expected - Actual</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        ${expected.toFixed(2)} - ${data.adjustedScore.toFixed(2)} = <span style="color: ${data.performance >= 0 ? 'var(--primary-green)' : 'var(--danger)'}; font-weight: bold;">${(data.performance > 0 ? '+' : '') + data.performance.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        } else if (type === 'difficulty') {
+            titleEl.textContent = "Course Difficulty Breakdown";
+            subtitleEl.textContent = `${data.courseName} (${data.teeName} Tees)`;
+
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Difficulty Factor Calculation</div>
+                <div style="margin-left: 10px;">
+                    Rating: ${data.rating} ${data.ratingAdjusted ? '<span style="font-size: 0.8rem; color: var(--warning);">(doubled for 18h equivalent)</span>' : ''}<br>
+                    Slope: ${data.slope}<br>
+                    <div style="margin-top: 15px; font-style: italic; opacity: 0.8;">Formula: (Rating - 67) * 5 + (Slope - 113)</div>
+                    <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; font-size: 1.1rem;">
+                        (${data.rating} - 67) * 5 + (${data.slope} - 113) = <span style="color: var(--warning); font-weight: bold;">${data.difficulty.toFixed(1)}</span>
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.85rem; color: var(--text-muted);">
+                        * This factor represents the relative difficulty of the course setup compared to a standard benchmark.
+                    </div>
+                </div>
+            `;
+        } else if (type === 'rating') {
+            titleEl.textContent = "Round Rating Breakdown";
+            subtitleEl.textContent = `${data.courseName} - ${this.formatDateDisplay(data.date)}`;
+
+            const perfBonus = (data.performance || 0) * 5;
+            const diffBonus = (data.difficulty || 0) / 5;
+            
+            html = `
+                <div style="margin-bottom: 15px; color: var(--primary-green); font-weight: bold;">Round Rating Calculation</div>
+                <div style="margin-left: 10px; margin-bottom: 20px;">
+                    Base Score: 50<br>
+                    Performance Bonus: ${perfBonus.toFixed(1)} <span style="font-size: 0.8rem; opacity: 0.8;">(Perf: ${data.performance?.toFixed(1)} &times; 5)</span><br>
+                    Difficulty Bonus: ${diffBonus.toFixed(1)} <span style="font-size: 0.8rem; opacity: 0.8;">(Diff: ${data.difficulty?.toFixed(1)} / 5)</span><br>
+                    <div style="margin-top: 8px; font-style: italic; opacity: 0.8;">Formula: 50 + (Perf &times; 5) + (Diff / 5)</div>
+                    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; font-size: 1.2rem;">
+                        50 + ${perfBonus.toFixed(1)} + ${diffBonus.toFixed(1)} = <span style="color: #a855f7; font-weight: bold;">${data.roundRating.toFixed(1)}</span>
+                    </div>
+                    <div style="margin-top: 5px; color: var(--text-muted); font-weight: bold;">
+                        Status: <span style="color: #a855f7;">${data.roundRatingLabel}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 10px; color: var(--text-light); font-weight: bold; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">Rating Tiers</div>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <span style="color: #a855f7;">90+ Elite:</span> A legendary performance<br>
+                    <span style="color: #3b82f6;">75-89 Excellent:</span> Outstanding play<br>
+                    <span style="color: #10b981;">60-74 Good:</span> Solid round<br>
+                    <span style="color: #94a3b8;">45-59 Average:</span> Standard performance<br>
+                    <span style="color: var(--danger);"><45 Needs work:</span> Below your average level
+                </div>
+            `;
+        }
+
+        contentEl.innerHTML = html;
+        modal.classList.remove('hidden');
+    }
+
+    closeMetricBreakdown() {
+        const modal = document.getElementById('metric-math-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    exportHandicapHistoryCSV() {
+        const history = this.calculateHandicapHistory();
+        if (!history || history.length === 0) {
+            alert("No handicap history available to export.");
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Date,Rounds Counted,Computed Index\n";
+
+        // Reverse to export newest first, or keep oldest first as you wish. 
+        // We'll export newest first to match the UI table
+        const exportHistory = [...history].reverse();
+
+        exportHistory.forEach(row => {
+            const formattedDate = this.formatDateDisplay(row.date).replace(/,/g, '');
+            const indexStr = row.index < 0 ? `+${Math.abs(row.index).toFixed(1)}` : row.index.toFixed(1);
+            csvContent += `${formattedDate},${row.count},${indexStr}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Handicap_History_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    updateHandicapDisplay() {
+        const hdcpData = this.calculateHandicapIndex();
+        
+        const headerContainer = document.getElementById('header-handicap-display');
+        const headerVal = document.getElementById('header-handicap-val');
+        if (headerContainer && headerVal) {
+            headerContainer.style.display = 'flex';
+            headerVal.textContent = hdcpData.value;
+        }
+
+        const profileInput = document.getElementById('profile-handicap');
+        if (profileInput) {
+            profileInput.value = hdcpData.value;
+        }
+    }
+
+    showHandicapBreakdown() {
+        const hdcpData = this.calculateHandicapIndex();
+        
+        document.getElementById('breakdown-hdcp-val').textContent = hdcpData.value;
+        
+        let explanation = '';
+        if (hdcpData.history.length < 3) {
+            explanation = `You need at least 3 eligible 18-hole rounds to compute a handicap. You currently have ${hdcpData.history.length}.`;
+        } else {
+            explanation = `Based on your ${hdcpData.history.length} eligible rounds, your handicap is the average of your lowest ${hdcpData.counted} differentials${hdcpData.adjustment !== 0 ? ` with a ${hdcpData.adjustment} adjustment` : ''}. Rounds used in the calculation are highlighted in green.`;
+        }
+        document.getElementById('breakdown-explanation').innerHTML = explanation;
+
+        const tbody = document.getElementById('breakdown-table-body');
+        if (!tbody) return;
+
+        if (hdcpData.history.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">No eligible rounds found.</td></tr>`;
+        } else {
+            tbody.innerHTML = hdcpData.history.map(r => {
+                const isSelected = r.isUsed;
+                const scoreDisplay = r.holes !== 18 ? `${r.score} <span style="font-size: 0.8em; color: var(--text-muted);">(scaled to ${Math.round(r.adjustedScore)})</span>` : r.score;
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-color); ${isSelected ? 'background: rgba(16, 185, 129, 0.1);' : ''}">
+                        <td style="padding: 12px 15px; color: var(--text-muted); white-space: nowrap;">${this.formatDateDisplay(r.date)}</td>
+                        <td style="padding: 12px 15px; font-weight: 500;">${r.course}</td>
+                        <td style="padding: 12px 15px; text-align: center;">${scoreDisplay}</td>
+                        <td style="padding: 12px 15px; text-align: center; color: var(--text-muted);">${r.rating} / ${r.slope}</td>
+                        <td style="padding: 12px 15px; text-align: right; font-weight: bold; color: ${isSelected ? 'var(--primary-green)' : 'var(--text-primary)'};">${r.diff.toFixed(1)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const modal = document.getElementById('handicap-breakdown-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+    }
+
+    closeHandicapBreakdown() {
+        const modal = document.getElementById('handicap-breakdown-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    updateAvatar() {
+        const avatar = document.getElementById('user-avatar');
+        if (!avatar) return;
+        
+        if (this.profile && this.profile.firstName && this.profile.lastName) {
+            const firstInitial = this.profile.firstName.trim().charAt(0).toUpperCase();
+            const lastInitial = this.profile.lastName.trim().charAt(0).toUpperCase();
+            avatar.textContent = `${firstInitial}.${lastInitial}.`;
+        } else if (this.user && this.user.email) {
+            avatar.textContent = this.user.email.charAt(0).toUpperCase();
+        } else {
+            avatar.textContent = 'U';
         }
     }
 
@@ -1584,7 +2585,29 @@ class App {
 
         setVal('profile-first-name', this.profile.firstName);
         setVal('profile-last-name', this.profile.lastName);
-        setVal('profile-handicap', this.profile.handicap);
+        setVal('profile-email', this.user ? this.user.email : 'local@example.com');
+        this.updateHandicapDisplay();
+
+        const tbody = document.getElementById('profile-handicap-history-body');
+        if (tbody) {
+            const history = this.calculateHandicapHistory();
+            if (!history || history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-muted);">No history available. Play more rounds to establish a handicap.</td></tr>`;
+            } else {
+                // Show newest first in the table
+                const reversedHistory = [...history].reverse();
+                tbody.innerHTML = reversedHistory.map(row => {
+                    const indexStr = row.index < 0 ? `+${Math.abs(row.index).toFixed(1)}` : row.index.toFixed(1);
+                    return `
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 10px 12px; color: var(--text-muted);">${this.formatDateDisplay(row.date)}</td>
+                            <td style="padding: 10px 12px; text-align: center;">${row.count}</td>
+                            <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: var(--primary-green);">${indexStr}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
     }
 
     renderCourseManagement() {
@@ -1656,8 +2679,8 @@ class App {
         } else {
             list.innerHTML = Object.entries(tees).map(([teeName, data]) => `
                 <tr onclick="window.app.selectMgmtTee('${courseId}', '${teeName}')" style="cursor: pointer;">
-                    <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
                     <td>${data.teeId || '---'}</td>
+                    <td><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${teeName.toLowerCase()}; border: 1px solid var(--border-color); margin-right: 8px;"></span>${teeName}</td>
                     <td>${data.rating || 'N/A'}</td>
                     <td>${data.slope || 'N/A'}</td>
                     <td>
@@ -1713,16 +2736,42 @@ class App {
     }
 
     openQuickEditTee() {
-        // Find selecting course from the modal
-        const courseId = document.getElementById('round-course-name-select')?.value;
-        const teeName = document.getElementById('round-tee-set')?.value;
+        const courseInput = document.getElementById('course');
+        const teeSelect = document.getElementById('round-tee-set');
 
-        if (!courseId || !teeName || teeName === "") {
+        if (!courseInput || !teeSelect || !teeSelect.value) {
             alert('Please select a course and tee set first.');
             return;
         }
 
-        this.editMgmtTee(courseId, teeName);
+        const val = courseInput.value;
+        const teeName = teeSelect.value;
+        const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(val));
+
+        if (layout) {
+            this.editMgmtTee(layout.courseId, teeName);
+        } else {
+            alert('Course not found in database.');
+        }
+    }
+
+    openQuickEditTeeFromCourses() {
+        if (!this.selectedMgmtCourseId) {
+            alert('Please select a course from the list first.');
+            return;
+        }
+
+        // If a tee is selected in the list, edit it. Otherwise, prompt or edit first.
+        // For now, if no tee selected, we could just open the Add Tee modal.
+        // But the user specifically said "Manage Tees" button should be moved.
+        // Let's make it open the "Add Tee" modal if none selected, or the first one.
+        const layout = this.courseLayouts.find(c => c.courseId === this.selectedMgmtCourseId);
+        if (layout && layout.tees && Object.keys(layout.tees).length > 0) {
+            const firstTee = Object.keys(layout.tees)[0];
+            this.editMgmtTee(this.selectedMgmtCourseId, firstTee);
+        } else {
+            this.openAddTeeModal();
+        }
     }
 
     selectMgmtTee(courseId, teeName) {
@@ -1808,6 +2857,8 @@ class App {
         document.getElementById('mgmt-course-name').value = layout ? layout.name : (fallbackName || '');
         document.getElementById('mgmt-course-state').value = layout ? (layout.state || '') : '';
         document.getElementById('mgmt-course-country').value = layout ? (layout.country || '') : '';
+        const typeEl = document.getElementById('mgmt-course-type');
+        if (typeEl) typeEl.value = layout ? (layout.public_private || '') : '';
 
         // Store ID as we're editing an existing record, or null if registering a new course 
         this.editingCourseId = layout ? layout.courseId : null;
@@ -1823,7 +2874,8 @@ class App {
     closeAddCourseModal() {
         const modal = document.getElementById('add-course-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-course-form').reset();
+        const form = document.getElementById('add-course-form');
+        if (form) form.reset();
         this.editingCourseId = null;
     }
 
@@ -1876,52 +2928,124 @@ class App {
         return `C${nextId.toString().padStart(3, '0')}`;
     }
 
+    async getNextTeeIdGlobal() {
+        if (!this.db || !window.firebaseDB) return this.generateTeeId();
+
+        const { doc, runTransaction } = window.firebaseDB;
+        const metaRef = doc(this.db, 'metadata', 'tees');
+
+        try {
+            const nextId = await runTransaction(this.db, async (transaction) => {
+                const metaDoc = await transaction.get(metaRef);
+                if (!metaDoc.exists()) {
+                    // Initialize from current local max
+                    let maxNum = 0;
+                    this.courseLayouts.forEach(c => {
+                        if (c.tees) {
+                            Object.values(c.tees).forEach(t => {
+                                if (t.teeId && t.teeId.startsWith('T')) {
+                                    const num = parseInt(t.teeId.substring(1));
+                                    if (!isNaN(num) && num > maxNum) maxNum = num;
+                                }
+                            });
+                        }
+                    });
+                    const startId = maxNum + 1;
+                    transaction.set(metaRef, { lastId: startId });
+                    return startId;
+                } else {
+                    const newId = (metaDoc.data().lastId || 0) + 1;
+                    transaction.update(metaRef, { lastId: newId });
+                    return newId;
+                }
+            });
+
+            return `T${nextId.toString().padStart(3, '0')}`;
+        } catch (e) {
+            console.error("Global Tee ID generation failed, falling back:", e);
+            return this.generateTeeId();
+        }
+    }
+
+    generateTeeId() {
+        // Find the maximum numeric ID among existing tees across all courses
+        let maxNum = 0;
+        this.courseLayouts.forEach(c => {
+            if (c.tees) {
+                Object.values(c.tees).forEach(t => {
+                    if (t.teeId && t.teeId.startsWith('T')) {
+                        const num = parseInt(t.teeId.substring(1));
+                        if (!isNaN(num) && num > maxNum) maxNum = num;
+                    }
+                });
+            }
+        });
+        const nextId = maxNum + 1;
+        return `T${nextId.toString().padStart(3, '0')}`;
+    }
+
     async handleAddCourse(e) {
         e.preventDefault();
         const name = document.getElementById('mgmt-course-name').value.trim();
         const state = document.getElementById('mgmt-course-state').value.trim();
         const country = document.getElementById('mgmt-course-country').value.trim();
+        const typeEl = document.getElementById('mgmt-course-type');
+        const publicPrivate = typeEl ? typeEl.value : '';
 
         if (!name) return;
 
-        let courseData;
-        const editingId = this.editingCourseId;
+        const saveBtn = e.target.querySelector('button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
-        if (editingId) {
-            // Update existing
-            const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
-            courseData = {
-                ...this.courseLayouts[index],
-                name: name,
-                state: state || '',
-                country: country || '',
-                updatedAt: new Date().toISOString()
-            };
-            this.courseLayouts[index] = courseData;
-        } else {
-            // Create new (Global Registry)
-            const newId = await this.getNextCourseIdGlobal();
-            courseData = {
-                courseId: newId,
-                name: name,
-                state: state,
-                country: country,
-                tees: {},
-                updatedAt: new Date().toISOString(),
-                createdBy: this.user ? this.user.uid : 'anonymous'
-            };
-            this.courseLayouts.push(courseData);
+        try {
+            let courseData;
+            const editingId = this.editingCourseId;
+
+            if (editingId) {
+                // Update existing
+                const index = this.courseLayouts.findIndex(c => c.courseId === editingId);
+                courseData = {
+                    ...this.courseLayouts[index],
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    public_private: publicPrivate || '',
+                    updatedAt: new Date().toISOString()
+                };
+                this.courseLayouts[index] = courseData;
+            } else {
+                // Create new — use local ID generator to avoid blocking Firestore transaction
+                const newId = this.generateCourseId();
+                courseData = {
+                    courseId: newId,
+                    name: name,
+                    state: state || '',
+                    country: country || '',
+                    public_private: publicPrivate || '',
+                    tees: {},
+                    updatedAt: new Date().toISOString(),
+                    createdBy: this.user ? this.user.uid : 'anonymous'
+                };
+                this.courseLayouts.push(courseData);
+            }
+
+            // Sync to cloud (fire and forget — don't block UI)
+            if (this.db && window.firebaseDB) {
+                const { doc, setDoc } = window.firebaseDB;
+                setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true })
+                    .then(() => console.log("Course synced to cloud:", courseData.courseId))
+                    .catch(err => console.error("Cloud sync failed (data saved locally):", err));
+            }
+
+            this.closeAddCourseModal();
+            this.renderCourseManagement();
+            this.selectMgmtCourse(courseData.courseId);
+        } catch (err) {
+            console.error("Failed to save course:", err);
+            alert(`Error saving course: ${err.message}`);
+        } finally {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Course'; }
         }
-
-        // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(this.db, "courses", courseData.courseId), courseData, { merge: true });
-        }
-
-        this.closeAddCourseModal();
-        this.renderCourseManagement();
-        this.selectMgmtCourse(courseData.courseId);
     }
 
     openAddTeeModal(isEdit = false) {
@@ -1940,6 +3064,21 @@ class App {
 
             // Initial Grid Render (18 holes)
             this.renderHoleGridInTeeModal(18);
+
+            // Populate Tee ID — reuse the cached pending ID if the user previously cancelled,
+            // so we don't burn a new ID every time the modal is opened.
+            const teeIdInput = document.getElementById('mgmt-tee-id');
+            if (teeIdInput) teeIdInput.readOnly = true;
+
+            if (this.pendingTeeId) {
+                if (teeIdInput) teeIdInput.value = this.pendingTeeId;
+            } else {
+                this.getNextTeeIdGlobal().then(id => {
+                    this.pendingTeeId = id;
+                    const input = document.getElementById('mgmt-tee-id');
+                    if (input) input.value = id;
+                });
+            }
         }
 
         modal.classList.remove('hidden');
@@ -1953,24 +3092,27 @@ class App {
         const hcpRow = document.getElementById('mgmt-input-handicap-row');
 
         if (header && parRow && yardRow && hcpRow) {
-            header.innerHTML = `<tr><th>Hole</th>${[...Array(count)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
+            header.innerHTML = `<tr><th style="min-width: 100px; text-align: left; padding-left: 15px;">Hole</th>${[...Array(count)].map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>`;
 
-            parRow.innerHTML = `<td><strong>Par</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+            parRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Par</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-par-${i + 1}" value="4" style="width: 42px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
 
-            yardRow.innerHTML = `<td><strong>Yardage</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 45px; padding: 4px; text-align: center;"></td>`).join('');
+            yardRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Yardage</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-yardage-${i + 1}" placeholder="Yds" style="width: 48px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
 
-            hcpRow.innerHTML = `<td><strong>Handicap</strong></td>` +
-                [...Array(count)].map((_, i) => `<td><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 40px; padding: 4px; text-align: center;"></td>`).join('');
+            hcpRow.innerHTML = `<td style="min-width: 100px; text-align: left; padding-left: 15px;"><strong>Handicap</strong></td>` +
+                [...Array(count)].map((_, i) => `<td style="padding: 5px;"><input type="number" class="grid-input" id="mgmt-handicap-${i + 1}" placeholder="HCP" style="width: 42px; height: 36px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 6px;"></td>`).join('');
         }
     }
 
     closeAddTeeModal() {
         const modal = document.getElementById('add-tee-modal');
         if (modal) modal.classList.add('hidden');
-        document.getElementById('add-tee-form').reset();
+        const form = document.getElementById('add-tee-form');
+        if (form) form.reset();
         this.editingTeeName = null;
+        // NOTE: intentionally do NOT clear this.pendingTeeId here — if the user
+        // cancelled, we want to reuse the same ID next time they open Add Tee.
     }
 
     async handleAddTee(e) {
@@ -2018,13 +3160,16 @@ class App {
         course.tees[teeName] = teeData;
         course.updatedAt = new Date().toISOString();
 
-        // Sync to cloud
-        if (this.db) {
-            const { doc, setDoc } = window.firebaseDB || await import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js");
-            await setDoc(doc(this.db, "courses", courseId), course, { merge: true });
+        // Sync to cloud (fire and forget — don't block UI)
+        if (this.db && window.firebaseDB) {
+            const { doc, setDoc } = window.firebaseDB;
+            setDoc(doc(this.db, "courses", courseId), course, { merge: true })
+                .then(() => console.log("Tee synced to cloud:", courseId, teeName))
+                .catch(err => console.error("Tee cloud sync failed:", err));
         }
 
         this.editingTeeName = null;
+        this.pendingTeeId = null; // ID was consumed — clear so a fresh one is fetched next time
         this.closeAddTeeModal();
         this.selectMgmtCourse(courseId);
         this.selectMgmtTee(courseId, teeName);
@@ -2516,7 +3661,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
 
@@ -2537,7 +3682,8 @@ class App {
 
             // 2. Safely filter out empty/garbage rounds (e.g. score of 0 or absurdly low partials like 4)
             // A realistic 9-hole score is at least 25.
-            const scoringRounds = filteredRounds.filter(r => (Number(r.score) || 0) > 20 && !r.isTeamTournament);
+            // Exclude Team Tournaments from performance metrics.
+            const scoringRounds = filteredRounds.filter(r => !r.isTeamTournament && (Number(r.score) || 0) > 20);
 
             // 3. Math Denominator: What fraction of 18 holes does the stored SCORE represent?
             const getScoringHoles = (r) => {
@@ -2596,14 +3742,27 @@ class App {
             const totalCost = filteredRounds.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
             const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
 
+            const totalGoodShots = scoringRounds.reduce((acc, r) => {
+                let gs = Number(r.goodShots) || 0;
+                return acc + (gs * scalingFactor(r));
+            }, 0);
+            const totalGoodShotsTarget = scoringRounds.reduce((acc, r) => {
+                let gst = Number(r.goodShotsTarget) || (getScoringHoles(r) === 9 ? 18 : 36);
+                return acc + (gst * scalingFactor(r));
+            }, 0);
+
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
+            const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
             const avgScore = mathScoringCount > 0 ? (totalScoreSum / mathScoringCount) : 0;
             const avgScoreToPar = mathScoringCount > 0 ? (totalScoreToParSum / mathScoringCount) : 0;
             const avgPutts = mathScoringCount > 0 ? (totalPuttsSum / mathScoringCount) : 0;
             const girPercent = mathScoringCount > 0 ? (totalGIR / (mathScoringCount * benchmarkHoles)) * 100 : 0;
             const firPercent = totalFIRC > 0 ? (totalFIR / totalFIRC) * 100 : 0;
             const scramblingPercent = totalUDC > 0 ? (totalUDS / totalUDC) * 100 : 0;
+            const avgGoodShotsPerRound = mathScoringCount > 0 ? (totalGoodShots / mathScoringCount) : 0;
+            const avgGoodShotsTargetPerRound = mathScoringCount > 0 ? (totalGoodShotsTarget / mathScoringCount) : (benchmarkHoles === 9 ? 18 : 36);
+            const goodShotsPercent = totalGoodShotsTarget > 0 ? (totalGoodShots / totalGoodShotsTarget) * 100 : 0;
 
             // Count rounds where specific metrics were actually tracked
             const roundsWithFIR = scoringRounds.filter(r => (Number(r.firChances) || 0) > 0).length;
@@ -2707,6 +3866,11 @@ class App {
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.upDownPercent}% (${Math.round(displayTargets.upDownPercent / 100 * avgUDCPerRound)}/${Math.round(avgUDCPerRound)})</div>
                 </div>
                 <div class="card stat-card">
+                    <div class="stat-title">Good Shots %</div>
+                    <div class="stat-value" style="color: ${totalGoodShotsTarget > 0 ? getColor(goodShotsPercent, displayTargets.goodShotsPercent, false) : 'var(--text-muted)'};">${totalGoodShotsTarget > 0 ? goodShotsPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${avgGoodShotsPerRound.toFixed(1)}/${Math.round(avgGoodShotsTargetPerRound)})</span></div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
+                </div>
+                <div class="card stat-card">
                     <div class="stat-title">Avg Putts (${benchmarkHoles} Holes)</div>
                     <div class="stat-value" style="color: ${getColor(avgPutts, displayTargets.putts, true)};">${Math.round(avgPutts)}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${Math.round(displayTargets.putts)}</div>
@@ -2714,17 +3878,12 @@ class App {
                 <div class="card stat-card">
                     <div class="stat-title"># of Rounds</div>
                     <div class="stat-value" style="color: var(--text-primary);">${count}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Total Filtered</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">${uniqueCourseCount} course${uniqueCourseCount !== 1 ? 's' : ''} · Total Filtered</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Best Score (${benchmarkHoles} Holes)</div>
                     <div class="stat-value" style="color: var(--primary-green);">${bestScore}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">(${bestScoreToPar > 0 ? '+' : ''}${bestScoreToPar} to par)</div>
-                </div>
-                <div class="card stat-card">
-                    <div class="stat-title">Most Played</div>
-                    <div class="stat-value" style="color: var(--primary-green); font-size: 1.1rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${mostPlayedCourse}">${mostPlayedCourse}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">(${maxCourseCount} rounds • ${Math.round((maxCourseCount / count) * 100)}%)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Total Cost</div>
@@ -2774,7 +3933,8 @@ class App {
             this.renderFilters('hole-dash-filters', () => this.renderHoleDash());
 
             // Apply Filters
-            const filteredRounds = roundsWithDetails.filter(r => !r.isTeamTournament).filter(r => {
+            const filteredRounds = roundsWithDetails.filter(r => {
+                if (r.isTeamTournament) return false; // Exclude from Hole Analytics
                 const est = this.getEST(r.date);
                 const yr = est.y;
                 const mo = est.m;
@@ -2786,7 +3946,7 @@ class App {
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
                     (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
                     (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
-                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent));
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             if (filteredRounds.length === 0) {
@@ -2799,7 +3959,7 @@ class App {
             // Aggregate Hole Data
             const holeStats = {};
             for (let i = 1; i <= 18; i++) {
-                holeStats[i] = { hole: i, totalScore: 0, totalPutts: 0, totalGIR: 0, totalFIR: 0, count: 0, firChances: 0, par: 0, parCount: 0 };
+                holeStats[i] = { hole: i, totalScore: 0, totalPutts: 0, totalGIR: 0, totalFIR: 0, count: 0, firChances: 0, par: 0, parCount: 0, goodShots: 0, goodShotsTarget: 0 };
             }
 
             const parStats = {
@@ -2831,6 +3991,11 @@ class App {
                         s.totalScore += score;
                         s.totalPutts += putts;
                         if (isGIR) s.totalGIR++;
+
+                        const tShots = Math.max(1, hPar - 2);
+                        s.goodShotsTarget += tShots;
+                        const gHits = Array.isArray(hd.goodShots) ? hd.goodShots.filter(Boolean).length : (hd.goodShotsCount || (typeof hd.goodShots === 'number' ? hd.goodShots : 0));
+                        s.goodShots += gHits;
 
                         if (hPar > 3) {
                             if (hd.fir === true || hd.fir === 'true' || (Array.isArray(hd.fir) && hd.fir.some(f => f === true || f === 'true'))) {
@@ -2888,6 +4053,7 @@ class App {
                         <th>Avg Putts</th>
                         <th>GIR %</th>
                         <th>FIR %</th>
+                        <th>Good Shots %</th>
                         <th>Rounds</th>
                     </tr>
                 </thead>
@@ -2902,6 +4068,7 @@ class App {
                 const avgPutts = s.totalPutts / s.count;
                 const girPct = (s.totalGIR / s.count) * 100;
                 const firPct = s.firChances > 0 ? (s.totalFIR / s.firChances) * 100 : 0;
+                const gsPct = s.goodShotsTarget > 0 ? (s.goodShots / s.goodShotsTarget) * 100 : 0;
 
                 tableHtml += `
                     <tr>
@@ -2911,6 +4078,7 @@ class App {
                         <td>${avgPutts.toFixed(1)}</td>
                         <td>${girPct.toFixed(0)}%</td>
                         <td>${s.firChances > 0 ? firPct.toFixed(0) + '%' : 'N/A'}</td>
+                        <td>${s.goodShotsTarget > 0 ? `${gsPct.toFixed(0)}% <span style="font-size: 0.75rem; color: var(--text-muted);">(${s.goodShots}/${s.goodShotsTarget})</span>` : 'N/A'}</td>
                         <td style="font-size: 0.8rem; color: var(--text-muted);">${s.count}</td>
                     </tr>
                 `;
@@ -3292,6 +4460,8 @@ class App {
             { value: 'girPercent', label: 'GIR %' },
             { value: 'fir', label: 'Fairways in Regulation' },
             { value: 'firPercent', label: 'FIR %' },
+            { value: 'goodShots', label: 'Good Shots' },
+            { value: 'goodShotsPercent', label: 'Good Shots %' },
             { value: 'upDownChances', label: 'Scrambling Chances' },
             { value: 'upDownSuccesses', label: 'Scrambling Successes' },
             { value: 'upDownPercent', label: 'Scrambling %' },
@@ -3300,6 +4470,7 @@ class App {
             { value: 'penaltyStrokes', label: 'Penalty Strokes' },
             { value: 'cost', label: 'Total Cost' },
             { value: 'winnings', label: 'Total Winnings' },
+            { value: 'holesPlayed', label: '# of Holes' },
             { value: 'roundCount', label: '# of Rounds' }
         ];
 
@@ -3397,10 +4568,11 @@ class App {
 
             if (!groups[key]) {
                 groups[key] = {
-                    label: label, count: 0, holes: 0, scoringHoles: 0, score: 0, putts: 0, gir: 0, fir: 0,
+                    label: label, count: 0, holes: 0, score: 0, putts: 0, gir: 0, fir: 0,
                     eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubleBogeys: 0, tripleBogeys: 0,
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
+                    goodShots: 0, goodShotsTarget: 0,
                     cost: 0, winnings: 0, courses: []
                 };
             }
@@ -3408,30 +4580,28 @@ class App {
             const g = groups[key];
             g.count++;
             g.holes += (r.holes || 18);
+            g.score += (r.score || 0);
+            g.putts += (r.putts || 0);
+            g.gir += (r.gir || 0);
+            g.fir += (r.fir || 0);
+            g.eagles += (r.eagles || 0);
+            g.birdies += (r.birdies || 0);
+            g.pars += (r.pars || 0);
+            g.bogeys += (r.bogeys || 0);
+            g.doubleBogeys += (r.doubleBogeys || 0);
+            g.tripleBogeys += (r.tripleBogeys || 0);
+            g.otherScore += (r.otherScore || 0);
+            g.upDownChances += (r.upDownChances || 0);
+            g.upDownSuccesses += (r.upDownSuccesses || 0);
+            g.firChances += (r.firChances || 0);
+            g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
+            g.goodShots += (r.goodShots || 0);
+            g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
+            g.penaltyStrokes += (r.penaltyStrokes || 0);
+            g.scoreToPar += (r.scoreToPar || 0);
             g.cost += (r.cost || 0);
             g.winnings += (r.winnings || 0);
-
-            if (!r.isTeamTournament) {
-                g.scoringHoles += (r.holes || 18);
-                g.score += (r.score || 0);
-                g.putts += (r.putts || 0);
-                g.gir += (r.gir || 0);
-                g.fir += (r.fir || 0);
-                g.eagles += (r.eagles || 0);
-                g.birdies += (r.birdies || 0);
-                g.pars += (r.pars || 0);
-                g.bogeys += (r.bogeys || 0);
-                g.doubleBogeys += (r.doubleBogeys || 0);
-                g.tripleBogeys += (r.tripleBogeys || 0);
-                g.otherScore += (r.otherScore || 0);
-                g.upDownChances += (r.upDownChances || 0);
-                g.upDownSuccesses += (r.upDownSuccesses || 0);
-                g.firChances += (r.firChances || 0);
-                g.threePutts += (r.threePutts || 0);
-                g.penaltyStrokes += (r.penaltyStrokes || 0);
-                g.scoreToPar += (r.scoreToPar || 0);
-            }
             if (r.course && !g.courses.includes(r.course)) {
                 g.courses.push(r.course);
             }
@@ -3442,19 +4612,22 @@ class App {
         const benchmarkHoles = is9HoleOnly ? 9 : 18;
 
         const chartData = Object.values(groups).map(g => {
-            const factorBenchmark = g.scoringHoles > 0 ? (benchmarkHoles / g.scoringHoles) : 0;
+            const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
             return {
                 ...g,
+                holesPlayed: g.holes,
                 score: g.score * factorBenchmark,
                 putts: g.putts * factorBenchmark,
                 gir: g.gir * factorBenchmark,
                 fir: g.fir * factorBenchmark,
+                goodShots: g.goodShots * factorBenchmark,
+                goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : 0,
                 scoreToPar: g.scoreToPar * factorBenchmark,
                 roundCount: g.count,
-                girPercent: g.scoringHoles > 0 ? (g.gir / g.scoringHoles) * 100 : 0,
+                girPercent: g.holes > 0 ? (g.gir / g.holes) * 100 : 0,
                 firPercent: g.firChances > 0 ? (g.fir / g.firChances) * 100 : 0,
                 upDownPercent: g.upDownChances > 0 ? (g.upDownSuccesses / g.upDownChances) * 100 : 0,
-                puttsPerHole: g.scoringHoles > 0 ? (g.putts / g.scoringHoles) : 0,
+                puttsPerHole: g.holes > 0 ? (g.putts / g.holes) : 0,
                 cost: g.cost,
                 winnings: g.winnings,
                 courses: g.courses
@@ -3594,10 +4767,13 @@ class App {
                 const mo = est.m;
                 const normalizedRCourse = this.normalizeCourse(r.course);
                 const origHoles = this.getRoundOriginalHoles(r);
+                const rEvent = (r.event || '').trim();
 
                 return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
                     (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
-                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse));
+                    (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
+                    (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                    (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
             // Apply Search Filter
@@ -3619,9 +4795,9 @@ class App {
                 if (this.historySortCol === 'date') {
                     valA = this.getEST(valA).ts;
                     valB = this.getEST(valB).ts;
-                } else if (this.historySortCol === 'course') {
-                    valA = valA ? valA.toLowerCase() : '';
-                    valB = valB ? valB.toLowerCase() : '';
+                } else if (this.historySortCol === 'course' || this.historySortCol === 'teeName') {
+                    valA = valA ? String(valA).toLowerCase() : '';
+                    valB = valB ? String(valB).toLowerCase() : '';
                 } else {
                     // Ensure numerical for other columns
                     valA = Number(valA) || 0;
@@ -3665,9 +4841,12 @@ class App {
                 <tr onclick="window.app.showRoundDetails('${round.id}')" style="cursor: pointer;">
                     <td style="text-align:center;" onclick="event.stopPropagation()"><input type="checkbox" class="history-row-checkbox" value="${round.id}"></td>
                     <td style="color:var(--text-muted); font-size:0.8rem; white-space:nowrap;">#${num}</td>
-                    <td>${this.formatDateDisplay(round.date)}</td>
+                    <td style="white-space:nowrap;">
+                        ${this.formatDateDisplay(round.date)}
+                        ${round.isTeamTournament ? '<span style="background:var(--primary-blue);color:white;padding:2px 6px;border-radius:12px;font-size:0.7em;margin-left:4px;" title="Team Tournament">Team</span>' : ''}
+                    </td>
                     <td style="font-weight: 500; color: var(--primary-green)">${String(round.course || 'Unknown').trim()}</td>
-                    <td>${round.teeId || '---'}</td>
+                    <td style="font-weight: 500; color: var(--text-primary)">${round.teeName || '---'}</td>
                     <td style="font-weight: 700;">${score}</td>
                     <td>${scoreToPar > 0 ? '+' : ''}${scoreToPar}</td>
                     <td>${fir}</td>
@@ -3698,6 +4877,7 @@ class App {
         const girPercent = Math.round((round.gir || 0) / (round.holes || 18) * 100);
         const firPercent = (round.firChances || 0) > 0 ? Math.round((round.fir || 0) / (round.firChances || 0) * 100) : 0;
         const scramblingPercent = (round.upDownChances || 0) > 0 ? Math.round((round.upDownSuccesses || 0) / (round.upDownChances || 0) * 100) : 0;
+        const goodShotsPercent = (round.goodShotsTarget || 0) > 0 ? Math.round((round.goodShots || 0) / (round.goodShotsTarget || (round.holes === 9 ? 18 : 36)) * 100) : 0;
 
         const num = String(round.roundNum || '?').padStart(3, '0');
         content.innerHTML = `
@@ -3722,6 +4902,10 @@ class App {
                 <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
                     <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Fairways Hits (FIR)</div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${round.firChances > 0 ? `${round.fir}/${round.firChances} (${firPercent}%)` : 'N/A'}</div>
+                </div>
+                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Good Shots</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</div>
                 </div>
                 <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark); grid-column: span 2;">
                     <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">Putter Used</div>
@@ -3763,6 +4947,10 @@ class App {
                     <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Advanced Stats</h3>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; justify-content: space-between;">
+                            <span>Good Shots:</span>
+                            <span style="font-weight: 600; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
                             <span>Scrambling:</span>
                             <span style="font-weight: 600;">${round.upDownSuccesses || 0}/${round.upDownChances || 0} (${scramblingPercent}%)</span>
                         </div>
@@ -3796,9 +4984,25 @@ class App {
                             <span>Group:</span>
                             <span style="font-weight: 600;">${round.group || '—'}</span>
                         </div>` : ''}
+                        ${(round.weather || round.temperature) ? `
+                        <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 2px;">
+                            <span>Weather:</span>
+                            <span style="font-weight: 600;">${round.weather || '—'}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Temp:</span>
+                            <span style="font-weight: 600;">${round.temperature ? round.temperature + '°' : '—'}</span>
+                        </div>` : ''}
                     </div>
                 </div>
             </div>
+
+            ${round.notes ? `
+            <div style="margin-bottom: 30px;">
+                <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Notes</h3>
+                <div style="background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-primary); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5;">${round.notes}</div>
+            </div>
+            ` : ''}
 
             ${round.holeData && round.holeData.length > 0 ? `
             <div style="margin-bottom: 30px;">
@@ -3813,19 +5017,25 @@ class App {
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Putts</th>
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">FIR</th>
                                 <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">GIR</th>
+                                <th style="padding: 12px 10px; text-align: center; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Good Shots</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${round.holeData.map((h, i) => h ? `
+                            ${round.holeData.map((h, i) => {
+                                if (!h) return '';
+                                const tShots = Math.max(1, (h.par || 4) - 2);
+                                const gHits = Array.isArray(h.goodShots) ? h.goodShots.filter(Boolean).length : (h.goodShotsCount || (typeof h.goodShots === 'number' ? h.goodShots : 0));
+                                return `
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 10px; text-align: center; font-weight: 600; color: var(--text-light);">${h.hole}</td>
                                     <td style="padding: 10px; text-align: center;">${h.par || '-'}</td>
                                     <td style="padding: 10px; text-align: center; font-weight: bold; color: ${h.score < h.par ? '#10b981' : (h.score > h.par ? '#ef4444' : 'var(--text-primary)')};">${h.score || '-'}</td>
                                     <td style="padding: 10px; text-align: center;">${h.putts || '-'}</td>
-                                    <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : (h.fir ? '✅' : '❌')}</td>
+                                    <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : ((Array.isArray(h.fir) ? h.fir.some(v => v) : h.fir) ? '✅' : '❌')}</td>
                                     <td style="padding: 10px; text-align: center;">${h.gir ? '✅' : '❌'}</td>
+                                    <td style="padding: 10px; text-align: center;">${gHits}/${tShots}</td>
                                 </tr>
-                            ` : '').join('')}
+                            `;}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -4032,6 +5242,7 @@ class App {
 
                         const state = (row['State'] || row['state'] || '').trim();
                         const country = (row['Country'] || row['country'] || '').trim();
+                        const publicPrivate = (row['Public/Private'] || row['public_private'] || row['Type'] || row['type'] || '').trim();
 
                         // Match by ID first, then by normalized Name
                         let existingIndex = -1;
@@ -4051,6 +5262,7 @@ class App {
                                 name: name || existing.name, // Support renaming via ID match if name changed
                                 state: state || existing.state || '',
                                 country: country || existing.country || '',
+                                public_private: publicPrivate || existing.public_private || '',
                                 updatedAt: new Date().toISOString()
                             };
                             this.courseLayouts[existingIndex] = courseData;
@@ -4061,6 +5273,7 @@ class App {
                                 name: name,
                                 state: state,
                                 country: country,
+                                public_private: publicPrivate,
                                 tees: {},
                                 updatedAt: new Date().toISOString(),
                                 createdBy: this.user ? this.user.uid : 'anonymous'
@@ -4209,7 +5422,7 @@ class App {
             }
 
             // Get recent valid rounds (up to 20)
-            const recent = this.rounds.filter(r => !r.isTeamTournament).slice(0, 20);
+            const recent = this.rounds.slice(0, 20);
 
             let totalHoles = 0;
             let totalScore = 0;
@@ -4563,7 +5776,8 @@ class App {
             const lines = text.split('\n');
             let headerIndex = 0;
             for (let i = 0; i < Math.min(10, lines.length); i++) {
-                if (lines[i].toLowerCase().includes('date') && lines[i].toLowerCase().includes('course')) {
+                const l = lines[i].toLowerCase();
+                if ((l.includes('date') && l.includes('course')) || l.includes('round #') || l.includes('round number') || l.includes('course id') || l.includes('course_id')) {
                     headerIndex = i;
                     console.log("Found header index at line:", i, lines[i]);
                     break;
@@ -4665,11 +5879,19 @@ class App {
                                 roundNum: roundNum > 0 ? roundNum : undefined,
                                 createdAt: new Date().toISOString()
                             };
+                            const v_courseId = getRowVal(row, ['course id', 'course_id', 'courseid']);
                             if (formattedDate) roundPayload.date = formattedDate;
                             if (course) {
                                 roundPayload.course = course;
                                 const layout = self.courseLayouts.find(c => isCourseMatch(c.name, course));
-                                roundPayload.courseId = layout ? layout.courseId : null;
+                                roundPayload.courseId = layout ? layout.courseId : (v_courseId || null);
+                            } else if (v_courseId) {
+                                // HEALER: If course name is missing but Course ID is provided, resolve name
+                                const layout = self.courseLayouts.find(c => c.courseId === v_courseId);
+                                if (layout) {
+                                    roundPayload.course = layout.name;
+                                    roundPayload.courseId = v_courseId;
+                                }
                             }
 
                             const v_score = getRowVal(row, ['score']);
@@ -4756,6 +5978,18 @@ class App {
                                     };
                                     self.rounds[existingRoundIndex] = updated;
                                     if (self.user && self.user.uid !== 'local') {
+                                        // HEALER: If we have teeId but no teeName/course context in the CSV row, 
+                                        // resolve it using the existing round's course layout.
+                                        if (updated.teeId && !updated.teeName && updated.course) {
+                                            const layout = self.courseLayouts.find(c => isCourseMatch(c.name, updated.course));
+                                            if (layout && layout.tees) {
+                                                const matchedTee = Object.entries(layout.tees).find(([name, data]) => data.teeId === updated.teeId);
+                                                if (matchedTee) {
+                                                    updated.teeName = matchedTee[0];
+                                                    updated.courseId = layout.courseId;
+                                                }
+                                            }
+                                        }
                                         self.syncRoundToCloud(updated);
                                     }
                                 } else {
@@ -4794,6 +6028,7 @@ class App {
                             const date = getVal(['date']);
                             const course = getVal(['course']);
                             const teeId = getVal(['tee id', 'tee_id', 'teeid', 'tee']);
+                            const v_courseId = getVal(['course id', 'course_id', 'courseid']);
 
                             if (!roundNum && (!date || !course || date.toLowerCase() === 'date')) return;
 
@@ -4809,6 +6044,7 @@ class App {
                                 roundsMap[key] = {
                                     date: date,
                                     course: course,
+                                    courseId: v_courseId,
                                     roundNum: roundNum,
                                     teeId: teeId,
                                     holeData: []
@@ -4987,15 +6223,20 @@ class App {
                                 }
                             } else {
                                 // No match found, push as new round
+                                let layout = self.courseLayouts.find(c => isCourseMatch(c.name, roundObj.course));
+                                if (!layout && roundObj.courseId) {
+                                    layout = self.courseLayouts.find(c => c.courseId === roundObj.courseId);
+                                    if (layout && !roundObj.course) roundObj.course = layout.name;
+                                }
+
                                 const nextRoundNum = self.rounds.reduce((max, r) => Math.max(max, r.roundNum || 0), 0) + 1;
-                                const layout = self.courseLayouts.find(c => isCourseMatch(c.name, roundObj.course));
 
                                 const finalRoundPayload = {
                                     id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
                                     roundNum: roundObj.roundNum > 0 ? roundObj.roundNum : nextRoundNum,
                                     date: formattedDate,
                                     course: roundObj.course,
-                                    courseId: layout ? layout.courseId : null,
+                                    courseId: layout ? layout.courseId : (roundObj.courseId || null),
                                     teeId: roundObj.teeId || '',
                                     teeName: (function () {
                                         if (layout && layout.tees && roundObj.teeId) {

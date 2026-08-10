@@ -726,6 +726,7 @@
                                                 <th style="padding: 10px 5px;">Putts</th>
                                                 <th style="padding: 10px 5px;" title="Fairway in Regulation">FIR</th>
                                                 <th style="padding: 10px 5px;" title="Green in Regulation">GIR</th>
+                                                <th style="padding: 10px 5px;" title="Good Shots (Par - 2 Target Shots)">Good Shots</th>
                                             </tr>
                                         </thead>
                                         <tbody id="detailed-scorecard-body">
@@ -740,7 +741,7 @@
                                                     id="calc-total-score">0</td>
                                                 <td style="padding: 15px 5px; color: var(--primary-blue);"
                                                     id="calc-total-putts">0</td>
-                                                <td colspan="2"></td>
+                                                <td colspan="3" style="padding: 15px 5px; text-align: right; color: var(--primary-green); font-size: 0.85rem;" id="calc-total-goodshots-cell">Good Shots: <span id="calc-total-goodshots">0 / 36 (0%)</span></td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -813,6 +814,17 @@
                                     <div class="form-group">
                                         <label for="threePutts"># of 3 Putts</label>
                                         <input type="number" id="threePutts" name="threePutts" min="0" value="0">
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="goodShots">Good Shots</label>
+                                        <input type="number" id="goodShots" name="goodShots" min="0" value="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="goodShotsTarget">Good Shots Target</label>
+                                        <input type="number" id="goodShotsTarget" name="goodShotsTarget" min="0" value="36">
                                     </div>
                                 </div>
                                 <div class="form-divider" id="accuracy-divider"></div>
