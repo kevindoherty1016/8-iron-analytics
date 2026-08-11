@@ -3742,11 +3742,18 @@ class App {
             const totalCost = filteredRounds.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
             const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
 
-            const totalGoodShots = scoringRounds.reduce((acc, r) => {
+            const goodShotEraStartTs = this.getEST('2026-08-09').ts;
+            const goodShotRounds = scoringRounds.filter(r => this.getEST(r.date).ts >= goodShotEraStartTs);
+            const mathGoodShotCount = goodShotRounds.reduce((acc, r) => {
+                const sHoles = getScoringHoles(r);
+                return acc + (sHoles === 9 ? (benchmarkHoles === 9 ? 1 : 0.5) : (benchmarkHoles === 18 ? 1 : 2));
+            }, 0);
+
+            const totalGoodShots = goodShotRounds.reduce((acc, r) => {
                 let gs = Number(r.goodShots) || 0;
                 return acc + (gs * scalingFactor(r));
             }, 0);
-            const totalGoodShotsTarget = scoringRounds.reduce((acc, r) => {
+            const totalGoodShotsTarget = goodShotRounds.reduce((acc, r) => {
                 let gst = Number(r.goodShotsTarget) || (getScoringHoles(r) === 9 ? 18 : 36);
                 return acc + (gst * scalingFactor(r));
             }, 0);
@@ -3760,8 +3767,8 @@ class App {
             const girPercent = mathScoringCount > 0 ? (totalGIR / (mathScoringCount * benchmarkHoles)) * 100 : 0;
             const firPercent = totalFIRC > 0 ? (totalFIR / totalFIRC) * 100 : 0;
             const scramblingPercent = totalUDC > 0 ? (totalUDS / totalUDC) * 100 : 0;
-            const avgGoodShotsPerRound = mathScoringCount > 0 ? (totalGoodShots / mathScoringCount) : 0;
-            const avgGoodShotsTargetPerRound = mathScoringCount > 0 ? (totalGoodShotsTarget / mathScoringCount) : (benchmarkHoles === 9 ? 18 : 36);
+            const avgGoodShotsPerRound = mathGoodShotCount > 0 ? (totalGoodShots / mathGoodShotCount) : 0;
+            const avgGoodShotsTargetPerRound = mathGoodShotCount > 0 ? (totalGoodShotsTarget / mathGoodShotCount) : (benchmarkHoles === 9 ? 18 : 36);
             const goodShotsPercent = totalGoodShotsTarget > 0 ? (totalGoodShots / totalGoodShotsTarget) * 100 : 0;
 
             // Count rounds where specific metrics were actually tracked
@@ -3869,6 +3876,7 @@ class App {
                     <div class="stat-title">Good Shots %</div>
                     <div class="stat-value" style="color: ${totalGoodShotsTarget > 0 ? getColor(goodShotsPercent, displayTargets.goodShotsPercent, false) : 'var(--text-muted)'};">${totalGoodShotsTarget > 0 ? goodShotsPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${avgGoodShotsPerRound.toFixed(1)}/${Math.round(avgGoodShotsTargetPerRound)})</span></div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">* Good Shot era (8/9/2026+)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Avg Putts (${benchmarkHoles} Holes)</div>
@@ -3992,10 +4000,13 @@ class App {
                         s.totalPutts += putts;
                         if (isGIR) s.totalGIR++;
 
-                        const tShots = Math.max(1, hPar - 2);
-                        s.goodShotsTarget += tShots;
-                        const gHits = Array.isArray(hd.goodShots) ? hd.goodShots.filter(Boolean).length : (hd.goodShotsCount || (typeof hd.goodShots === 'number' ? hd.goodShots : 0));
-                        s.goodShots += gHits;
+                        const rTs = this.getEST(r.date).ts;
+                        if (rTs >= this.getEST('2026-08-09').ts) {
+                            const tShots = Math.max(1, hPar - 2);
+                            s.goodShotsTarget += tShots;
+                            const gHits = Array.isArray(hd.goodShots) ? hd.goodShots.filter(Boolean).length : (hd.goodShotsCount || (typeof hd.goodShots === 'number' ? hd.goodShots : 0));
+                            s.goodShots += gHits;
+                        }
 
                         if (hPar > 3) {
                             if (hd.fir === true || hd.fir === 'true' || (Array.isArray(hd.fir) && hd.fir.some(f => f === true || f === 'true'))) {
@@ -4596,8 +4607,10 @@ class App {
             g.firChances += (r.firChances || 0);
             g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
-            g.goodShots += (r.goodShots || 0);
-            g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
+            if (est.ts >= this.getEST('2026-08-09').ts) {
+                g.goodShots += (r.goodShots || 0);
+                g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
+            }
             g.penaltyStrokes += (r.penaltyStrokes || 0);
             g.scoreToPar += (r.scoreToPar || 0);
             g.cost += (r.cost || 0);
