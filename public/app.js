@@ -5557,45 +5557,36 @@ class App {
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target', 'Tee Shot Good', 'Approach Shot Good', 'Good Tee Shots', 'Good Approach Shots', 'Good Approach Target'].map(escape).join(',');
+        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Tee Shot Execution', 'Approach Shot Execution', 'Scramble Converted', 'Good Shots', 'Good Shots Target'].map(escape).join(',');
 
         const rows = [];
         exportRounds.forEach(r => {
             r.holeData.forEach(h => {
-                const tShots = Math.max(1, (h.par || 4) - 2);
+                const hPar = parseInt(h.par) || 4;
+                const tShots = Math.max(1, hPar - 2);
                 let gHits = '';
-                let teeHit = '';
-                let appHit = '';
-                let goodTeeNum = '';
-                let goodAppNum = '';
-                let goodAppTarget = '';
+                let teeExec = '';
+                let appExec = '';
 
                 if (Array.isArray(h.goodShots)) {
                     gHits = h.goodShots.filter(Boolean).length;
-                    teeHit = h.goodShots[0] ? 'Hit' : 'Miss';
-                    goodTeeNum = h.goodShots[0] ? 1 : 0;
+                    teeExec = h.goodShots[0] ? 'Hit' : 'Miss';
 
-                    if (tShots > 1) {
-                        goodAppTarget = tShots - 1;
-                        let appCount = 0;
-                        for (let idx = 1; idx < tShots; idx++) {
-                            if (h.goodShots[idx]) appCount++;
-                        }
-                        goodAppNum = appCount;
-
-                        if (tShots === 2) {
-                            appHit = appCount === 1 ? 'Hit' : 'Miss';
-                        } else {
-                            // Par 5
-                            if (appCount === 2) appHit = 'Hit';
-                            else if (appCount === 0) appHit = 'Miss';
-                            else appHit = '1 of 2';
-                        }
+                    if (hPar === 3) {
+                        appExec = 'N/A';
+                    } else if (hPar === 4) {
+                        appExec = h.goodShots[1] ? 'Hit' : 'Miss';
+                    } else if (hPar === 5) {
+                        const appHits = (h.goodShots[1] ? 1 : 0) + (h.goodShots[2] ? 1 : 0);
+                        if (appHits === 2) appExec = 'Hit';
+                        else if (appHits === 0) appExec = 'Miss';
+                        else appExec = '1 of 2';
                     } else {
-                        // Par 3
-                        appHit = 'N/A';
-                        goodAppNum = 0;
-                        goodAppTarget = 0;
+                        let appHits = 0;
+                        for (let idx = 1; idx < tShots; idx++) {
+                            if (h.goodShots[idx]) appHits++;
+                        }
+                        appExec = `${appHits} of ${tShots - 1}`;
                     }
                 } else if (h.goodShotsCount !== undefined) {
                     gHits = h.goodShotsCount;
@@ -5603,23 +5594,27 @@ class App {
                     gHits = h.goodShots;
                 }
 
+                // Scramble converted: On missed GIR, did you get Up & Down (Score <= Par)?
+                let scrambleConverted = 'N/A';
+                if (!h.gir && h.score > 0 && hPar > 0) {
+                    scrambleConverted = (h.score <= hPar) ? 'Hit' : 'Miss';
+                }
+
                 rows.push([
                     r.roundNum || '',
                     r.date || '',
                     r.course || '',
                     h.hole || '',
-                    h.par || '',
+                    hPar,
                     h.score || '',
                     h.putts || '',
-                    h.par === 3 ? 'N/A' : (h.fir ? 'Hit' : 'Miss'),
+                    hPar === 3 ? 'N/A' : (h.fir ? 'Hit' : 'Miss'),
                     h.gir ? 'Hit' : 'Miss',
+                    teeExec,
+                    appExec,
+                    scrambleConverted,
                     gHits,
-                    h.par ? tShots : '',
-                    teeHit,
-                    appHit,
-                    goodTeeNum,
-                    goodAppNum,
-                    goodAppTarget
+                    h.par ? tShots : ''
                 ].map(escape).join(','));
             });
         });
