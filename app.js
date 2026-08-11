@@ -5557,7 +5557,7 @@ class App {
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target', 'Tee Shot Good', 'Approach Shots Good'].map(escape).join(',');
+        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target', 'Tee Shot Good', 'Approach Shot Good', 'Good Tee Shots', 'Good Approach Shots', 'Good Approach Target'].map(escape).join(',');
 
         const rows = [];
         exportRounds.forEach(r => {
@@ -5566,17 +5566,36 @@ class App {
                 let gHits = '';
                 let teeHit = '';
                 let appHit = '';
+                let goodTeeNum = '';
+                let goodAppNum = '';
+                let goodAppTarget = '';
+
                 if (Array.isArray(h.goodShots)) {
                     gHits = h.goodShots.filter(Boolean).length;
                     teeHit = h.goodShots[0] ? 'Hit' : 'Miss';
+                    goodTeeNum = h.goodShots[0] ? 1 : 0;
+
                     if (tShots > 1) {
+                        goodAppTarget = tShots - 1;
                         let appCount = 0;
                         for (let idx = 1; idx < tShots; idx++) {
                             if (h.goodShots[idx]) appCount++;
                         }
-                        appHit = `${appCount}/${tShots - 1}`;
+                        goodAppNum = appCount;
+
+                        if (tShots === 2) {
+                            appHit = appCount === 1 ? 'Hit' : 'Miss';
+                        } else {
+                            // Par 5
+                            if (appCount === 2) appHit = 'Hit';
+                            else if (appCount === 0) appHit = 'Miss';
+                            else appHit = '1 of 2';
+                        }
                     } else {
+                        // Par 3
                         appHit = 'N/A';
+                        goodAppNum = 0;
+                        goodAppTarget = 0;
                     }
                 } else if (h.goodShotsCount !== undefined) {
                     gHits = h.goodShotsCount;
@@ -5597,7 +5616,10 @@ class App {
                     gHits,
                     h.par ? tShots : '',
                     teeHit,
-                    appHit
+                    appHit,
+                    goodTeeNum,
+                    goodAppNum,
+                    goodAppTarget
                 ].map(escape).join(','));
             });
         });
