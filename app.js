@@ -905,6 +905,26 @@ class App {
                 goodShotsTargetTotal += (h.goodShotsTarget || Math.max(1, (h.par || 4) - 2));
             });
 
+            let goodTeeShots = 0;
+            let goodApproachShots = 0;
+            let goodApproachTarget = 0;
+            newRound.holeData.forEach(h => {
+                const tForHole = Math.max(1, (h.par || 4) - 2);
+                const arr = Array.isArray(h.goodShots) ? h.goodShots : [];
+                if (arr[0] === true) goodTeeShots++;
+                if (tForHole > 1) {
+                    goodApproachTarget += (tForHole - 1);
+                    for (let idx = 1; idx < tForHole; idx++) {
+                        if (arr[idx] === true) goodApproachShots++;
+                    }
+                }
+            });
+
+            newRound.goodTeeShots = goodTeeShots;
+            newRound.goodTeeTarget = newRound.holeData.length;
+            newRound.goodApproachShots = goodApproachShots;
+            newRound.goodApproachTarget = goodApproachTarget;
+
             newRound.score = totalScore;
             newRound.coursePar = totalPar;
             newRound.putts = totalPutts;
@@ -1190,10 +1210,28 @@ class App {
                     ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShotsCount)
                     : []));
 
-        let checkboxesHtml = '<div style="display: flex; gap: 5px; justify-content: center; align-items: center;">';
+        let checkboxesHtml = '<div style="display: flex; gap: 6px; justify-content: center; align-items: center;">';
         for (let s = 1; s <= targetShots; s++) {
             const isChecked = savedShots[s - 1] === true;
-            checkboxesHtml += `<input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 15px; height: 15px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Good Shot ${s} of ${targetShots}" ${isChecked ? 'checked' : ''}>`;
+            let shotLabel = 'T';
+            let shotTitle = 'Tee Shot';
+            if (s > 1) {
+                if (targetShots === 3 && s === 2) {
+                    shotLabel = '2nd';
+                    shotTitle = '2nd Shot / Layup';
+                } else {
+                    shotLabel = 'A';
+                    shotTitle = 'Approach Shot';
+                }
+            } else if (par === 3) {
+                shotTitle = 'Tee / Approach Shot';
+            }
+            checkboxesHtml += `
+                <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 1px;" title="${shotTitle}">
+                    <span style="font-size: 0.62rem; font-weight: 600; color: ${s === 1 ? 'var(--primary-green)' : 'var(--text-muted)'}; line-height: 1;">${shotLabel}</span>
+                    <input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 15px; height: 15px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="${shotTitle}" ${isChecked ? 'checked' : ''}>
+                </div>
+            `;
         }
         checkboxesHtml += '</div>';
         container.innerHTML = checkboxesHtml;
@@ -1339,8 +1377,27 @@ class App {
         document.getElementById('calc-total-putts').innerText = totalPutts;
         const gsFooter = document.getElementById('calc-total-goodshots');
         if (gsFooter) {
+            let goodTeeCount = 0;
+            let goodApproachCount = 0;
+            let goodApproachTarget = 0;
+            targetHoles.forEach(hNum => {
+                const h = this.tempHoleData[hNum];
+                if (!h) return;
+                const tForHole = Math.max(1, (h.par || 4) - 2);
+                let arr = Array.isArray(h.goodShots) ? h.goodShots : [];
+                if (arr[0] === true) goodTeeCount++;
+                if (tForHole > 1) {
+                    goodApproachTarget += (tForHole - 1);
+                    for (let idx = 1; idx < tForHole; idx++) {
+                        if (arr[idx] === true) goodApproachCount++;
+                    }
+                }
+            });
+
             const gsPct = goodShotsTarget > 0 ? Math.round((goodShotsCount / goodShotsTarget) * 100) : 0;
-            gsFooter.innerText = `${goodShotsCount} / ${goodShotsTarget} (${gsPct}%)`;
+            const teePct = targetHoles.length > 0 ? Math.round((goodTeeCount / targetHoles.length) * 100) : 0;
+            const appPct = goodApproachTarget > 0 ? Math.round((goodApproachCount / goodApproachTarget) * 100) : 0;
+            gsFooter.innerHTML = `${goodShotsCount} / ${goodShotsTarget} (${gsPct}%) <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:2px;">Tee: ${goodTeeCount}/${targetHoles.length} (${teePct}%) · App: ${goodApproachCount}/${goodApproachTarget} (${appPct}%)</span>`;
         }
 
         // Sync all quick-entry fields so switching modes shows correct totals
@@ -3758,6 +3815,41 @@ class App {
                 return acc + (gst * scalingFactor(r));
             }, 0);
 
+            let totalGoodTee = 0;
+            let totalGoodTeeTarget = 0;
+            let totalGoodApproach = 0;
+            let totalGoodApproachTarget = 0;
+
+            goodShotRounds.forEach(r => {
+                const sFactor = scalingFactor(r);
+                const rHoles = getScoringHoles(r);
+                if (r.holeData && r.holeData.length > 0) {
+                    let rTee = 0;
+                    let rApp = 0;
+                    let rAppTarget = 0;
+                    r.holeData.forEach(h => {
+                        const tForH = Math.max(1, (h.par || 4) - 2);
+                        const arr = Array.isArray(h.goodShots) ? h.goodShots : [];
+                        if (arr[0] === true) rTee++;
+                        if (tForH > 1) {
+                            rAppTarget += (tForH - 1);
+                            for (let idx = 1; idx < tForH; idx++) {
+                                if (arr[idx] === true) rApp++;
+                            }
+                        }
+                    });
+                    totalGoodTee += (rTee * sFactor);
+                    totalGoodTeeTarget += (rHoles * sFactor);
+                    totalGoodApproach += (rApp * sFactor);
+                    totalGoodApproachTarget += (rAppTarget * sFactor);
+                } else if (r.goodTeeShots !== undefined) {
+                    totalGoodTee += (Number(r.goodTeeShots || 0) * sFactor);
+                    totalGoodTeeTarget += ((Number(r.goodTeeTarget) || rHoles) * sFactor);
+                    totalGoodApproach += (Number(r.goodApproachShots || 0) * sFactor);
+                    totalGoodApproachTarget += ((Number(r.goodApproachTarget) || Math.max(0, (r.goodShotsTarget || (rHoles === 9 ? 18 : 36)) - rHoles)) * sFactor);
+                }
+            });
+
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
             const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
@@ -3770,6 +3862,12 @@ class App {
             const avgGoodShotsPerRound = mathGoodShotCount > 0 ? (totalGoodShots / mathGoodShotCount) : 0;
             const avgGoodShotsTargetPerRound = mathGoodShotCount > 0 ? (totalGoodShotsTarget / mathGoodShotCount) : (benchmarkHoles === 9 ? 18 : 36);
             const goodShotsPercent = totalGoodShotsTarget > 0 ? (totalGoodShots / totalGoodShotsTarget) * 100 : 0;
+
+            const goodTeePercent = totalGoodTeeTarget > 0 ? (totalGoodTee / totalGoodTeeTarget) * 100 : 0;
+            const goodApproachPercent = totalGoodApproachTarget > 0 ? (totalGoodApproach / totalGoodApproachTarget) * 100 : 0;
+            const avgGoodTeePerRound = mathGoodShotCount > 0 ? (totalGoodTee / mathGoodShotCount) : 0;
+            const avgGoodApproachPerRound = mathGoodShotCount > 0 ? (totalGoodApproach / mathGoodShotCount) : 0;
+            const avgGoodApproachTargetPerRound = mathGoodShotCount > 0 ? (totalGoodApproachTarget / mathGoodShotCount) : (benchmarkHoles === 9 ? 9 : 18);
 
             // Count rounds where specific metrics were actually tracked
             const roundsWithFIR = scoringRounds.filter(r => (Number(r.firChances) || 0) > 0).length;
@@ -3875,8 +3973,11 @@ class App {
                 <div class="card stat-card">
                     <div class="stat-title">Good Shots %</div>
                     <div class="stat-value" style="color: ${totalGoodShotsTarget > 0 ? getColor(goodShotsPercent, displayTargets.goodShotsPercent, false) : 'var(--text-muted)'};">${totalGoodShotsTarget > 0 ? goodShotsPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${avgGoodShotsPerRound.toFixed(1)}/${Math.round(avgGoodShotsTargetPerRound)})</span></div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
-                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">* Good Shot era (8/9/2026+)</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px;">
+                        Tee: <strong style="color: var(--text-primary);">${totalGoodTeeTarget > 0 ? goodTeePercent.toFixed(1) + '%' : '--'}</strong> (${avgGoodTeePerRound.toFixed(1)}/${benchmarkHoles}) · App: <strong style="color: var(--text-primary);">${totalGoodApproachTarget > 0 ? goodApproachPercent.toFixed(1) + '%' : '--'}</strong> (${avgGoodApproachPerRound.toFixed(1)}/${Math.round(avgGoodApproachTargetPerRound)})
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 3px;">* Good Shot era (8/9/2026+)</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Avg Putts (${benchmarkHoles} Holes)</div>
@@ -4473,6 +4574,10 @@ class App {
             { value: 'firPercent', label: 'FIR %' },
             { value: 'goodShots', label: 'Good Shots' },
             { value: 'goodShotsPercent', label: 'Good Shots %' },
+            { value: 'goodTeePercent', label: 'Good Tee %' },
+            { value: 'goodApproachPercent', label: 'Good Approach %' },
+            { value: 'goodTeeShots', label: 'Good Tee Shots' },
+            { value: 'goodApproachShots', label: 'Good Approach Shots' },
             { value: 'upDownChances', label: 'Scrambling Chances' },
             { value: 'upDownSuccesses', label: 'Scrambling Successes' },
             { value: 'upDownPercent', label: 'Scrambling %' },
@@ -4584,6 +4689,8 @@ class App {
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
                     goodShots: 0, goodShotsTarget: 0,
+                    goodTeeShots: 0, goodTeeTarget: 0,
+                    goodApproachShots: 0, goodApproachTarget: 0,
                     cost: 0, winnings: 0, courses: []
                 };
             }
@@ -4610,6 +4717,29 @@ class App {
             if (est.ts >= this.getEST('2026-08-09').ts) {
                 g.goodShots += (r.goodShots || 0);
                 g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
+
+                let rTee = 0, rApp = 0, rAppTarget = 0;
+                if (r.holeData && r.holeData.length > 0) {
+                    r.holeData.forEach(h => {
+                        const tForH = Math.max(1, (h.par || 4) - 2);
+                        const arr = Array.isArray(h.goodShots) ? h.goodShots : [];
+                        if (arr[0] === true) rTee++;
+                        if (tForH > 1) {
+                            rAppTarget += (tForH - 1);
+                            for (let idx = 1; idx < tForH; idx++) {
+                                if (arr[idx] === true) rApp++;
+                            }
+                        }
+                    });
+                } else {
+                    rTee = r.goodTeeShots || 0;
+                    rApp = r.goodApproachShots || 0;
+                    rAppTarget = r.goodApproachTarget || Math.max(0, (r.goodShotsTarget || 36) - (r.holes || 18));
+                }
+                g.goodTeeShots += rTee;
+                g.goodTeeTarget += (r.holes || 18);
+                g.goodApproachShots += rApp;
+                g.goodApproachTarget += rAppTarget;
             }
             g.penaltyStrokes += (r.penaltyStrokes || 0);
             g.scoreToPar += (r.scoreToPar || 0);
@@ -4635,6 +4765,10 @@ class App {
                 fir: g.fir * factorBenchmark,
                 goodShots: g.goodShots * factorBenchmark,
                 goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : 0,
+                goodTeeShots: g.goodTeeShots * factorBenchmark,
+                goodTeePercent: g.goodTeeTarget > 0 ? (g.goodTeeShots / g.goodTeeTarget) * 100 : 0,
+                goodApproachShots: g.goodApproachShots * factorBenchmark,
+                goodApproachPercent: g.goodApproachTarget > 0 ? (g.goodApproachShots / g.goodApproachTarget) * 100 : 0,
                 scoreToPar: g.scoreToPar * factorBenchmark,
                 roundCount: g.count,
                 girPercent: g.holes > 0 ? (g.gir / g.holes) * 100 : 0,
@@ -5046,7 +5180,14 @@ class App {
                                     <td style="padding: 10px; text-align: center;">${h.putts || '-'}</td>
                                     <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : ((Array.isArray(h.fir) ? h.fir.some(v => v) : h.fir) ? '✅' : '❌')}</td>
                                     <td style="padding: 10px; text-align: center;">${h.gir ? '✅' : '❌'}</td>
-                                    <td style="padding: 10px; text-align: center;">${gHits}/${tShots}</td>
+                                    <td style="padding: 10px; text-align: center;">
+                                        ${gHits}/${tShots}
+                                        ${Array.isArray(h.goodShots) ? `
+                                            <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:2px;">
+                                                T:${h.goodShots[0] ? '✅' : '❌'}${tShots > 1 ? ' · App:' + h.goodShots.slice(1).map(b => b ? '✅' : '❌').join('/') : ''}
+                                            </span>
+                                        ` : ''}
+                                    </td>
                                 </tr>
                             `;}).join('')}
                         </tbody>
@@ -5104,6 +5245,10 @@ class App {
             { key: 'goodShots', label: 'Good Shots' },
             { key: 'goodShotsTarget', label: 'Good Shots Target' },
             { key: 'goodShotsPercent', label: 'Good Shots %' },
+            { key: 'goodTeeShots', label: 'Good Tee Shots' },
+            { key: 'goodTeePercent', label: 'Good Tee %' },
+            { key: 'goodApproachShots', label: 'Good Approach Shots' },
+            { key: 'goodApproachPercent', label: 'Good Approach %' },
             { key: 'upDownChances', label: 'Scrambling Chances' },
             { key: 'upDownSuccesses', label: 'Scrambling Successes' },
             { key: 'scramblingPercent', label: 'Scrambling %' },
@@ -5170,6 +5315,8 @@ class App {
             score: 'Score', scoreToPar: 'Score to Par', putts: 'Putts', threePutts: '3-Putts',
             gir: 'GIR', fir: 'FIR Hits', firChances: 'FIR Chances', firPercent: 'FIR %',
             goodShots: 'Good Shots', goodShotsTarget: 'Good Shots Target', goodShotsPercent: 'Good Shots %',
+            goodTeeShots: 'Good Tee Shots', goodTeePercent: 'Good Tee %',
+            goodApproachShots: 'Good Approach Shots', goodApproachPercent: 'Good Approach %',
             upDownChances: 'Scrambling Chances', upDownSuccesses: 'Scrambling Successes',
             scramblingPercent: 'Scrambling %', eagles: 'Eagles', birdies: 'Birdies', pars: 'Pars',
             bogeys: 'Bogeys', doubleBogeys: 'Double Bogeys', tripleBogeys: 'Triple Bogeys',
@@ -5190,6 +5337,58 @@ class App {
             if (key === 'goodShotsPercent') {
                 const target = r.goodShotsTarget || (r.holes === 9 ? 18 : 36);
                 return (target > 0 && r.goodShots !== undefined) ? Math.round((r.goodShots / target) * 1000) / 10 : '';
+            }
+            if (key === 'goodTeeShots') {
+                if (r.goodTeeShots !== undefined) return r.goodTeeShots;
+                if (r.holeData && r.holeData.length > 0) {
+                    return r.holeData.filter(h => Array.isArray(h.goodShots) && h.goodShots[0] === true).length;
+                }
+                return '';
+            }
+            if (key === 'goodTeePercent') {
+                let tShots = r.goodTeeShots;
+                let tTarget = r.goodTeeTarget || (r.holes || 18);
+                if (tShots === undefined && r.holeData && r.holeData.length > 0) {
+                    tShots = r.holeData.filter(h => Array.isArray(h.goodShots) && h.goodShots[0] === true).length;
+                    tTarget = r.holeData.length;
+                }
+                return (tTarget > 0 && tShots !== undefined) ? Math.round((tShots / tTarget) * 1000) / 10 : '';
+            }
+            if (key === 'goodApproachShots') {
+                if (r.goodApproachShots !== undefined) return r.goodApproachShots;
+                if (r.holeData && r.holeData.length > 0) {
+                    let appCount = 0;
+                    r.holeData.forEach(h => {
+                        const tForH = Math.max(1, (h.par || 4) - 2);
+                        if (tForH > 1 && Array.isArray(h.goodShots)) {
+                            for (let idx = 1; idx < tForH; idx++) {
+                                if (h.goodShots[idx] === true) appCount++;
+                            }
+                        }
+                    });
+                    return appCount;
+                }
+                return '';
+            }
+            if (key === 'goodApproachPercent') {
+                let appCount = r.goodApproachShots;
+                let appTarget = r.goodApproachTarget;
+                if (appCount === undefined && r.holeData && r.holeData.length > 0) {
+                    appCount = 0;
+                    appTarget = 0;
+                    r.holeData.forEach(h => {
+                        const tForH = Math.max(1, (h.par || 4) - 2);
+                        if (tForH > 1) {
+                            appTarget += (tForH - 1);
+                            if (Array.isArray(h.goodShots)) {
+                                for (let idx = 1; idx < tForH; idx++) {
+                                    if (h.goodShots[idx] === true) appCount++;
+                                }
+                            }
+                        }
+                    });
+                }
+                return (appTarget > 0 && appCount !== undefined) ? Math.round((appCount / appTarget) * 1000) / 10 : '';
             }
             return r[key] ?? '';
         };
@@ -5355,15 +5554,27 @@ class App {
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target'].map(escape).join(',');
+        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target', 'Tee Shot Good', 'Approach Shots Good'].map(escape).join(',');
 
         const rows = [];
         exportRounds.forEach(r => {
             r.holeData.forEach(h => {
                 const tShots = Math.max(1, (h.par || 4) - 2);
                 let gHits = '';
+                let teeHit = '';
+                let appHit = '';
                 if (Array.isArray(h.goodShots)) {
                     gHits = h.goodShots.filter(Boolean).length;
+                    teeHit = h.goodShots[0] ? 'Hit' : 'Miss';
+                    if (tShots > 1) {
+                        let appCount = 0;
+                        for (let idx = 1; idx < tShots; idx++) {
+                            if (h.goodShots[idx]) appCount++;
+                        }
+                        appHit = `${appCount}/${tShots - 1}`;
+                    } else {
+                        appHit = 'N/A';
+                    }
                 } else if (h.goodShotsCount !== undefined) {
                     gHits = h.goodShotsCount;
                 } else if (typeof h.goodShots === 'number') {
@@ -5381,7 +5592,9 @@ class App {
                     h.par === 3 ? 'N/A' : (h.fir ? 'Hit' : 'Miss'),
                     h.gir ? 'Hit' : 'Miss',
                     gHits,
-                    h.par ? tShots : ''
+                    h.par ? tShots : '',
+                    teeHit,
+                    appHit
                 ].map(escape).join(','));
             });
         });
