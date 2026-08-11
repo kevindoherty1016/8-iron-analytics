@@ -3779,11 +3779,13 @@ class App {
                 let g = Number(r.gir) || 0;
                 return acc + (g * scalingFactor(r));
             }, 0);
-            const totalFIR = scoringRounds.reduce((acc, r) => {
+            const teeTrackingEraStartTs = this.getEST('2026-08-09').ts;
+            const teeTrackingRounds = scoringRounds.filter(r => this.getEST(r.date).ts >= teeTrackingEraStartTs);
+            const totalFIR = teeTrackingRounds.reduce((acc, r) => {
                 let f = Number(r.fir) || 0;
                 return acc + (f * scalingFactor(r));
             }, 0);
-            const totalFIRC = scoringRounds.reduce((acc, r) => {
+            const totalFIRC = teeTrackingRounds.reduce((acc, r) => {
                 let fc = Number(r.firChances) || 0;
                 return acc + (fc * scalingFactor(r));
             }, 0);
@@ -3964,6 +3966,7 @@ class App {
                     <div class="stat-title">FIR %</div>
                     <div class="stat-value" style="color: ${totalFIRC > 0 ? getColor(firPercent, displayTargets.firPercent, false) : 'var(--text-muted)'};">${totalFIRC > 0 ? firPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${totalFIRC > 0 ? Math.round(avgFIRPerRound) + '/' + Math.round(avgFIRCPerRound) : '--'})</span></div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: ${displayTargets.firPercent}% (${totalFIRC > 0 ? Math.round(displayTargets.firPercent / 100 * avgFIRCPerRound) : '--'}/${Math.round(avgFIRCPerRound)})</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">* Tracked since 8/9/2026</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Scrambling %</div>
@@ -4109,7 +4112,7 @@ class App {
                             s.goodShots += gHits;
                         }
 
-                        if (hPar > 3) {
+                        if (hPar > 3 && rTs >= this.getEST('2026-08-09').ts) {
                             if (hd.fir === true || hd.fir === 'true' || (Array.isArray(hd.fir) && hd.fir.some(f => f === true || f === 'true'))) {
                                 // If array (Par 5), count hits. For Par 4, it's just a boolean.
                                 if (Array.isArray(hd.fir)) {
@@ -4701,7 +4704,6 @@ class App {
             g.score += (r.score || 0);
             g.putts += (r.putts || 0);
             g.gir += (r.gir || 0);
-            g.fir += (r.fir || 0);
             g.eagles += (r.eagles || 0);
             g.birdies += (r.birdies || 0);
             g.pars += (r.pars || 0);
@@ -4711,10 +4713,11 @@ class App {
             g.otherScore += (r.otherScore || 0);
             g.upDownChances += (r.upDownChances || 0);
             g.upDownSuccesses += (r.upDownSuccesses || 0);
-            g.firChances += (r.firChances || 0);
             g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
             if (est.ts >= this.getEST('2026-08-09').ts) {
+                g.fir += (r.fir || 0);
+                g.firChances += (r.firChances || 0);
                 g.goodShots += (r.goodShots || 0);
                 g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
 
