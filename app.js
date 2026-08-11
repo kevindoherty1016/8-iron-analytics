@@ -5101,6 +5101,9 @@ class App {
             { key: 'fir', label: 'FIR Hits' },
             { key: 'firChances', label: 'FIR Chances' },
             { key: 'firPercent', label: 'FIR %' },
+            { key: 'goodShots', label: 'Good Shots' },
+            { key: 'goodShotsTarget', label: 'Good Shots Target' },
+            { key: 'goodShotsPercent', label: 'Good Shots %' },
             { key: 'upDownChances', label: 'Scrambling Chances' },
             { key: 'upDownSuccesses', label: 'Scrambling Successes' },
             { key: 'scramblingPercent', label: 'Scrambling %' },
@@ -5114,7 +5117,7 @@ class App {
             { key: 'penaltyStrokes', label: 'Penalty Strokes' },
         ];
 
-        const defaultOn = ['roundNumber', 'date', 'course', 'score', 'scoreToPar', 'putts', 'gir', 'fir', 'firPercent', 'scramblingPercent', 'penaltyStrokes'];
+        const defaultOn = ['roundNumber', 'date', 'course', 'score', 'scoreToPar', 'putts', 'gir', 'fir', 'firPercent', 'goodShots', 'goodShotsPercent', 'scramblingPercent', 'penaltyStrokes'];
 
         container.innerHTML = fields.map(f => `
             <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--text-muted); cursor:pointer;">
@@ -5166,6 +5169,7 @@ class App {
             roundNumber: 'Round #', date: 'Date', course: 'Course', coursePar: 'Course Par',
             score: 'Score', scoreToPar: 'Score to Par', putts: 'Putts', threePutts: '3-Putts',
             gir: 'GIR', fir: 'FIR Hits', firChances: 'FIR Chances', firPercent: 'FIR %',
+            goodShots: 'Good Shots', goodShotsTarget: 'Good Shots Target', goodShotsPercent: 'Good Shots %',
             upDownChances: 'Scrambling Chances', upDownSuccesses: 'Scrambling Successes',
             scramblingPercent: 'Scrambling %', eagles: 'Eagles', birdies: 'Birdies', pars: 'Pars',
             bogeys: 'Bogeys', doubleBogeys: 'Double Bogeys', tripleBogeys: 'Triple Bogeys',
@@ -5181,6 +5185,12 @@ class App {
             if (key === 'roundNumber') return r.roundNum || '';
             if (key === 'firPercent') return r.firChances > 0 ? Math.round(r.fir / r.firChances * 1000) / 10 : 0;
             if (key === 'scramblingPercent') return r.upDownChances > 0 ? Math.round(r.upDownSuccesses / r.upDownChances * 1000) / 10 : 0;
+            if (key === 'goodShots') return r.goodShots !== undefined ? r.goodShots : '';
+            if (key === 'goodShotsTarget') return r.goodShotsTarget !== undefined ? r.goodShotsTarget : (r.goodShots !== undefined ? (r.holes === 9 ? 18 : 36) : '');
+            if (key === 'goodShotsPercent') {
+                const target = r.goodShotsTarget || (r.holes === 9 ? 18 : 36);
+                return (target > 0 && r.goodShots !== undefined) ? Math.round((r.goodShots / target) * 1000) / 10 : '';
+            }
             return r[key] ?? '';
         };
 
@@ -5345,11 +5355,21 @@ class App {
             return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR'].map(escape).join(',');
+        const header = ['Round #', 'Date', 'Course', 'Hole', 'Par', 'Score', 'Putts', 'FIR', 'GIR', 'Good Shots', 'Good Shots Target'].map(escape).join(',');
 
         const rows = [];
         exportRounds.forEach(r => {
             r.holeData.forEach(h => {
+                const tShots = Math.max(1, (h.par || 4) - 2);
+                let gHits = '';
+                if (Array.isArray(h.goodShots)) {
+                    gHits = h.goodShots.filter(Boolean).length;
+                } else if (h.goodShotsCount !== undefined) {
+                    gHits = h.goodShotsCount;
+                } else if (typeof h.goodShots === 'number') {
+                    gHits = h.goodShots;
+                }
+
                 rows.push([
                     r.roundNum || '',
                     r.date || '',
@@ -5359,7 +5379,9 @@ class App {
                     h.score || '',
                     h.putts || '',
                     h.par === 3 ? 'N/A' : (h.fir ? 'Hit' : 'Miss'),
-                    h.gir ? 'Hit' : 'Miss'
+                    h.gir ? 'Hit' : 'Miss',
+                    gHits,
+                    h.par ? tShots : ''
                 ].map(escape).join(','));
             });
         });
