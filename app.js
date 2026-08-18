@@ -74,6 +74,8 @@ class App {
         this.insightsTrendWindow = 10; // 5, 10, 20, 'all'
         this.insightsCharts = {};
         this.holeChartParStat = 'score'; // Default stat for hole par trend chart
+        this.holeSortCol = 'hole';
+        this.holeSortDir = 'asc';
         // History Table state
         this.historySortCol = 'date';
         this.historySortDir = 'desc';
@@ -4026,6 +4028,23 @@ class App {
         }
     }
 
+    sortHoleTable(col) {
+        if (this.holeSortCol === col) {
+            this.holeSortDir = this.holeSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.holeSortCol = col;
+            // Default direction based on metric (e.g. for score/vsPar/putts/rounds, desc first; for gir/fir/tee/approach/goodShots, asc first)
+            if (col === 'hole') {
+                this.holeSortDir = 'asc';
+            } else if (col === 'score' || col === 'vsPar' || col === 'putts' || col === 'rounds') {
+                this.holeSortDir = 'desc';
+            } else {
+                this.holeSortDir = 'asc';
+            }
+        }
+        this.renderHoleDash();
+    }
+
     renderHoleDash() {
         try {
             const emptyState = document.getElementById('hole-dash-empty');
@@ -4352,27 +4371,118 @@ class App {
                 }
             }
 
-            // Render Table
+            // Render Table with Interactive Sorting
+            const getSortIcon = (col) => {
+                if (this.holeSortCol === col) {
+                    return `<span style="color:var(--primary-green); font-size:0.85rem; margin-left:4px;">${this.holeSortDir === 'asc' ? '▲' : '▼'}</span>`;
+                }
+                return `<span style="opacity:0.35; font-size:0.75rem; margin-left:4px;">⇅</span>`;
+            };
+
             let tableHtml = `
                 <thead>
                     <tr>
-                        <th>Hole</th>
-                        <th style="text-align:center;">Avg Score</th>
-                        <th style="text-align:center;">vs Par</th>
-                        <th style="text-align:center;">Avg Putts</th>
-                        <th style="text-align:center;">GIR %</th>
-                        <th style="text-align:center;">FIR %</th>
-                        <th style="text-align:center;">Tee Shot %</th>
-                        <th style="text-align:center;">Approach %</th>
-                        <th style="text-align:center;">Good Shots %</th>
-                        <th style="text-align:center;">Focus / Status</th>
-                        <th style="text-align:right;">Rounds</th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('hole')" title="Sort by Hole Number">
+                            Hole ${getSortIcon('hole')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('score')" style="text-align:center;" title="Sort by Average Score">
+                            Avg Score ${getSortIcon('score')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('vsPar')" style="text-align:center;" title="Sort by Score to Par">
+                            vs Par ${getSortIcon('vsPar')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('putts')" style="text-align:center;" title="Sort by Average Putts">
+                            Avg Putts ${getSortIcon('putts')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('gir')" style="text-align:center;" title="Sort by Green in Regulation %">
+                            GIR % ${getSortIcon('gir')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('fir')" style="text-align:center;" title="Sort by Fairway in Regulation %">
+                            FIR % ${getSortIcon('fir')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('tee')" style="text-align:center;" title="Sort by Tee Shot Execution %">
+                            Tee Shot % ${getSortIcon('tee')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('approach')" style="text-align:center;" title="Sort by Approach Shot Quality %">
+                            Approach % ${getSortIcon('approach')}
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('goodShots')" style="text-align:center;" title="Sort by Overall Good Shots %">
+                            Good Shots % ${getSortIcon('goodShots')}
+                        </th>
+                        <th style="text-align:center;">
+                            Focus / Status
+                        </th>
+                        <th class="sortable-th" onclick="window.app.sortHoleTable('rounds')" style="text-align:right;" title="Sort by Number of Rounds">
+                            Rounds ${getSortIcon('rounds')}
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
             `;
 
-            activeHoles.forEach(s => {
+            const sortedTableHoles = [...activeHoles];
+            sortedTableHoles.sort((a, b) => {
+                let valA, valB;
+                const avgParA = a.parCount > 0 ? a.par / a.parCount : 4;
+                const avgParB = b.parCount > 0 ? b.par / b.parCount : 4;
+                const avgScoreA = a.totalScore / a.count;
+                const avgScoreB = b.totalScore / b.count;
+                const vsParA = avgScoreA - avgParA;
+                const vsParB = avgScoreB - avgParB;
+
+                switch (this.holeSortCol) {
+                    case 'hole':
+                        valA = a.hole;
+                        valB = b.hole;
+                        break;
+                    case 'score':
+                        valA = avgScoreA;
+                        valB = avgScoreB;
+                        break;
+                    case 'vsPar':
+                        valA = vsParA;
+                        valB = vsParB;
+                        break;
+                    case 'putts':
+                        valA = a.totalPutts / a.count;
+                        valB = b.totalPutts / b.count;
+                        break;
+                    case 'gir':
+                        valA = a.count > 0 ? a.totalGIR / a.count : -1;
+                        valB = b.count > 0 ? b.totalGIR / b.count : -1;
+                        break;
+                    case 'fir':
+                        valA = a.firChances > 0 ? a.totalFIR / a.firChances : (this.holeSortDir === 'asc' ? 999 : -1);
+                        valB = b.firChances > 0 ? b.totalFIR / b.firChances : (this.holeSortDir === 'asc' ? 999 : -1);
+                        break;
+                    case 'tee':
+                        valA = a.goodTeeTarget > 0 ? a.goodTeeShots / a.goodTeeTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        valB = b.goodTeeTarget > 0 ? b.goodTeeShots / b.goodTeeTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        break;
+                    case 'approach':
+                        valA = a.goodApproachTarget > 0 ? a.goodApproachShots / a.goodApproachTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        valB = b.goodApproachTarget > 0 ? b.goodApproachShots / b.goodApproachTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        break;
+                    case 'goodShots':
+                        valA = a.goodShotsTarget > 0 ? a.goodShots / a.goodShotsTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        valB = b.goodShotsTarget > 0 ? b.goodShots / b.goodShotsTarget : (this.holeSortDir === 'asc' ? 999 : -1);
+                        break;
+                    case 'rounds':
+                        valA = a.count;
+                        valB = b.count;
+                        break;
+                    default:
+                        valA = a.hole;
+                        valB = b.hole;
+                        break;
+                }
+
+                if (valA < valB) return this.holeSortDir === 'asc' ? -1 : 1;
+                if (valA > valB) return this.holeSortDir === 'asc' ? 1 : -1;
+                return a.hole - b.hole;
+            });
+
+            sortedTableHoles.forEach(s => {
                 const avgScore = s.totalScore / s.count;
                 const avgPar = s.parCount > 0 ? s.par / s.parCount : 4;
                 const avgVsPar = avgScore - avgPar;
