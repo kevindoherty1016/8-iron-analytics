@@ -4032,12 +4032,14 @@ class App {
             const statsContainer = document.getElementById('hole-dash-stats');
             const tableContainer = document.getElementById('hole-dash-table');
             const chartsContainer = document.getElementById('hole-dash-charts');
+            const shotDiagContainer = document.getElementById('hole-dash-shot-diagnostics');
 
             // Check for hole data
             const roundsWithDetails = this.rounds.filter(r => r.holeData && r.holeData.length > 0);
 
             if (roundsWithDetails.length === 0) {
                 if (emptyState) emptyState.style.display = 'block';
+                if (shotDiagContainer) shotDiagContainer.innerHTML = '';
                 if (statsContainer) statsContainer.innerHTML = '';
                 if (tableContainer) tableContainer.innerHTML = '';
                 if (chartsContainer) chartsContainer.innerHTML = '';
@@ -4066,6 +4068,7 @@ class App {
             });
 
             if (filteredRounds.length === 0) {
+                if (shotDiagContainer) shotDiagContainer.innerHTML = '';
                 if (statsContainer) statsContainer.innerHTML = '<div class="card" style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted);">No rounds with detailed data match your selection.</div>';
                 if (tableContainer) tableContainer.innerHTML = '';
                 if (chartsContainer) chartsContainer.innerHTML = '';
@@ -4075,13 +4078,29 @@ class App {
             // Aggregate Hole Data
             const holeStats = {};
             for (let i = 1; i <= 18; i++) {
-                holeStats[i] = { hole: i, totalScore: 0, totalPutts: 0, totalGIR: 0, totalFIR: 0, count: 0, firChances: 0, par: 0, parCount: 0, goodShots: 0, goodShotsTarget: 0 };
+                holeStats[i] = {
+                    hole: i,
+                    totalScore: 0,
+                    totalPutts: 0,
+                    totalGIR: 0,
+                    totalFIR: 0,
+                    count: 0,
+                    firChances: 0,
+                    par: 0,
+                    parCount: 0,
+                    goodShots: 0,
+                    goodShotsTarget: 0,
+                    goodTeeShots: 0,
+                    goodTeeTarget: 0,
+                    goodApproachShots: 0,
+                    goodApproachTarget: 0
+                };
             }
 
             const parStats = {
-                3: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0 },
-                4: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0, totalFIR: 0, firChances: 0 },
-                5: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0, totalFIR: 0, firChances: 0 }
+                3: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0, goodTee: 0, goodTeeTarget: 0, goodApproach: 0, goodApproachTarget: 0, goodShots: 0, goodShotsTarget: 0 },
+                4: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0, totalFIR: 0, firChances: 0, goodTee: 0, goodTeeTarget: 0, goodApproach: 0, goodApproachTarget: 0, goodShots: 0, goodShotsTarget: 0 },
+                5: { count: 0, totalScore: 0, totalPar: 0, totalGIR: 0, totalFIR: 0, firChances: 0, goodTee: 0, goodTeeTarget: 0, goodApproach: 0, goodApproachTarget: 0, goodShots: 0, goodShotsTarget: 0 }
             };
 
             filteredRounds.forEach(r => {
@@ -4108,17 +4127,43 @@ class App {
                         s.totalPutts += putts;
                         if (isGIR) s.totalGIR++;
 
-                        const rTs = this.getEST(r.date).ts;
-                        if (rTs >= this.getEST('2026-08-09').ts) {
-                            const tShots = Math.max(1, hPar - 2);
-                            s.goodShotsTarget += tShots;
-                            const gHits = Array.isArray(hd.goodShots) ? hd.goodShots.filter(Boolean).length : (hd.goodShotsCount || (typeof hd.goodShots === 'number' ? hd.goodShots : 0));
-                            s.goodShots += gHits;
+                        const tShots = Math.max(1, (hPar || 4) - 2);
+                        let gHits = 0;
+                        let hasGoodData = false;
+
+                        if (Array.isArray(hd.goodShots)) {
+                            hasGoodData = true;
+                            gHits = hd.goodShots.filter(Boolean).length;
+                            s.goodTeeTarget++;
+                            if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') {
+                                s.goodTeeShots++;
+                            }
+
+                            if (tShots > 1) {
+                                s.goodApproachTarget += (tShots - 1);
+                                for (let idx = 1; idx < tShots; idx++) {
+                                    if (hd.goodShots[idx] === true || hd.goodShots[idx] === 'true') {
+                                        s.goodApproachShots++;
+                                    }
+                                }
+                            } else if (hPar === 3) {
+                                s.goodApproachTarget++;
+                                if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') {
+                                    s.goodApproachShots++;
+                                }
+                            }
+                        } else if (hd.goodShotsCount !== undefined || (typeof hd.goodShots === 'number' && hd.goodShots >= 0)) {
+                            hasGoodData = true;
+                            gHits = hd.goodShotsCount !== undefined ? hd.goodShotsCount : hd.goodShots;
                         }
 
-                        if (hPar > 3 && rTs >= this.getEST('2026-08-09').ts) {
+                        if (hasGoodData) {
+                            s.goodShots += gHits;
+                            s.goodShotsTarget += tShots;
+                        }
+
+                        if (hPar > 3) {
                             if (hd.fir === true || hd.fir === 'true' || (Array.isArray(hd.fir) && hd.fir.some(f => f === true || f === 'true'))) {
-                                // If array (Par 5), count hits. For Par 4, it's just a boolean.
                                 if (Array.isArray(hd.fir)) {
                                     hd.fir.forEach(f => {
                                         s.firChances++;
@@ -4157,53 +4202,231 @@ class App {
                                     if (hd.fir === true || hd.fir === 'true') ps.totalFIR++;
                                 }
                             }
+                            if (Array.isArray(hd.goodShots)) {
+                                ps.goodTeeTarget += 1;
+                                if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') ps.goodTee += 1;
+                                if (tShots > 1) {
+                                    ps.goodApproachTarget += (tShots - 1);
+                                    for (let idx = 1; idx < tShots; idx++) {
+                                        if (hd.goodShots[idx] === true || hd.goodShots[idx] === 'true') ps.goodApproach += 1;
+                                    }
+                                } else if (hPar === 3) {
+                                    ps.goodApproachTarget += 1;
+                                    if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') ps.goodApproach += 1;
+                                }
+                                ps.goodShots += gHits;
+                                ps.goodShotsTarget += tShots;
+                            }
                         }
                     }
                 });
             });
+
+            const activeHoles = Object.values(holeStats).filter(s => s.count > 0);
+
+            // Compute Course-Level Shot Aggregates & Focus Lists
+            let courseGoodTee = 0, courseGoodTeeTarget = 0;
+            let courseGoodApproach = 0, courseGoodApproachTarget = 0;
+            let courseGoodShots = 0, courseGoodShotsTarget = 0;
+
+            activeHoles.forEach(s => {
+                courseGoodTee += s.goodTeeShots;
+                courseGoodTeeTarget += s.goodTeeTarget;
+                courseGoodApproach += s.goodApproachShots;
+                courseGoodApproachTarget += s.goodApproachTarget;
+                courseGoodShots += s.goodShots;
+                courseGoodShotsTarget += s.goodShotsTarget;
+            });
+
+            const courseTeePct = courseGoodTeeTarget > 0 ? Math.round((courseGoodTee / courseGoodTeeTarget) * 100) : null;
+            const courseApproachPct = courseGoodApproachTarget > 0 ? Math.round((courseGoodApproach / courseGoodApproachTarget) * 100) : null;
+            const courseGsPct = courseGoodShotsTarget > 0 ? Math.round((courseGoodShots / courseGoodShotsTarget) * 100) : null;
+
+            const teeCandidateHoles = activeHoles
+                .filter(s => s.goodTeeTarget > 0)
+                .map(s => ({
+                    hole: s.hole,
+                    par: Math.round(s.parCount > 0 ? s.par / s.parCount : 4),
+                    teePct: Math.round((s.goodTeeShots / s.goodTeeTarget) * 100),
+                    hits: s.goodTeeShots,
+                    target: s.goodTeeTarget
+                }))
+                .sort((a, b) => a.teePct - b.teePct);
+
+            const approachCandidateHoles = activeHoles
+                .filter(s => s.goodApproachTarget > 0)
+                .map(s => ({
+                    hole: s.hole,
+                    par: Math.round(s.parCount > 0 ? s.par / s.parCount : 4),
+                    appPct: Math.round((s.goodApproachShots / s.goodApproachTarget) * 100),
+                    hits: s.goodApproachShots,
+                    target: s.goodApproachTarget
+                }))
+                .sort((a, b) => a.appPct - b.appPct);
+
+            const topTeeTroubleHoles = teeCandidateHoles.filter(h => h.teePct < 70).slice(0, 3);
+            const topApproachTroubleHoles = approachCandidateHoles.filter(h => h.appPct < 70).slice(0, 3);
+
+            // Render Course Shot Diagnostics Banner
+            if (shotDiagContainer) {
+                if (courseGoodShotsTarget > 0) {
+                    shotDiagContainer.style.display = 'block';
+                    shotDiagContainer.innerHTML = `
+                        <div class="card" style="border-left: 5px solid var(--primary-green);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                                <div>
+                                    <h3 style="margin: 0; color: var(--text-light); font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                                        🎯 Tee & Approach Shot Execution Diagnostics
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">
+                                        Hole-by-hole shot execution breakdown across ${filteredRounds.length} selected rounds. Focus practice on specific trouble holes below.
+                                    </p>
+                                </div>
+                                <span class="goodshot-badge" style="font-size: 0.85rem; padding: 5px 12px;">
+                                    ${courseGoodShots}/${courseGoodShotsTarget} Total Good Shots (${courseGsPct}%)
+                                </span>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+                                <div class="card stat-card" style="background: var(--bg-dark); padding: 12px;">
+                                    <div class="stat-title">Tee Shot Execution</div>
+                                    <div class="stat-value" style="color: ${courseTeePct >= 70 ? 'var(--primary-green)' : (courseTeePct >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.4rem;">
+                                        ${courseGoodTeeTarget > 0 ? courseTeePct + '%' : 'N/A'}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                        ${courseGoodTee}/${courseGoodTeeTarget} tee shots
+                                    </div>
+                                    <div class="meter-container" style="margin-top: 6px;">
+                                        <div class="meter-track">
+                                            <div class="meter-fill ${courseTeePct >= 70 ? 'meter-fill-good' : (courseTeePct >= 50 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, courseTeePct || 0)}%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card stat-card" style="background: var(--bg-dark); padding: 12px;">
+                                    <div class="stat-title">Approach Shot Quality</div>
+                                    <div class="stat-value" style="color: ${courseApproachPct >= 70 ? 'var(--primary-green)' : (courseApproachPct >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.4rem;">
+                                        ${courseGoodApproachTarget > 0 ? courseApproachPct + '%' : 'N/A'}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                        ${courseGoodApproach}/${courseGoodApproachTarget} approach shots
+                                    </div>
+                                    <div class="meter-container" style="margin-top: 6px;">
+                                        <div class="meter-track">
+                                            <div class="meter-fill ${courseApproachPct >= 70 ? 'meter-fill-good' : (courseApproachPct >= 50 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, courseApproachPct || 0)}%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card stat-card" style="background: var(--bg-dark); padding: 12px;">
+                                    <div class="stat-title">🏌️ Top Tee Focus Holes</div>
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-top: 4px; min-height: 24px;">
+                                        ${topTeeTroubleHoles.length > 0
+                                            ? topTeeTroubleHoles.map(h => `<span style="display:inline-block; margin-right: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(245,158,11,0.15); color: ${h.teePct < 50 ? '#ef4444' : '#d97706'};">#${h.hole} (${h.teePct}%)</span>`).join('')
+                                            : '<span style="color: var(--primary-green);">🎯 All Tee Shots Solid (70%+)</span>'
+                                        }
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                                        Prioritize tee club selection & safe landing areas
+                                    </div>
+                                </div>
+
+                                <div class="card stat-card" style="background: var(--bg-dark); padding: 12px;">
+                                    <div class="stat-title">🎯 Top Approach Focus Holes</div>
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-top: 4px; min-height: 24px;">
+                                        ${topApproachTroubleHoles.length > 0
+                                            ? topApproachTroubleHoles.map(h => `<span style="display:inline-block; margin-right: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(59,130,246,0.15); color: ${h.appPct < 50 ? '#ef4444' : '#2563eb'};">#${h.hole} (${h.appPct}%)</span>`).join('')
+                                            : '<span style="color: var(--primary-green);">🎯 All Approaches Dialed (70%+)</span>'
+                                        }
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                                        Focus on center green targets & club distances
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    shotDiagContainer.style.display = 'none';
+                    shotDiagContainer.innerHTML = '';
+                }
+            }
 
             // Render Table
             let tableHtml = `
                 <thead>
                     <tr>
                         <th>Hole</th>
-                        <th>Avg Score</th>
-                        <th>Avg vs Par</th>
-                        <th>Avg Putts</th>
-                        <th>GIR %</th>
-                        <th>FIR %</th>
-                        <th>Good Shots %</th>
-                        <th>Rounds</th>
+                        <th style="text-align:center;">Avg Score</th>
+                        <th style="text-align:center;">vs Par</th>
+                        <th style="text-align:center;">Avg Putts</th>
+                        <th style="text-align:center;">GIR %</th>
+                        <th style="text-align:center;">FIR %</th>
+                        <th style="text-align:center;">Tee Shot %</th>
+                        <th style="text-align:center;">Approach %</th>
+                        <th style="text-align:center;">Good Shots %</th>
+                        <th style="text-align:center;">Focus / Status</th>
+                        <th style="text-align:right;">Rounds</th>
                     </tr>
                 </thead>
                 <tbody>
             `;
 
-            const activeHoles = Object.values(holeStats).filter(s => s.count > 0);
             activeHoles.forEach(s => {
                 const avgScore = s.totalScore / s.count;
                 const avgPar = s.parCount > 0 ? s.par / s.parCount : 4;
                 const avgVsPar = avgScore - avgPar;
                 const avgPutts = s.totalPutts / s.count;
-                const girPct = (s.totalGIR / s.count) * 100;
-                const firPct = s.firChances > 0 ? (s.totalFIR / s.firChances) * 100 : 0;
-                const gsPct = s.goodShotsTarget > 0 ? (s.goodShots / s.goodShotsTarget) * 100 : 0;
+                const girPct = Math.round((s.totalGIR / s.count) * 100);
+                const firPct = s.firChances > 0 ? Math.round((s.totalFIR / s.firChances) * 100) : null;
+                const teePct = s.goodTeeTarget > 0 ? Math.round((s.goodTeeShots / s.goodTeeTarget) * 100) : null;
+                const appPct = s.goodApproachTarget > 0 ? Math.round((s.goodApproachShots / s.goodApproachTarget) * 100) : null;
+                const gsPct = s.goodShotsTarget > 0 ? Math.round((s.goodShots / s.goodShotsTarget) * 100) : null;
+
+                let statusBadge = '<span class="verdict-badge verdict-solid" style="font-size:0.75rem; padding:2px 8px;">⚖️ Manageable</span>';
+
+                if (teePct !== null && appPct !== null) {
+                    if (teePct < 60 && appPct >= 65) {
+                        statusBadge = '<span class="verdict-badge" style="font-size:0.75rem; padding:2px 8px; color:#d97706; background:rgba(245,158,11,0.12); border:1px solid #f59e0b;">🏌️ Fix Tee Shot</span>';
+                    } else if (appPct < 60 && teePct >= 65) {
+                        statusBadge = '<span class="verdict-badge" style="font-size:0.75rem; padding:2px 8px; color:#2563eb; background:rgba(59,130,246,0.12); border:1px solid #3b82f6;">🎯 Fix Approach</span>';
+                    } else if (teePct < 60 && appPct < 60) {
+                        statusBadge = '<span class="verdict-badge verdict-danger" style="font-size:0.75rem; padding:2px 8px;">⚠️ Tee & Approach</span>';
+                    } else if (avgVsPar <= 0.25 && teePct >= 70 && appPct >= 70) {
+                        statusBadge = '<span class="verdict-badge verdict-excellent" style="font-size:0.75rem; padding:2px 8px;">🎯 Dialed In</span>';
+                    } else if (avgPutts >= 2.15) {
+                        statusBadge = '<span class="verdict-badge" style="font-size:0.75rem; padding:2px 8px; color:#7c3aed; background:rgba(139,92,246,0.12); border:1px solid #8b5cf6;">⛳ Putting Bleed</span>';
+                    }
+                } else if (avgVsPar <= 0.2) {
+                    statusBadge = '<span class="verdict-badge verdict-excellent" style="font-size:0.75rem; padding:2px 8px;">🎯 Dialed In</span>';
+                }
 
                 tableHtml += `
                     <tr>
-                        <td><strong>${s.hole}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">(Par ${Math.round(avgPar)})</span></td>
-                        <td style="color: ${avgVsPar <= 0 ? 'var(--primary-green)' : 'inherit'}">${avgScore.toFixed(1)}</td>
-                        <td style="color: ${avgVsPar <= 0 ? 'var(--primary-green)' : '#ef4444'}">${avgVsPar > 0 ? '+' : ''}${avgVsPar.toFixed(1)}</td>
-                        <td>${avgPutts.toFixed(1)}</td>
-                        <td>${girPct.toFixed(0)}%</td>
-                        <td>${s.firChances > 0 ? firPct.toFixed(0) + '%' : 'N/A'}</td>
-                        <td>${s.goodShotsTarget > 0 ? `${gsPct.toFixed(0)}% <span style="font-size: 0.75rem; color: var(--text-muted);">(${s.goodShots}/${s.goodShotsTarget})</span>` : 'N/A'}</td>
-                        <td style="font-size: 0.8rem; color: var(--text-muted);">${s.count}</td>
+                        <td><strong>#${s.hole}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">(Par ${Math.round(avgPar)})</span></td>
+                        <td style="text-align:center; color: ${avgVsPar <= 0 ? 'var(--primary-green)' : 'inherit'}; font-weight:600;">${avgScore.toFixed(1)}</td>
+                        <td style="text-align:center; color: ${avgVsPar <= 0 ? 'var(--primary-green)' : '#ef4444'}; font-weight:600;">${avgVsPar > 0 ? '+' : ''}${avgVsPar.toFixed(1)}</td>
+                        <td style="text-align:center;">${avgPutts.toFixed(1)}</td>
+                        <td style="text-align:center; color:${girPct >= 50 ? 'var(--primary-green)' : 'inherit'};">${girPct}%</td>
+                        <td style="text-align:center;">${firPct !== null ? `${firPct}%` : '—'}</td>
+                        <td style="text-align:center;">
+                            ${teePct !== null ? `<span style="font-weight:600; color:${teePct >= 70 ? 'var(--primary-green)' : (teePct >= 50 ? '#f59e0b' : '#ef4444')};">${teePct}%</span> <span style="font-size:0.75rem; color:var(--text-muted);">(${s.goodTeeShots}/${s.goodTeeTarget})</span>` : '—'}
+                        </td>
+                        <td style="text-align:center;">
+                            ${appPct !== null ? `<span style="font-weight:600; color:${appPct >= 70 ? 'var(--primary-green)' : (appPct >= 50 ? '#f59e0b' : '#ef4444')};">${appPct}%</span> <span style="font-size:0.75rem; color:var(--text-muted);">(${s.goodApproachShots}/${s.goodApproachTarget})</span>` : '—'}
+                        </td>
+                        <td style="text-align:center;">
+                            ${gsPct !== null ? `<span style="font-weight:600; color:${gsPct >= 70 ? 'var(--primary-green)' : (gsPct >= 50 ? '#f59e0b' : '#ef4444')};">${gsPct}%</span> <span style="font-size:0.75rem; color:var(--text-muted);">(${s.goodShots}/${s.goodShotsTarget})</span>` : '—'}
+                        </td>
+                        <td style="text-align:center;">${statusBadge}</td>
+                        <td style="text-align:right; font-size: 0.8rem; color: var(--text-muted);">${s.count}</td>
                     </tr>
                 `;
             });
             tableHtml += '</tbody>';
-            tableContainer.innerHTML = tableHtml;            // Render Par Breakdown Tiles
+            tableContainer.innerHTML = tableHtml;
+
+            // Render Par Breakdown Tiles
             statsContainer.innerHTML = Object.entries(parStats)
                 .filter(([p, s]) => this.filterPars.length === 0 || this.filterPars.includes(parseInt(p)))
                 .map(([p, s]) => {
@@ -4212,12 +4435,17 @@ class App {
                     const avgVsPar = avgScore - avgPar;
                     const girPct = s.count > 0 ? (s.totalGIR / s.count) * 100 : 0;
                     const firPct = s.firChances > 0 ? (s.totalFIR / s.firChances) * 100 : 0;
+                    const teePct = s.goodTeeTarget > 0 ? Math.round((s.goodTee / s.goodTeeTarget) * 100) : null;
+                    const appPct = s.goodApproachTarget > 0 ? Math.round((s.goodApproach / s.goodApproachTarget) * 100) : null;
 
                     return `
                         <div class="card stat-card">
                             <div class="stat-title">Par ${p} Averages</div>
                             <div class="stat-value" style="color: ${avgVsPar <= 0 ? 'var(--primary-green)' : '#ef4444'}">${avgScore.toFixed(2)} <span style="font-size: 0.8rem; font-weight: normal;">(${avgVsPar > 0 ? '+' : ''}${avgVsPar.toFixed(2)})</span></div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">GIR: ${girPct.toFixed(0)}% ${p > 3 ? `• FIR: ${firPct.toFixed(0)}%` : ''}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                                GIR: <strong>${girPct.toFixed(0)}%</strong> ${p > 3 ? `• FIR: <strong>${firPct.toFixed(0)}%</strong>` : ''}
+                                ${teePct !== null ? `<br>Tee: <strong>${teePct}%</strong> · App: <strong>${appPct}%</strong>` : ''}
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -4245,17 +4473,33 @@ class App {
         const container = document.getElementById('hole-dash-charts');
         if (!container) return;
 
+        const hasShotData = activeHoles.some(s => s.goodTeeTarget > 0 || s.goodApproachTarget > 0);
+
         container.innerHTML = `
-            <div class="card chart-wrapper">
-                <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-light);">Avg Score vs Par by Hole</h3>
-                <div style="height: 300px; position: relative;">
-                    <canvas id="holeVsParChart"></canvas>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+                <div class="card chart-wrapper">
+                    <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-light);">Avg Score vs Par by Hole</h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="holeVsParChart"></canvas>
+                    </div>
                 </div>
-            </div>
-            <div class="card chart-wrapper">
-                <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-light);">Performance by Par Type (Avg vs Par)</h3>
-                <div style="height: 300px; position: relative;">
-                    <canvas id="parComparisonChart"></canvas>
+
+                ${hasShotData ? `
+                <div class="card chart-wrapper">
+                    <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-light); display: flex; justify-content: space-between; align-items: center;">
+                        <span>Tee vs Approach Execution (%) by Hole</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Target: 70%+</span>
+                    </h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="holeShotExecutionChart"></canvas>
+                    </div>
+                </div>` : ''}
+
+                <div class="card chart-wrapper">
+                    <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-light);">Performance by Par Type (Avg vs Par)</h3>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="parComparisonChart"></canvas>
+                    </div>
                 </div>
             </div>
         `;
@@ -4263,107 +4507,166 @@ class App {
         // Use setTimeout to ensure canvas is rendered
         setTimeout(() => {
             const ctx = document.getElementById('holeVsParChart');
-            if (!ctx) return;
+            if (ctx) {
+                const labels = activeHoles.map(s => `Hole ${s.hole}`);
+                const data = activeHoles.map(s => (s.totalScore / s.count) - (s.parCount > 0 ? s.par / s.parCount : 4));
 
-            const labels = activeHoles.map(s => `Hole ${s.hole}`);
-            const data = activeHoles.map(s => (s.totalScore / s.count) - (s.parCount > 0 ? s.par / s.parCount : 4));
+                if (this.holeChartInstance) {
+                    this.holeChartInstance.destroy();
+                }
 
-            if (this.holeChartInstance) {
-                this.holeChartInstance.destroy();
-            }
-
-            this.holeChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Avg Score vs Par',
-                        data: data,
-                        backgroundColor: data.map(v => v > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)'),
-                        borderColor: data.map(v => v > 0 ? '#ef4444' : 'var(--primary-green)'),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: 'var(--text-muted)' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: 'var(--text-muted)' }
-                        }
+                this.holeChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Avg Score vs Par',
+                            data: data,
+                            backgroundColor: data.map(v => v > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)'),
+                            borderColor: data.map(v => v > 0 ? '#ef4444' : 'var(--primary-green)'),
+                            borderWidth: 1
+                        }]
                     },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => `Avg vs Par: ${context.parsed.y > 0 ? '+' : ''}${context.parsed.y.toFixed(2)}`
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0,0,0,0.06)' },
+                                ticks: { color: 'var(--text-muted)' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: 'var(--text-muted)' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `Avg vs Par: ${context.parsed.y > 0 ? '+' : ''}${context.parsed.y.toFixed(2)}`
+                                }
                             }
                         }
                     }
+                });
+            }
+
+            // Hole Tee vs Approach Chart
+            const shotCtx = document.getElementById('holeShotExecutionChart');
+            if (shotCtx) {
+                const labels = activeHoles.map(s => `Hole ${s.hole}`);
+                const teeData = activeHoles.map(s => s.goodTeeTarget > 0 ? Math.round((s.goodTeeShots / s.goodTeeTarget) * 100) : null);
+                const appData = activeHoles.map(s => s.goodApproachTarget > 0 ? Math.round((s.goodApproachShots / s.goodApproachTarget) * 100) : null);
+
+                if (this.holeShotChartInstance) {
+                    this.holeShotChartInstance.destroy();
                 }
-            });
+
+                this.holeShotChartInstance = new Chart(shotCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Tee Shot %',
+                                data: teeData,
+                                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                                borderColor: '#3b82f6',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Approach Shot %',
+                                data: appData,
+                                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                                borderColor: '#10b981',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 100,
+                                grid: { color: 'rgba(0,0,0,0.06)' },
+                                ticks: { color: 'var(--text-muted)', callback: v => v + '%' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: 'var(--text-muted)' }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: { boxWidth: 12, color: 'var(--text-primary)' }
+                            }
+                        }
+                    }
+                });
+            }
 
             const ctx2 = document.getElementById('parComparisonChart');
-            if (!ctx2) return;
+            if (ctx2) {
+                const selectedPars = [3, 4, 5].filter(p => this.filterPars.length === 0 || this.filterPars.includes(p));
+                const parLabels = selectedPars.map(p => 'Par ' + p);
+                const parData = selectedPars.map(p => {
+                    const s = parStats[p];
+                    return s.count > 0 ? (s.totalScore / s.count) - (s.totalPar / s.count) : 0;
+                });
 
-            const selectedPars = [3, 4, 5].filter(p => this.filterPars.length === 0 || this.filterPars.includes(p));
-            const parLabels = selectedPars.map(p => 'Par ' + p);
-            const parData = selectedPars.map(p => {
-                const s = parStats[p];
-                return s.count > 0 ? (s.totalScore / s.count) - (s.totalPar / s.count) : 0;
-            });
+                if (this.parChartInstance) {
+                    this.parChartInstance.destroy();
+                }
 
-            if (this.parChartInstance) {
-                this.parChartInstance.destroy();
-            }
-
-            this.parChartInstance = new Chart(ctx2, {
-                type: 'bar',
-                data: {
-                    labels: parLabels,
-                    datasets: [{
-                        label: 'Avg vs Par',
-                        data: parData,
-                        backgroundColor: parData.map(v => v > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)'),
-                        borderColor: parData.map(v => v > 0 ? '#ef4444' : 'var(--primary-green)'),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: 'var(--text-muted)' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: 'var(--text-muted)' }
-                        }
+                this.parChartInstance = new Chart(ctx2, {
+                    type: 'bar',
+                    data: {
+                        labels: parLabels,
+                        datasets: [{
+                            label: 'Avg vs Par',
+                            data: parData,
+                            backgroundColor: parData.map(v => v > 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(16, 185, 129, 0.6)'),
+                            borderColor: parData.map(v => v > 0 ? '#ef4444' : 'var(--primary-green)'),
+                            borderWidth: 1
+                        }]
                     },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => `Avg vs Par: ${context.parsed.y > 0 ? '+' : ''}${context.parsed.y.toFixed(2)}`
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0,0,0,0.06)' },
+                                ticks: { color: 'var(--text-muted)' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: 'var(--text-muted)' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `Avg vs Par: ${context.parsed.y > 0 ? '+' : ''}${context.parsed.y.toFixed(2)}`
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         }, 100);
     }
 
     renderParTrendChart(filteredRounds) {
-        const container = document.getElementById('hole-dash-trend');
+        try {
+            const container = document.getElementById('hole-dash-trend');
         if (!container) return;
 
         const statOptions = [
@@ -4371,7 +4674,10 @@ class App {
             { value: 'scoreToPar', label: 'Avg vs Par' },
             { value: 'putts', label: 'Avg Putts' },
             { value: 'girPercent', label: 'GIR %' },
-            { value: 'firPercent', label: 'FIR %' }
+            { value: 'firPercent', label: 'FIR %' },
+            { value: 'goodTeePercent', label: 'Good Tee %' },
+            { value: 'goodApproachPercent', label: 'Good Approach %' },
+            { value: 'goodShotsPercent', label: 'Good Shots %' }
         ];
 
         const optionsHtml = statOptions.map(opt =>
@@ -4440,9 +4746,9 @@ class App {
                 groups[key] = {
                     label: label,
                     stats: {
-                        3: { score: 0, count: 0, putts: 0, gir: 0, par: 0 },
-                        4: { score: 0, count: 0, putts: 0, gir: 0, par: 0, fir: 0, firChances: 0 },
-                        5: { score: 0, count: 0, putts: 0, gir: 0, par: 0, fir: 0, firChances: 0 }
+                        3: { score: 0, count: 0, putts: 0, gir: 0, par: 0, goodTee: 0, goodTeeTarget: 0, goodApp: 0, goodAppTarget: 0, goodShots: 0, goodShotsTarget: 0 },
+                        4: { score: 0, count: 0, putts: 0, gir: 0, par: 0, fir: 0, firChances: 0, goodTee: 0, goodTeeTarget: 0, goodApp: 0, goodAppTarget: 0, goodShots: 0, goodShotsTarget: 0 },
+                        5: { score: 0, count: 0, putts: 0, gir: 0, par: 0, fir: 0, firChances: 0, goodTee: 0, goodTeeTarget: 0, goodApp: 0, goodAppTarget: 0, goodShots: 0, goodShotsTarget: 0 }
                     }
                 };
             }
@@ -4468,6 +4774,25 @@ class App {
                                 if (hd.fir === true || hd.fir === 'true') s.fir++;
                             }
                         }
+
+                        const tShots = Math.max(1, (p || 4) - 2);
+                        if (Array.isArray(hd.goodShots)) {
+                            s.goodTeeTarget += 1;
+                            if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') s.goodTee += 1;
+
+                            if (tShots > 1) {
+                                s.goodAppTarget += (tShots - 1);
+                                for (let idx = 1; idx < tShots; idx++) {
+                                    if (hd.goodShots[idx] === true || hd.goodShots[idx] === 'true') s.goodApp += 1;
+                                }
+                            } else if (p === 3) {
+                                s.goodAppTarget += 1;
+                                if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') s.goodApp += 1;
+                            }
+
+                            s.goodShotsTarget += tShots;
+                            s.goodShots += hd.goodShots.filter(Boolean).length;
+                        }
                     }
                 });
             }
@@ -4479,13 +4804,16 @@ class App {
         const par5Data = [];
 
         const getVal = (s) => {
-            if (s.count === 0) return null;
+            if (!s || s.count === 0) return null;
             switch (this.holeChartParStat) {
                 case 'score': return s.score / s.count;
                 case 'scoreToPar': return (s.score / s.count) - (s.par / s.count);
                 case 'putts': return s.putts / s.count;
                 case 'girPercent': return (s.gir / s.count) * 100;
                 case 'firPercent': return s.firChances > 0 ? (s.fir / s.firChances) * 100 : 0;
+                case 'goodTeePercent': return s.goodTeeTarget > 0 ? (s.goodTee / s.goodTeeTarget) * 100 : null;
+                case 'goodApproachPercent': return s.goodAppTarget > 0 ? (s.goodApp / s.goodAppTarget) * 100 : null;
+                case 'goodShotsPercent': return s.goodShotsTarget > 0 ? (s.goodShots / s.goodShotsTarget) * 100 : null;
                 default: return 0;
             }
         };
@@ -4530,8 +4858,11 @@ class App {
                     interaction: { mode: 'index', intersect: false },
                     scales: {
                         y: {
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: 'var(--text-muted)' }
+                            grid: { color: 'rgba(0,0,0,0.06)' },
+                            ticks: {
+                                color: 'var(--text-muted)',
+                                callback: (v) => this.holeChartParStat && this.holeChartParStat.includes('Percent') ? v + '%' : v
+                            }
                         },
                         x: {
                             grid: { display: false },
@@ -4550,7 +4881,7 @@ class App {
                             callbacks: {
                                 label: (context) => {
                                     let val = context.parsed.y;
-                                    if (val === null) return null;
+                                    if (val === null || val === undefined) return null;
                                     let label = context.dataset.label + ': ';
                                     if (this.holeChartParStat === 'scoreToPar') label += (val > 0 ? '+' : '') + val.toFixed(2);
                                     else if (this.holeChartParStat.includes('Percent')) label += val.toFixed(0) + '%';
@@ -4563,7 +4894,10 @@ class App {
                 }
             });
         }, 100);
+    } catch (e) {
+        console.error("Par Trend Chart error:", e);
     }
+}
 
     renderCharts(filteredRounds = this.rounds) {
         const chartsContainer = document.getElementById('dashboard-charts');
@@ -4628,9 +4962,6 @@ class App {
                 <div class="chart-container" style="position: relative; height: 350px;">
                     <canvas id="primaryChart"></canvas>
                 </div>
-            </div>
-            <div class="card chart-wrapper" style="grid-column: 1 / -1;">
-                <canvas id="distributionChart"></canvas>
             </div>
         `;
 
@@ -4859,26 +5190,6 @@ class App {
                         }
                     }
                 }
-            }
-        });
-
-        this.distChartInstance = new Chart(document.getElementById('distributionChart'), {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    { label: 'Eagles', data: chartData.map(r => (r.eagles / r.holes) * 100), backgroundColor: '#fcd34d' },
-                    { label: 'Birdies', data: chartData.map(r => (r.birdies / r.holes) * 100), backgroundColor: '#10b981' },
-                    { label: 'Pars', data: chartData.map(r => (r.pars / r.holes) * 100), backgroundColor: '#3b82f6' },
-                    { label: 'Bogeys', data: chartData.map(r => (r.bogeys / r.holes) * 100), backgroundColor: '#f97316' },
-                    { label: 'Dbl Bogeys+', data: chartData.map(r => ((r.doubleBogeys + r.tripleBogeys + r.otherScore) / r.holes) * 100), backgroundColor: '#ef4444' }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true, max: 100 } },
-                plugins: { title: { display: true, text: 'Scoring Distribution (%)' } }
             }
         });
     }
@@ -5713,13 +6024,21 @@ class App {
         if (!roundId) return;
         this.insightsSelectedRoundId = roundId;
         this.renderInsights();
+        setTimeout(() => {
+            const el = document.getElementById('single-round-breakdown-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
     }
 
     viewRoundInInsights(roundId) {
         this.destroyInsightsCharts();
         this.insightsSelectedRoundId = roundId;
-        this.insightsTab = 'round';
+        this.insightsTab = 'performance';
         this.switchView('insights');
+        setTimeout(() => {
+            const el = document.getElementById('single-round-breakdown-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
     }
 
     setInsightsTrendWindow(windowSize) {
@@ -6171,16 +6490,12 @@ class App {
                 blowups: baselinesRaw.blowups * holeMultiplier
             };
 
-            // Main Insights Layout with Navigation Tabs
+            // Main Insights Layout with 2 Unified Tabs
             insightsContainer.innerHTML = `
                 <div class="insight-tabs-nav">
-                    <button class="insight-tab-btn ${this.insightsTab === 'round' ? 'active' : ''}" onclick="window.app.setInsightsTab('round')">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
-                        Single Round Breakdown
-                    </button>
-                    <button class="insight-tab-btn ${this.insightsTab === 'trends' ? 'active' : ''}" onclick="window.app.setInsightsTab('trends')">
+                    <button class="insight-tab-btn ${this.insightsTab !== 'target' ? 'active' : ''}" onclick="window.app.setInsightsTab('performance')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-                        Performance Trends (5 / 10 / 20)
+                        Performance Trends & Round Breakdown
                     </button>
                     <button class="insight-tab-btn ${this.insightsTab === 'target' ? 'active' : ''}" onclick="window.app.setInsightsTab('target')">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H7.5"/><path d="M14 14.66V17c0 .55.45 1 1 1h1.5"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
@@ -6191,12 +6506,10 @@ class App {
             `;
 
             const tabContent = document.getElementById('insights-tab-content');
-            if (this.insightsTab === 'round') {
-                this.renderInsightsSingleRound(tabContent, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
-            } else if (this.insightsTab === 'trends') {
-                this.renderInsightsTrends(tabContent, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
-            } else if (this.insightsTab === 'target') {
+            if (this.insightsTab === 'target') {
                 this.renderInsightsTargetBenchmarks(tabContent, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
+            } else {
+                this.renderInsightsPerformance(tabContent, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
             }
         } catch (e) {
             console.error("Error rendering insights:", e);
@@ -6205,501 +6518,47 @@ class App {
         }
     }
 
-    renderInsightsSingleRound(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
+    renderInsightsPerformance(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
         if (!this.rounds || this.rounds.length === 0) return;
 
-        // Ensure we have a valid selected round
-        let selectedRound = this.rounds.find(r => r.id === this.insightsSelectedRoundId);
-        if (!selectedRound) {
-            selectedRound = this.rounds[0];
-            this.insightsSelectedRoundId = selectedRound.id;
+        // 1. Apply multi-select filters from round analytics
+        const filteredRounds = this.rounds.filter(r => {
+            const est = this.getEST(r.date);
+            const yr = est.y;
+            const mo = est.m;
+            const normalizedRCourse = this.normalizeCourse(r.course);
+            const origHoles = this.getRoundOriginalHoles(r);
+            const rEvent = (r.event || '').trim();
+
+            return (this.filterYears.length === 0 || this.filterYears.includes(yr)) &&
+                (this.filterMonths.length === 0 || this.filterMonths.includes(mo)) &&
+                (this.filterHoles.length === 0 || this.filterHoles.includes(origHoles)) &&
+                (this.filterCourses.length === 0 || this.filterCourses.includes(normalizedRCourse)) &&
+                (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
+        });
+
+        // If no rounds match the filter
+        if (filteredRounds.length === 0) {
+            container.innerHTML = `
+                <div class="card" style="margin-bottom: 20px;">
+                    <div style="margin-bottom: 12px;">
+                        <h3 style="margin: 0; color: var(--text-light); font-size: 1.15rem;">Filter Rounds</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">Query your performance insights across specific years, months, courses, holes, or events.</p>
+                    </div>
+                    <div id="insights-filters"></div>
+                </div>
+                <div class="card" style="padding: 40px; text-align: center; color: var(--text-muted);">
+                    No rounds match your selected filters. Adjust your filters above to see insights.
+                </div>
+            `;
+            this.renderFilters('insights-filters', () => this.renderInsights());
+            return;
         }
 
-        const summary = this.generateRoundSummary(selectedRound);
-        const currentIndex = this.rounds.findIndex(r => r.id === selectedRound.id);
-        const nextRound = currentIndex > 0 ? this.rounds[currentIndex - 1] : null; // Newer round
-        const prevRound = currentIndex < this.rounds.length - 1 ? this.rounds[currentIndex + 1] : null; // Older round
-
-        container.innerHTML = `
-            <!-- Top Controls: Target Selection & Round Picker -->
-            <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                    <div>
-                        <h3 style="margin: 0; color: var(--text-light); font-size: 1.25rem;">Round Performance Evaluation</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 0 0;">Deep-dive into individual round performance, Good Shot ball striking, and key takeaways.</p>
-                    </div>
-
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Target:</span>
-                        <select id="insight-target-type" class="form-control" style="width: auto; padding: 5px 8px; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem;">
-                            <option value="handicap" ${this.insightsTargetType === 'handicap' ? 'selected' : ''}>Handicap</option>
-                            <option value="score" ${this.insightsTargetType === 'score' ? 'selected' : ''}>Target Score</option>
-                        </select>
-                        <select id="insight-target-value" class="form-control" style="width: auto; padding: 5px 8px; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem;">
-                            ${(this.insightsTargetType === 'handicap' ? Object.keys(handicapMap) : Object.keys(scoreMap)).map(val =>
-                                `<option value="${val}" ${this.insightsTargetValue === val ? 'selected' : ''}>${val}</option>`
-                            ).join('')}
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Round Selector Navigation Bar -->
-                <div style="display: flex; align-items: center; gap: 10px; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
-                    <button class="btn btn-secondary" ${!prevRound ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `onclick="window.app.selectInsightRound('${prevRound.id}')"`} title="Previous Round" style="padding: 7px 12px; font-size: 0.85rem;">
-                        ◀ Prev
-                    </button>
-
-                    <div style="flex: 1; min-width: 250px;">
-                        <select id="insight-single-round-picker" class="form-control" style="width: 100%; padding: 8px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font-weight: 600; font-size: 0.95rem;">
-                            ${this.rounds.map(r => {
-                                const num = String(r.roundNum || '?').padStart(3, '0');
-                                const sc = Number(r.score) || 0;
-                                const scP = Number(r.scoreToPar) || 0;
-                                const gsTag = Number(r.goodShotsTarget) > 0 ? ` • 🎯 ${r.goodShots}/${r.goodShotsTarget} GS` : '';
-                                return `<option value="${r.id}" ${r.id === selectedRound.id ? 'selected' : ''}>#${num} • ${this.normalizeCourse(r.course)} (${this.formatDateDisplay(r.date)}) — Score: ${sc} (${scP > 0 ? '+' : ''}${scP})${gsTag}</option>`;
-                            }).join('')}
-                        </select>
-                    </div>
-
-                    <button class="btn btn-secondary" ${!nextRound ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `onclick="window.app.selectInsightRound('${nextRound.id}')"`} title="Next Round" style="padding: 7px 12px; font-size: 0.85rem;">
-                        Next ▶
-                    </button>
-
-                    <button class="btn btn-primary" onclick="window.app.showRoundDetails('${selectedRound.id}')" style="padding: 7px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                        Full Scorecard
-                    </button>
-                </div>
-            </div>
-
-            <!-- Hero Verdict Card -->
-            <div class="card" style="margin-bottom: 20px; border-left: 5px solid ${summary.verdict.color};">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
-                            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Round #${String(selectedRound.roundNum || '?').padStart(3, '0')}</span>
-                            <span style="color: var(--border-color);">•</span>
-                            <span style="font-size: 0.9rem; color: var(--text-secondary);">${this.formatDateDisplay(selectedRound.date)}</span>
-                            ${selectedRound.teeName ? `<span style="color: var(--border-color);">•</span><span style="font-size: 0.85rem; color: var(--text-muted);">${selectedRound.teeName} Tees</span>` : ''}
-                            <span style="color: var(--border-color);">•</span>
-                            <span style="font-size: 0.85rem; color: var(--text-muted);">${summary.holes} Holes</span>
-                            ${summary.hasGoodShots ? `<span style="color: var(--border-color);">•</span><span class="goodshot-badge">🎯 Good Shot Era</span>` : ''}
-                        </div>
-                        <h2 style="margin: 0; font-size: 1.8rem; color: var(--primary-green);">${this.normalizeCourse(selectedRound.course)}</h2>
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                        <div class="verdict-badge ${summary.verdict.class}" style="font-size: 1rem; padding: 6px 16px;">
-                            ${summary.verdict.icon} ${summary.verdict.text}
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                            <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
-                                vs Target: <strong style="color: ${summary.diffVsTarget <= 0 ? 'var(--primary-green)' : '#ef4444'}">${summary.diffVsTarget > 0 ? '+' : ''}${summary.diffVsTarget}</strong>
-                            </span>
-                            <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
-                                vs Career Avg: <strong style="color: ${summary.diffVsAvg <= 0 ? 'var(--primary-green)' : '#ef4444'}">${summary.diffVsAvg > 0 ? '+' : ''}${summary.diffVsAvg.toFixed(1)}</strong>
-                            </span>
-                            <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
-                                Score: <strong style="color: var(--primary-green);">${summary.perfScore}/100</strong>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display: flex; align-items: center; gap: 20px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
-                    <div style="text-align: center; min-width: 100px;">
-                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Total Score</div>
-                        <div style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary); line-height: 1.1;">
-                            ${summary.score}
-                        </div>
-                        <div style="font-size: 0.9rem; font-weight: 600; color: ${summary.scoreToPar <= 0 ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.scoreToPar > 0 ? '+' : ''}${summary.scoreToPar} to Par
-                        </div>
-                    </div>
-
-                    <div style="flex: 1; min-width: 250px;">
-                        <div class="insights-highlight-box" style="margin: 0; font-size: 0.95rem; line-height: 1.6;">
-                            <strong style="color: var(--primary-green); display: block; margin-bottom: 3px;">Automated Round Summary:</strong>
-                            ${summary.narrative}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Good Shot Era Beefed-Up Performance Box (Rendered when good shots are present) -->
-            ${summary.hasGoodShots ? `
-            <div class="card" style="margin-bottom: 20px; border-left: 5px solid #059669; background: rgba(5, 150, 105, 0.03);">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
-                    <div>
-                        <h3 style="margin: 0; color: #059669; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
-                            🎯 Good Shot Era: Ball Striking & Execution Analysis
-                        </h3>
-                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">Evaluation of your shot execution standards across tee and approach shots.</p>
-                    </div>
-                    <span class="goodshot-badge" style="font-size: 0.9rem; padding: 6px 14px;">
-                        ${summary.goodShots}/${summary.goodShotsTarget} Good Shots (${summary.goodShotsPercent}%)
-                    </span>
-                </div>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 10px;">
-                    <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
-                        <div class="stat-title">Overall Shot Quality</div>
-                        <div class="stat-value" style="color: ${summary.goodShotsPercent >= 70 ? 'var(--primary-green)' : (summary.goodShotsPercent >= 55 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
-                            ${summary.goodShotsPercent}%
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            ${summary.goodShots} of ${summary.goodShotsTarget} target shots
-                        </div>
-                        <div class="meter-container" style="margin-top: 6px;">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.goodShotsPercent >= 70 ? 'meter-fill-good' : (summary.goodShotsPercent >= 55 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.goodShotsPercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    ${summary.goodTeePercent !== null ? `
-                    <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
-                        <div class="stat-title">Tee Shot Execution</div>
-                        <div class="stat-value" style="color: ${summary.goodTeePercent >= 70 ? 'var(--primary-green)' : (summary.goodTeePercent >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
-                            ${summary.goodTeePercent}%
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            ${summary.goodTeeShots} of ${summary.goodTeeTarget} tee shots
-                        </div>
-                        <div class="meter-container" style="margin-top: 6px;">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.goodTeePercent >= 70 ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, summary.goodTeePercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>` : ''}
-
-                    ${summary.goodApproachPercent !== null ? `
-                    <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
-                        <div class="stat-title">Approach Shot Quality</div>
-                        <div class="stat-value" style="color: ${summary.goodApproachPercent >= 70 ? 'var(--primary-green)' : (summary.goodApproachPercent >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
-                            ${summary.goodApproachPercent}%
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            ${summary.goodApproachShots} of ${summary.goodApproachTarget} approach shots
-                        </div>
-                        <div class="meter-container" style="margin-top: 6px;">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.goodApproachPercent >= 70 ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, summary.goodApproachPercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>` : ''}
-
-                    ${summary.perfectGoodShotHolesCount > 0 ? `
-                    <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
-                        <div class="stat-title">Clean Shot Conversion</div>
-                        <div class="stat-value" style="color: var(--primary-green); font-size: 1.3rem;">
-                            ${summary.perfectGoodShotHolesScore - summary.perfectGoodShotHolesPar > 0 ? '+' : ''}${summary.perfectGoodShotHolesScore - summary.perfectGoodShotHolesPar}
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Across ${summary.perfectGoodShotHolesCount} holes with 100% Good Shots
-                        </div>
-                        <div style="font-size: 0.75rem; color: ${summary.imperfectGoodShotHolesCount > 0 && (summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar) > 0 ? '#ef4444' : 'var(--text-muted)'}; margin-top: 4px;">
-                            ${summary.imperfectGoodShotHolesCount > 0 ? `vs ${summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar > 0 ? '+' : ''}${summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar} on holes with missed shots` : ''}
-                        </div>
-                    </div>` : ''}
-                </div>
-            </div>` : ''}
-
-            <!-- Front 9 vs Back 9 Splits & Par Performance Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                <!-- F9 vs B9 Split Card -->
-                ${summary.hasSplits ? `
-                <div class="card">
-                    <h3 style="margin-top: 0; margin-bottom: 8px; color: var(--text-light); font-size: 1.1rem; display: flex; align-items: center; justify-content: space-between;">
-                        <span>Front 9 vs Back 9 Splits</span>
-                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Out vs In</span>
-                    </h3>
-                    
-                    <div class="split-box-container">
-                        <div class="split-col">
-                            <div class="split-col-header">
-                                <span style="color: var(--primary-green);">FRONT 9 (OUT)</span>
-                                <span style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">${summary.f9.score} <span style="font-size: 0.85rem; color:${summary.f9.score - summary.f9.par <= 0 ? 'var(--primary-green)' : '#ef4444'}; font-weight: 600;">(${summary.f9.score - summary.f9.par > 0 ? '+' : ''}${summary.f9.score - summary.f9.par})</span></span>
-                            </div>
-                            <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
-                                <div>Greens (GIR): <strong>${summary.f9.gir}/${summary.f9.holes}</strong></div>
-                                <div>Fairways (FIR): <strong>${summary.f9.firChances > 0 ? `${summary.f9.fir}/${summary.f9.firChances}` : '—'}</strong></div>
-                                <div>Putts: <strong>${summary.f9.putts}</strong></div>
-                                ${summary.hasGoodShots && summary.f9.goodShotsTarget > 0 ? `<div>Good Shots: <strong>${summary.f9.goodShots}/${summary.f9.goodShotsTarget} (${Math.round(summary.f9.goodShots / summary.f9.goodShotsTarget * 100)}%)</strong></div>` : ''}
-                            </div>
-                        </div>
-
-                        <div class="split-col">
-                            <div class="split-col-header">
-                                <span style="color: #3b82f6;">BACK 9 (IN)</span>
-                                <span style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">${summary.b9.score} <span style="font-size: 0.85rem; color:${summary.b9.score - summary.b9.par <= 0 ? 'var(--primary-green)' : '#ef4444'}; font-weight: 600;">(${summary.b9.score - summary.b9.par > 0 ? '+' : ''}${summary.b9.score - summary.b9.par})</span></span>
-                            </div>
-                            <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
-                                <div>Greens (GIR): <strong>${summary.b9.gir}/${summary.b9.holes}</strong></div>
-                                <div>Fairways (FIR): <strong>${summary.b9.firChances > 0 ? `${summary.b9.fir}/${summary.b9.firChances}` : '—'}</strong></div>
-                                <div>Putts: <strong>${summary.b9.putts}</strong></div>
-                                ${summary.hasGoodShots && summary.b9.goodShotsTarget > 0 ? `<div>Good Shots: <strong>${summary.b9.goodShots}/${summary.b9.goodShotsTarget} (${Math.round(summary.b9.goodShots / summary.b9.goodShotsTarget * 100)}%)</strong></div>` : ''}
-                            </div>
-                        </div>
-                    </div>
-
-                    ${summary.splitDiagnostic ? `
-                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); background: rgba(0,0,0,0.03); padding: 8px 12px; border-radius: 4px;">
-                        ${summary.splitDiagnostic}
-                    </div>` : ''}
-                </div>` : ''}
-
-                <!-- Par 3 / Par 4 / Par 5 Scoring Diagnostics -->
-                ${(summary.par3s.count > 0 || summary.par4s.count > 0 || summary.par5s.count > 0) ? `
-                <div class="card">
-                    <h3 style="margin-top: 0; margin-bottom: 8px; color: var(--text-light); font-size: 1.1rem;">Scoring by Hole Type</h3>
-                    
-                    <div class="par-stat-grid">
-                        <div class="par-stat-card">
-                            <div class="par-stat-title">Par 3s (${summary.par3s.count})</div>
-                            <div class="par-stat-val" style="color: ${summary.par3s.score - summary.par3s.par <= 0 ? 'var(--primary-green)' : (summary.par3s.score - summary.par3s.par <= 2 ? '#f59e0b' : '#ef4444')};">
-                                ${(summary.par3s.score / Math.max(1, summary.par3s.count)).toFixed(2)}
-                            </div>
-                            <div class="par-stat-sub" style="color: ${summary.par3s.score - summary.par3s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
-                                ${summary.par3s.score - summary.par3s.par > 0 ? '+' : ''}${summary.par3s.score - summary.par3s.par} to par (${summary.par3s.gir} GIR)
-                            </div>
-                        </div>
-
-                        <div class="par-stat-card">
-                            <div class="par-stat-title">Par 4s (${summary.par4s.count})</div>
-                            <div class="par-stat-val" style="color: ${summary.par4s.score - summary.par4s.par <= (summary.par4s.count * 0.5) ? 'var(--primary-green)' : '#ef4444'};">
-                                ${(summary.par4s.score / Math.max(1, summary.par4s.count)).toFixed(2)}
-                            </div>
-                            <div class="par-stat-sub" style="color: ${summary.par4s.score - summary.par4s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
-                                ${summary.par4s.score - summary.par4s.par > 0 ? '+' : ''}${summary.par4s.score - summary.par4s.par} to par (${summary.par4s.gir} GIR)
-                            </div>
-                        </div>
-
-                        <div class="par-stat-card">
-                            <div class="par-stat-title">Par 5s (${summary.par5s.count})</div>
-                            <div class="par-stat-val" style="color: ${summary.par5s.score - summary.par5s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
-                                ${(summary.par5s.score / Math.max(1, summary.par5s.count)).toFixed(2)}
-                            </div>
-                            <div class="par-stat-sub" style="color: ${summary.par5s.score - summary.par5s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
-                                ${summary.par5s.score - summary.par5s.par > 0 ? '+' : ''}${summary.par5s.score - summary.par5s.par} to par (${summary.par5s.gir} GIR)
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 15px; margin-top: 12px; font-size: 0.85rem; color: var(--text-muted); justify-content: space-around;">
-                        <span>Pars or Better Streak: <strong>${summary.maxConsecutiveParsOrBetter} holes</strong></span>
-                        <span>Bounce-Back Rate: <strong>${summary.bounceBackRate}%</strong></span>
-                    </div>
-                </div>` : ''}
-            </div>
-
-            <!-- Strengths & Strokes Lost Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                <div class="card" style="background: rgba(16, 185, 129, 0.04); border-color: rgba(16, 185, 129, 0.25);">
-                    <h3 style="margin-top: 0; color: #059669; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                        What Went Well (${summary.strengths.length})
-                    </h3>
-                    <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7; color: var(--text-primary); font-size: 0.9rem;">
-                        ${summary.strengths.map(s => `<li style="margin-bottom: 6px;">${s}</li>`).join('')}
-                    </ul>
-                </div>
-
-                <div class="card" style="background: rgba(239, 68, 68, 0.03); border-color: rgba(239, 68, 68, 0.25);">
-                    <h3 style="margin-top: 0; color: #dc2626; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        Where Strokes Were Lost (${summary.weaknesses.length})
-                    </h3>
-                    <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7; color: var(--text-primary); font-size: 0.9rem;">
-                        ${summary.weaknesses.map(w => `<li style="margin-bottom: 6px;">${w}</li>`).join('')}
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Stat Breakdown & Visual Comparison Cards -->
-            <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 1.15rem;">Stat Breakdown vs Target Benchmarks</h3>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px;">
-                    <!-- Scoring Card -->
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Score vs Target</div>
-                        <div class="stat-value" style="color: ${summary.score <= summary.baselines.score ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.score} <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal;">(${summary.scoreToPar > 0 ? '+' : ''}${summary.scoreToPar})</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: ${summary.baselines.score} (${summary.baselines.scoreToPar > 0 ? '+' : ''}${summary.baselines.scoreToPar})
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.score <= summary.baselines.score ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${Math.min(100, Math.max(10, Math.round((summary.baselines.score / Math.max(1, summary.score)) * 100)))}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Good Shots Card (if present) -->
-                    ${summary.hasGoodShots ? `
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Good Shots (Quality %)</div>
-                        <div class="stat-value" style="color: ${summary.goodShotsPercent >= 70 ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.goodShotsPercent}% <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.goodShots}/${summary.goodShotsTarget})</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: 70%+ Good Shots
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.goodShotsPercent >= 70 ? 'meter-fill-good' : (summary.goodShotsPercent >= 55 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.goodShotsPercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>` : ''}
-
-                    <!-- FIR Card -->
-                    ${summary.firChances > 0 ? `
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Fairways (FIR %)</div>
-                        <div class="stat-value" style="color: ${summary.firPercent >= summary.baselines.firPercent ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.firPercent}% <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.fir}/${summary.firChances})</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: ${summary.baselines.firPercent}% (${Math.round(summary.baselines.firPercent / 100 * summary.firChances)}/${summary.firChances})
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.firPercent >= summary.baselines.firPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, summary.firPercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>` : ''}
-
-                    <!-- GIR Card -->
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Greens (GIR %)</div>
-                        <div class="stat-value" style="color: ${summary.girPercent >= summary.baselines.girPercent ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.girPercent}% <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.gir}/${summary.holes})</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: ${summary.baselines.girPercent}% (${Math.round(summary.baselines.girPercent / 100 * summary.holes)}/${summary.holes})
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.girPercent >= summary.baselines.girPercent ? 'meter-fill-good' : (summary.girPercent >= summary.baselines.girPercent - 15 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.girPercent)}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Putting Card -->
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Putting</div>
-                        <div class="stat-value" style="color: ${summary.putts <= summary.baselines.putts ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.putts} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">(${summary.threePutts} 3-putts)</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: ${summary.baselines.putts} or fewer (${(summary.putts / summary.holes).toFixed(2)}/hole)
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.putts <= summary.baselines.putts ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${Math.min(100, Math.max(10, Math.round((summary.baselines.putts / Math.max(1, summary.putts)) * 100)))}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Scrambling Card -->
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Scrambling %</div>
-                        <div class="stat-value" style="color: ${summary.upDownPercent >= summary.baselines.upDownPercent ? 'var(--primary-green)' : (summary.udC === 0 ? 'var(--text-primary)' : '#ef4444')};">
-                            ${summary.udC > 0 ? `${summary.upDownPercent}%` : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.udS}/${summary.udC})</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target: ${summary.baselines.upDownPercent}% (${summary.holes - Math.round(summary.baselines.girPercent / 100 * summary.holes)} missed greens)
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${summary.upDownPercent >= summary.baselines.upDownPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${summary.udC > 0 ? Math.min(100, summary.upDownPercent) : 50}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Mistakes & Penalties Card -->
-                    <div class="card stat-card" style="background: var(--bg-dark);">
-                        <div class="stat-title">Mistakes & Penalties</div>
-                        <div class="stat-value" style="color: ${(summary.penalties === 0 && summary.blowupHoles <= 1) ? 'var(--primary-green)' : '#ef4444'};">
-                            ${summary.penalties} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">penalties, ${summary.blowupHoles} blowups</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">
-                            Target Max: ${summary.baselines.penalties} pen / ${summary.baselines.blowups} blowup
-                        </div>
-                        <div class="meter-container">
-                            <div class="meter-track">
-                                <div class="meter-fill ${(summary.penalties === 0 && summary.blowupHoles <= 1) ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${summary.penalties === 0 && summary.blowupHoles === 0 ? 100 : Math.max(15, 100 - (summary.penalties + summary.blowupHoles) * 20)}%;"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Scoring Breakdown & Distribution Bar -->
-            <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.15rem;">Hole-by-Hole Scoring Distribution</h3>
-                <div class="scoring-dist-bar">
-                    ${summary.eagles > 0 ? `<div class="scoring-dist-seg dist-eagle" style="width:${(summary.eagles / summary.holes) * 100}%;" title="Eagles: ${summary.eagles}"></div>` : ''}
-                    ${summary.birdies > 0 ? `<div class="scoring-dist-seg dist-birdie" style="width:${(summary.birdies / summary.holes) * 100}%;" title="Birdies: ${summary.birdies}"></div>` : ''}
-                    ${summary.pars > 0 ? `<div class="scoring-dist-seg dist-par" style="width:${(summary.pars / summary.holes) * 100}%;" title="Pars: ${summary.pars}"></div>` : ''}
-                    ${summary.bogeys > 0 ? `<div class="scoring-dist-seg dist-bogey" style="width:${(summary.bogeys / summary.holes) * 100}%;" title="Bogeys: ${summary.bogeys}"></div>` : ''}
-                    ${summary.doubleBogeys > 0 ? `<div class="scoring-dist-seg dist-double" style="width:${(summary.doubleBogeys / summary.holes) * 100}%;" title="Double Bogeys: ${summary.doubleBogeys}"></div>` : ''}
-                    ${summary.tripleBogeys > 0 ? `<div class="scoring-dist-seg dist-triple" style="width:${(summary.tripleBogeys / summary.holes) * 100}%;" title="Triples+: ${summary.tripleBogeys}"></div>` : ''}
-                </div>
-
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; font-size: 0.85rem;">
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b5cf6;"></span> Eagles: <strong>${summary.eagles}</strong></div>
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;"></span> Birdies: <strong>${summary.birdies}</strong></div>
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3b82f6;"></span> Pars: <strong>${summary.pars}</strong></div>
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;"></span> Bogeys: <strong>${summary.bogeys}</strong></div>
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> Doubles: <strong>${summary.doubleBogeys}</strong></div>
-                    <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#991b1b;"></span> Triples+: <strong>${summary.tripleBogeys}</strong></div>
-                </div>
-
-                ${selectedRound.notes ? `
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
-                    <strong style="color: var(--text-light); font-size: 0.9rem;">Round Notes:</strong>
-                    <div style="margin-top: 5px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;">${selectedRound.notes}</div>
-                </div>` : ''}
-            </div>
-        `;
-
-        // Bind event listener for round picker select
-        const roundPicker = document.getElementById('insight-single-round-picker');
-        if (roundPicker) {
-            roundPicker.addEventListener('change', (e) => {
-                this.selectInsightRound(e.target.value);
-            });
-        }
-
-        // Bind target selector listeners
-        const typeSelect = document.getElementById('insight-target-type');
-        const valueSelect = document.getElementById('insight-target-value');
-        if (typeSelect) {
-            typeSelect.addEventListener('change', (e) => {
-                this.insightsTargetType = e.target.value;
-                this.insightsTargetValue = this.insightsTargetType === 'handicap' ? 'Scratch' : '76-79';
-                this.saveInsightsPrefs();
-                this.renderInsights();
-            });
-        }
-        if (valueSelect) {
-            valueSelect.addEventListener('change', (e) => {
-                this.insightsTargetValue = e.target.value;
-                this.saveInsightsPrefs();
-                this.renderInsights();
-            });
-        }
-    }
-
-    renderInsightsTrends(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
-        if (!this.rounds || this.rounds.length === 0) return;
-
-        const windowSize = this.insightsTrendWindow;
-        const limit = windowSize === 'all' ? this.rounds.length : Number(windowSize);
-        const windowRounds = this.rounds.slice(0, limit);
+        const windowSize = this.insightsTrendWindow || 10;
+        const windowRounds = windowSize === 'all'
+            ? filteredRounds
+            : filteredRounds.slice(0, Math.min(filteredRounds.length, Number(windowSize)));
 
         // Sort chronologically (oldest to newest) for charting and trend calculation
         const chronoRounds = [...windowRounds].sort((a, b) => this.getEST(a.date).ts - this.getEST(b.date).ts);
@@ -6745,7 +6604,7 @@ class App {
 
         // Trajectory Diagnostic
         let trajectoryBadge = '⚖️ Stable';
-        let trajectoryText = `Over your last ${windowRounds.length} rounds, your scoring average is ${avgScore.toFixed(1)} (${avgScoreToPar > 0 ? '+' : ''}${avgScoreToPar.toFixed(1)} to par).`;
+        let trajectoryText = `Over your selected ${windowRounds.length} filtered rounds, your scoring average is ${avgScore.toFixed(1)} (${avgScoreToPar > 0 ? '+' : ''}${avgScoreToPar.toFixed(1)} to par).`;
         if (chronoRounds.length >= 4) {
             const mid = Math.floor(chronoRounds.length / 2);
             const firstHalf = chronoRounds.slice(0, mid);
@@ -6784,20 +6643,61 @@ class App {
             }
         }
 
+        // Single Round Selected Identification
+        let selectedRound = filteredRounds.find(r => r.id === this.insightsSelectedRoundId);
+        if (!selectedRound) {
+            selectedRound = filteredRounds[0];
+            this.insightsSelectedRoundId = selectedRound.id;
+        }
+
+        const summary = this.generateRoundSummary(selectedRound, currentTargetScore);
+        const currentIdx = filteredRounds.findIndex(r => r.id === selectedRound.id);
+        const nextRound = currentIdx > 0 ? filteredRounds[currentIdx - 1] : null; 
+        const prevRound = currentIdx < filteredRounds.length - 1 ? filteredRounds[currentIdx + 1] : null; 
+
         container.innerHTML = `
-            <!-- Timeframe Filter Buttons & Controls -->
+            <!-- Filter Bar from Round Analytics -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0; color: var(--text-light); font-size: 1.15rem;">Filter Rounds</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">Query your performance insights across specific years, months, courses, holes, or events.</p>
+                    </div>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">
+                        Matching Rounds: <strong>${filteredRounds.length}</strong> of ${this.rounds.length}
+                    </span>
+                </div>
+                <div id="insights-filters"></div>
+            </div>
+
+            <!-- Timeframe Filter Buttons & Target Controls -->
             <div class="card" style="margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
                         <h3 style="margin: 0; color: var(--text-light); font-size: 1.25rem;">Performance Trends & Trajectory</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 0 0;">Analyze your scoring trends and key metrics over your recent rounds.</p>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 0 0;">Analyze scoring trends and key metrics over your recent filtered rounds.</p>
                     </div>
 
-                    <div class="filter-pills">
-                        <button class="filter-pill-btn ${windowSize === 5 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(5)">Last 5 Rounds</button>
-                        <button class="filter-pill-btn ${windowSize === 10 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(10)">Last 10 Rounds</button>
-                        <button class="filter-pill-btn ${windowSize === 20 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(20)">Last 20 Rounds</button>
-                        <button class="filter-pill-btn ${windowSize === 'all' ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow('all')">All Rounds (${this.rounds.length})</button>
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <div class="filter-pills">
+                            <button class="filter-pill-btn ${windowSize === 5 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(5)">Last 5</button>
+                            <button class="filter-pill-btn ${windowSize === 10 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(10)">Last 10</button>
+                            <button class="filter-pill-btn ${windowSize === 20 ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow(20)">Last 20</button>
+                            <button class="filter-pill-btn ${windowSize === 'all' ? 'active' : ''}" onclick="window.app.setInsightsTrendWindow('all')">All Filtered (${filteredRounds.length})</button>
+                        </div>
+
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Target:</span>
+                            <select id="insight-target-type" class="form-control" style="width: auto; padding: 5px 8px; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem;">
+                                <option value="handicap" ${this.insightsTargetType === 'handicap' ? 'selected' : ''}>Handicap</option>
+                                <option value="score" ${this.insightsTargetType === 'score' ? 'selected' : ''}>Target Score</option>
+                            </select>
+                            <select id="insight-target-value" class="form-control" style="width: auto; padding: 5px 8px; background: var(--bg-dark); color: black; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.85rem;">
+                                ${(this.insightsTargetType === 'handicap' ? Object.keys(handicapMap) : Object.keys(scoreMap)).map(val =>
+                                    `<option value="${val}" ${this.insightsTargetValue === val ? 'selected' : ''}>${val}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -6812,7 +6712,7 @@ class App {
                 </div>
             </div>
 
-            <!-- KPI Cards for the Period -->
+            <!-- Period KPI Cards -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
                 <div class="card stat-card">
                     <div class="stat-title">Scoring Average</div>
@@ -6835,6 +6735,37 @@ class App {
                     </div>
                 </div>` : ''}
 
+                <!-- Fairways Hit Card in Trends -->
+                <div class="card stat-card">
+                    <div class="stat-title">Fairways Hit (FIR %)</div>
+                    <div class="stat-value" style="color: ${totFIRChances > 0 ? (periodFIR >= baselines.firPercent ? 'var(--primary-green)' : '#ef4444') : 'var(--text-primary)'};">
+                        ${totFIRChances > 0 ? `${periodFIR}%` : 'N/A'}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        ${totFIRChances > 0 ? `${totFIR}/${totFIRChances} fairways (Target: ${baselines.firPercent}%)` : 'No fairway data'}
+                    </div>
+                    <div class="meter-container" style="margin-top: 6px;">
+                        <div class="meter-track">
+                            <div class="meter-fill ${periodFIR >= baselines.firPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${totFIRChances > 0 ? Math.min(100, periodFIR) : 50}%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-title">Greens in Reg (GIR %)</div>
+                    <div class="stat-value" style="color: ${periodGIR >= baselines.girPercent ? 'var(--primary-green)' : '#ef4444'};">
+                        ${periodGIR}%
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        Target: ${baselines.girPercent}% (${Math.round(periodGIR / 100 * this.insightsHoles)}/${this.insightsHoles})
+                    </div>
+                    <div class="meter-container" style="margin-top: 6px;">
+                        <div class="meter-track">
+                            <div class="meter-fill ${periodGIR >= baselines.girPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, periodGIR)}%;"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card stat-card">
                     <div class="stat-title">Putts / ${this.insightsHoles}</div>
                     <div class="stat-value" style="color: ${avgPutts <= baselines.putts ? 'var(--primary-green)' : '#ef4444'};">
@@ -6842,26 +6773,6 @@ class App {
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted);">
                         Target: ${baselines.putts} putts
-                    </div>
-                </div>
-
-                <div class="card stat-card">
-                    <div class="stat-title">GIR %</div>
-                    <div class="stat-value" style="color: ${periodGIR >= baselines.girPercent ? 'var(--primary-green)' : '#ef4444'};">
-                        ${periodGIR}%
-                    </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">
-                        Target: ${baselines.girPercent}% (${Math.round(periodGIR / 100 * this.insightsHoles)}/${this.insightsHoles})
-                    </div>
-                </div>
-
-                <div class="card stat-card">
-                    <div class="stat-title">FIR %</div>
-                    <div class="stat-value" style="color: ${periodFIR >= baselines.firPercent ? 'var(--primary-green)' : '#ef4444'};">
-                        ${periodFIR}%
-                    </div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">
-                        Target: ${baselines.firPercent}%
                     </div>
                 </div>
 
@@ -6900,21 +6811,454 @@ class App {
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                <!-- Accuracy & Good Shot Quality Chart -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                <!-- Putting Progression Chart -->
                 <div class="card">
-                    <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 1.1rem;">Accuracy & Ball Striking Quality</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 8px;">
+                        <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem;">Putting Progression</h3>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">Target: ${baselines.putts} putts</div>
+                    </div>
+                    <div style="position: relative; height: 220px; width: 100%;">
+                        <canvas id="insightsTrendPuttingChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Accuracy, Quality & Scrambling Chart (All on 0-100% scale) -->
+                <div class="card">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 1.1rem;">Accuracy, Quality & Scrambling (%)</h3>
                     <div style="position: relative; height: 220px; width: 100%;">
                         <canvas id="insightsTrendAccuracyChart"></canvas>
                     </div>
                 </div>
+            </div>
 
-                <!-- Short Game Chart -->
-                <div class="card">
-                    <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 1.1rem;">Short Game: Putts & Scrambling %</h3>
-                    <div style="position: relative; height: 220px; width: 100%;">
-                        <canvas id="insightsTrendShortGameChart"></canvas>
+            <!-- Single Round Breakdown & Deep-Dive Section (Combined into unified view) -->
+            <div id="single-round-breakdown-section" style="margin-bottom: 25px;">
+                <div class="card" style="margin-bottom: 20px; border-top: 3px solid var(--primary-green);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                        <div>
+                            <h3 style="margin: 0; color: var(--text-light); font-size: 1.25rem;">Single Round Deep-Dive Breakdown</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin: 4px 0 0 0;">Inspect individual round ball-striking, Out/In splits, and detailed hole performance.</p>
+                        </div>
                     </div>
+
+                    <!-- Round Selector Navigation Bar -->
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+                        <button class="btn btn-secondary" ${!prevRound ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `onclick="window.app.selectInsightRound('${prevRound.id}')"`} title="Previous Round" style="padding: 7px 12px; font-size: 0.85rem;">
+                            ◀ Prev Round
+                        </button>
+
+                        <div style="flex: 1; min-width: 250px;">
+                            <select id="insight-single-round-picker" class="form-control" style="width: 100%; padding: 8px 12px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font-weight: 600; font-size: 0.95rem;">
+                                ${filteredRounds.map(r => {
+                                    const num = String(r.roundNum || '?').padStart(3, '0');
+                                    const sc = Number(r.score) || 0;
+                                    const scP = Number(r.scoreToPar) || 0;
+                                    const gsTag = Number(r.goodShotsTarget) > 0 ? ` • 🎯 ${r.goodShots}/${r.goodShotsTarget} GS` : '';
+                                    return `<option value="${r.id}" ${r.id === selectedRound.id ? 'selected' : ''}>#${num} • ${this.normalizeCourse(r.course)} (${this.formatDateDisplay(r.date)}) — Score: ${sc} (${scP > 0 ? '+' : ''}${scP})${gsTag}</option>`;
+                                }).join('')}
+                            </select>
+                        </div>
+
+                        <button class="btn btn-secondary" ${!nextRound ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : `onclick="window.app.selectInsightRound('${nextRound.id}')"`} title="Next Round" style="padding: 7px 12px; font-size: 0.85rem;">
+                            Next Round ▶
+                        </button>
+
+                        <button class="btn btn-primary" onclick="window.app.showRoundDetails('${selectedRound.id}')" style="padding: 7px 14px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Full Scorecard
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hero Verdict Card -->
+                <div class="card" style="margin-bottom: 20px; border-left: 5px solid ${summary.verdict.color};">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Round #${String(selectedRound.roundNum || '?').padStart(3, '0')}</span>
+                                <span style="color: var(--border-color);">•</span>
+                                <span style="font-size: 0.9rem; color: var(--text-secondary);">${this.formatDateDisplay(selectedRound.date)}</span>
+                                ${selectedRound.teeName ? `<span style="color: var(--border-color);">•</span><span style="font-size: 0.85rem; color: var(--text-muted);">${selectedRound.teeName} Tees</span>` : ''}
+                                ${summary.hasGoodShots ? `<span style="color: var(--border-color);">•</span><span class="goodshot-badge">🎯 ${summary.goodShots}/${summary.goodShotsTarget} Good Shots (${summary.goodShotsPercent}%)</span>` : ''}
+                            </div>
+                            <h2 style="margin: 0; font-size: 1.6rem; color: var(--text-primary);">${this.normalizeCourse(selectedRound.course)}</h2>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                            <div class="verdict-badge ${summary.verdict.class}" style="font-size: 0.95rem; padding: 6px 14px;">
+                                ${summary.verdict.icon} ${summary.verdict.text}
+                            </div>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                                <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    vs Target: <strong style="color: ${summary.diffVsTarget <= 0 ? 'var(--primary-green)' : '#ef4444'}">${summary.diffVsTarget > 0 ? '+' : ''}${summary.diffVsTarget}</strong>
+                                </span>
+                                <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    vs Career Avg: <strong style="color: ${summary.diffVsAvg <= 0 ? 'var(--primary-green)' : '#ef4444'}">${summary.diffVsAvg > 0 ? '+' : ''}${summary.diffVsAvg.toFixed(1)}</strong>
+                                </span>
+                                <span style="font-size: 0.8rem; background: var(--bg-dark); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    Score: <strong style="color: var(--primary-green);">${summary.perfScore}/100</strong>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 20px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+                        <div style="text-align: center; min-width: 100px;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Total Score</div>
+                            <div style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary); line-height: 1.1;">
+                                ${summary.score}
+                            </div>
+                            <div style="font-size: 0.9rem; font-weight: 600; color: ${summary.scoreToPar <= 0 ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.scoreToPar > 0 ? '+' : ''}${summary.scoreToPar} to Par
+                            </div>
+                        </div>
+
+                        <div style="flex: 1; min-width: 250px;">
+                            <div class="insights-highlight-box" style="margin: 0; font-size: 0.95rem; line-height: 1.6;">
+                                <strong style="color: var(--primary-green); display: block; margin-bottom: 3px;">Automated Round Summary:</strong>
+                                ${summary.narrative}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Good Shot Era Beefed-Up Performance Box (Rendered when good shots are present) -->
+                ${summary.hasGoodShots ? `
+                <div class="card" style="margin-bottom: 20px; border-left: 5px solid #059669; background: rgba(5, 150, 105, 0.03);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                        <div>
+                            <h3 style="margin: 0; color: #059669; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                                🎯 Good Shot Era: Ball Striking & Execution Analysis
+                            </h3>
+                            <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">Evaluation of your shot execution standards across tee and approach shots.</p>
+                        </div>
+                        <span class="goodshot-badge" style="font-size: 0.9rem; padding: 6px 14px;">
+                            ${summary.goodShots}/${summary.goodShotsTarget} Good Shots (${summary.goodShotsPercent}%)
+                        </span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 10px;">
+                        <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
+                            <div class="stat-title">Overall Shot Quality</div>
+                            <div class="stat-value" style="color: ${summary.goodShotsPercent >= 70 ? 'var(--primary-green)' : (summary.goodShotsPercent >= 55 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
+                                ${summary.goodShotsPercent}%
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                ${summary.goodShots} of ${summary.goodShotsTarget} target shots
+                            </div>
+                            <div class="meter-container" style="margin-top: 6px;">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.goodShotsPercent >= 70 ? 'meter-fill-good' : (summary.goodShotsPercent >= 55 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.goodShotsPercent)}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        ${summary.goodTeePercent !== null ? `
+                        <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
+                            <div class="stat-title">Tee Shot Execution</div>
+                            <div class="stat-value" style="color: ${summary.goodTeePercent >= 70 ? 'var(--primary-green)' : (summary.goodTeePercent >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
+                                ${summary.goodTeePercent}%
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                ${summary.goodTeeShots} of ${summary.goodTeeTarget} tee shots
+                            </div>
+                            <div class="meter-container" style="margin-top: 6px;">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.goodTeePercent >= 70 ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, summary.goodTeePercent)}%;"></div>
+                                </div>
+                            </div>
+                        </div>` : ''}
+
+                        ${summary.goodApproachPercent !== null ? `
+                        <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
+                            <div class="stat-title">Approach Shot Quality</div>
+                            <div class="stat-value" style="color: ${summary.goodApproachPercent >= 70 ? 'var(--primary-green)' : (summary.goodApproachPercent >= 50 ? '#f59e0b' : '#ef4444')}; font-size: 1.5rem;">
+                                ${summary.goodApproachPercent}%
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                ${summary.goodApproachShots} of ${summary.goodApproachTarget} approach shots
+                            </div>
+                            <div class="meter-container" style="margin-top: 6px;">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.goodApproachPercent >= 70 ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${Math.min(100, summary.goodApproachPercent)}%;"></div>
+                                </div>
+                            </div>
+                        </div>` : ''}
+
+                        ${summary.perfectGoodShotHolesCount > 0 ? `
+                        <div class="card stat-card" style="background: var(--bg-card); padding: 12px;">
+                            <div class="stat-title">Clean Shot Conversion</div>
+                            <div class="stat-value" style="color: var(--primary-green); font-size: 1.3rem;">
+                                ${summary.perfectGoodShotHolesScore - summary.perfectGoodShotHolesPar > 0 ? '+' : ''}${summary.perfectGoodShotHolesScore - summary.perfectGoodShotHolesPar}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Across ${summary.perfectGoodShotHolesCount} holes with 100% Good Shots
+                            </div>
+                            <div style="font-size: 0.75rem; color: ${summary.imperfectGoodShotHolesCount > 0 && (summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar) > 0 ? '#ef4444' : 'var(--text-muted)'}; margin-top: 4px;">
+                                ${summary.imperfectGoodShotHolesCount > 0 ? `vs ${summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar > 0 ? '+' : ''}${summary.imperfectGoodShotHolesScore - summary.imperfectGoodShotHolesPar} on holes with missed shots` : ''}
+                            </div>
+                        </div>` : ''}
+                    </div>
+                </div>` : ''}
+
+                <!-- Front 9 vs Back 9 Splits & Par Performance Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <!-- F9 vs B9 Split Card -->
+                    ${summary.hasSplits ? `
+                    <div class="card">
+                        <h3 style="margin-top: 0; margin-bottom: 8px; color: var(--text-light); font-size: 1.1rem; display: flex; align-items: center; justify-content: space-between;">
+                            <span>Front 9 vs Back 9 Splits</span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">Out vs In</span>
+                        </h3>
+                        
+                        <div class="split-box-container">
+                            <div class="split-col">
+                                <div class="split-col-header">
+                                    <span style="color: var(--primary-green);">FRONT 9 (OUT)</span>
+                                    <span style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">${summary.f9.score} <span style="font-size: 0.85rem; color:${summary.f9.score - summary.f9.par <= 0 ? 'var(--primary-green)' : '#ef4444'}; font-weight: 600;">(${summary.f9.score - summary.f9.par > 0 ? '+' : ''}${summary.f9.score - summary.f9.par})</span></span>
+                                </div>
+                                <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
+                                    <div>Greens (GIR): <strong>${summary.f9.gir}/${summary.f9.holes}</strong></div>
+                                    <div>Fairways (FIR): <strong>${summary.f9.firChances > 0 ? `${summary.f9.fir}/${summary.f9.firChances}` : '—'}</strong></div>
+                                    <div>Putts: <strong>${summary.f9.putts}</strong></div>
+                                    ${summary.hasGoodShots && summary.f9.goodShotsTarget > 0 ? `<div>Good Shots: <strong>${summary.f9.goodShots}/${summary.f9.goodShotsTarget} (${Math.round(summary.f9.goodShots / summary.f9.goodShotsTarget * 100)}%)</strong></div>` : ''}
+                                </div>
+                            </div>
+
+                            <div class="split-col">
+                                <div class="split-col-header">
+                                    <span style="color: #3b82f6;">BACK 9 (IN)</span>
+                                    <span style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">${summary.b9.score} <span style="font-size: 0.85rem; color:${summary.b9.score - summary.b9.par <= 0 ? 'var(--primary-green)' : '#ef4444'}; font-weight: 600;">(${summary.b9.score - summary.b9.par > 0 ? '+' : ''}${summary.b9.score - summary.b9.par})</span></span>
+                                </div>
+                                <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
+                                    <div>Greens (GIR): <strong>${summary.b9.gir}/${summary.b9.holes}</strong></div>
+                                    <div>Fairways (FIR): <strong>${summary.b9.firChances > 0 ? `${summary.b9.fir}/${summary.b9.firChances}` : '—'}</strong></div>
+                                    <div>Putts: <strong>${summary.b9.putts}</strong></div>
+                                    ${summary.hasGoodShots && summary.b9.goodShotsTarget > 0 ? `<div>Good Shots: <strong>${summary.b9.goodShots}/${summary.b9.goodShotsTarget} (${Math.round(summary.b9.goodShots / summary.b9.goodShotsTarget * 100)}%)</strong></div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        ${summary.splitDiagnostic ? `
+                        <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); background: rgba(0,0,0,0.03); padding: 8px 12px; border-radius: 4px;">
+                            ${summary.splitDiagnostic}
+                        </div>` : ''}
+                    </div>` : ''}
+
+                    <!-- Par 3 / Par 4 / Par 5 Scoring Diagnostics -->
+                    ${(summary.par3s.count > 0 || summary.par4s.count > 0 || summary.par5s.count > 0) ? `
+                    <div class="card">
+                        <h3 style="margin-top: 0; margin-bottom: 8px; color: var(--text-light); font-size: 1.1rem;">Scoring by Hole Type</h3>
+                        
+                        <div class="par-stat-grid">
+                            <div class="par-stat-card">
+                                <div class="par-stat-title">Par 3s (${summary.par3s.count})</div>
+                                <div class="par-stat-val" style="color: ${summary.par3s.score - summary.par3s.par <= 0 ? 'var(--primary-green)' : (summary.par3s.score - summary.par3s.par <= 2 ? '#f59e0b' : '#ef4444')};">
+                                    ${(summary.par3s.score / Math.max(1, summary.par3s.count)).toFixed(2)}
+                                </div>
+                                <div class="par-stat-sub" style="color: ${summary.par3s.score - summary.par3s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
+                                    ${summary.par3s.score - summary.par3s.par > 0 ? '+' : ''}${summary.par3s.score - summary.par3s.par} to par (${summary.par3s.gir} GIR)
+                                </div>
+                            </div>
+
+                            <div class="par-stat-card">
+                                <div class="par-stat-title">Par 4s (${summary.par4s.count})</div>
+                                <div class="par-stat-val" style="color: ${summary.par4s.score - summary.par4s.par <= (summary.par4s.count * 0.5) ? 'var(--primary-green)' : '#ef4444'};">
+                                    ${(summary.par4s.score / Math.max(1, summary.par4s.count)).toFixed(2)}
+                                </div>
+                                <div class="par-stat-sub" style="color: ${summary.par4s.score - summary.par4s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
+                                    ${summary.par4s.score - summary.par4s.par > 0 ? '+' : ''}${summary.par4s.score - summary.par4s.par} to par (${summary.par4s.gir} GIR)
+                                </div>
+                            </div>
+
+                            <div class="par-stat-card">
+                                <div class="par-stat-title">Par 5s (${summary.par5s.count})</div>
+                                <div class="par-stat-val" style="color: ${summary.par5s.score - summary.par5s.par <= 0 ? 'var(--primary-green)' : (summary.par5s.score - summary.par5s.par <= 1 ? '#f59e0b' : '#ef4444')};">
+                                    ${(summary.par5s.score / Math.max(1, summary.par5s.count)).toFixed(2)}
+                                </div>
+                                <div class="par-stat-sub" style="color: ${summary.par5s.score - summary.par5s.par <= 0 ? 'var(--primary-green)' : '#ef4444'};">
+                                    ${summary.par5s.score - summary.par5s.par > 0 ? '+' : ''}${summary.par5s.score - summary.par5s.par} to par (${summary.par5s.gir} GIR)
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; margin-top: 12px; font-size: 0.85rem; color: var(--text-muted); justify-content: space-around;">
+                            <span>Pars or Better Streak: <strong>${summary.maxConsecutiveParsOrBetter} holes</strong></span>
+                            <span>Bounce-Back Rate: <strong>${summary.bounceBackRate}%</strong></span>
+                        </div>
+                    </div>` : ''}
+                </div>
+
+                <!-- Strengths & Strokes Lost Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div class="card" style="background: rgba(16, 185, 129, 0.04); border-color: rgba(16, 185, 129, 0.25);">
+                        <h3 style="margin-top: 0; color: #059669; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            What Went Well (${summary.strengths.length})
+                        </h3>
+                        <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7; color: var(--text-primary); font-size: 0.9rem;">
+                            ${summary.strengths.map(s => `<li style="margin-bottom: 6px;">${s}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: rgba(239, 68, 68, 0.03); border-color: rgba(239, 68, 68, 0.25);">
+                        <h3 style="margin-top: 0; color: #dc2626; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Where Strokes Were Lost (${summary.weaknesses.length})
+                        </h3>
+                        <ul style="margin: 10px 0 0 18px; padding: 0; line-height: 1.7; color: var(--text-primary); font-size: 0.9rem;">
+                            ${summary.weaknesses.map(w => `<li style="margin-bottom: 6px;">${w}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Stat Breakdown & Visual Comparison Cards -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 1.15rem;">Stat Breakdown vs Target Benchmarks</h3>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px;">
+                        <!-- Scoring Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Score vs Target</div>
+                            <div class="stat-value" style="color: ${summary.score <= summary.baselines.score ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.score} <span style="font-size: 1rem; color: var(--text-muted); font-weight: normal;">(${summary.scoreToPar > 0 ? '+' : ''}${summary.scoreToPar})</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target: ${summary.baselines.score} (${summary.baselines.scoreToPar > 0 ? '+' : ''}${summary.baselines.scoreToPar})
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.score <= summary.baselines.score ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${Math.min(100, Math.max(10, Math.round((summary.baselines.score / Math.max(1, summary.score)) * 100)))}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Good Shots Card (if present) -->
+                        ${summary.hasGoodShots ? `
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Good Shots (Quality %)</div>
+                            <div class="stat-value" style="color: ${summary.goodShotsPercent >= 70 ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.goodShotsPercent}% <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.goodShots}/${summary.goodShotsTarget})</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target: 70%+ Good Shots
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.goodShotsPercent >= 70 ? 'meter-fill-good' : (summary.goodShotsPercent >= 55 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.goodShotsPercent)}%;"></div>
+                                </div>
+                            </div>
+                        </div>` : ''}
+
+                        <!-- Fairways Hit Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Fairways Hit (FIR %)</div>
+                            <div class="stat-value" style="color: ${summary.firChances > 0 ? (summary.firPercent >= summary.baselines.firPercent ? 'var(--primary-green)' : '#ef4444') : 'var(--text-primary)'};">
+                                ${summary.firChances > 0 ? `${summary.firPercent}%` : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">${summary.firChances > 0 ? `(${summary.fir}/${summary.firChances})` : ''}</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                ${summary.firChances > 0 ? `Target: ${summary.baselines.firPercent}% (${Math.round(summary.baselines.firPercent / 100 * summary.firChances)}/${summary.firChances})` : 'No par 4/5 tee data'}
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.firPercent >= summary.baselines.firPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${summary.firChances > 0 ? Math.min(100, summary.firPercent) : 50}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- GIR Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Greens (GIR %)</div>
+                            <div class="stat-value" style="color: ${summary.girPercent >= summary.baselines.girPercent ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.girPercent}% <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.gir}/${summary.holes})</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target: ${summary.baselines.girPercent}% (${Math.round(summary.baselines.girPercent / 100 * summary.holes)}/${summary.holes})
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.girPercent >= summary.baselines.girPercent ? 'meter-fill-good' : (summary.girPercent >= summary.baselines.girPercent - 15 ? 'meter-fill-warning' : 'meter-fill-danger')}" style="width: ${Math.min(100, summary.girPercent)}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Putting Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Putting</div>
+                            <div class="stat-value" style="color: ${summary.putts <= summary.baselines.putts ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.putts} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">(${summary.threePutts} 3-putts)</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target: ${summary.baselines.putts} or fewer (${(summary.putts / summary.holes).toFixed(2)}/hole)
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.putts <= summary.baselines.putts ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${Math.min(100, Math.max(10, Math.round((summary.baselines.putts / Math.max(1, summary.putts)) * 100)))}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scrambling Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Scrambling %</div>
+                            <div class="stat-value" style="color: ${summary.upDownPercent >= summary.baselines.upDownPercent ? 'var(--primary-green)' : (summary.udC === 0 ? 'var(--text-primary)' : '#ef4444')};">
+                                ${summary.udC > 0 ? `${summary.upDownPercent}%` : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${summary.udS}/${summary.udC})</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target: ${summary.baselines.upDownPercent}% (${summary.holes - Math.round(summary.baselines.girPercent / 100 * summary.holes)} missed greens)
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${summary.upDownPercent >= summary.baselines.upDownPercent ? 'meter-fill-good' : 'meter-fill-warning'}" style="width: ${summary.udC > 0 ? Math.min(100, summary.upDownPercent) : 50}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mistakes & Penalties Card -->
+                        <div class="card stat-card" style="background: var(--bg-dark);">
+                            <div class="stat-title">Mistakes & Penalties</div>
+                            <div class="stat-value" style="color: ${(summary.penalties === 0 && summary.blowupHoles <= 1) ? 'var(--primary-green)' : '#ef4444'};">
+                                ${summary.penalties} <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: normal;">penalties, ${summary.blowupHoles} blowups</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                Target Max: ${summary.baselines.penalties} pen / ${summary.baselines.blowups} blowup
+                            </div>
+                            <div class="meter-container">
+                                <div class="meter-track">
+                                    <div class="meter-fill ${(summary.penalties === 0 && summary.blowupHoles <= 1) ? 'meter-fill-good' : 'meter-fill-danger'}" style="width: ${summary.penalties === 0 && summary.blowupHoles === 0 ? 100 : Math.max(15, 100 - (summary.penalties + summary.blowupHoles) * 20)}%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scoring Breakdown & Distribution Bar -->
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.15rem;">Hole-by-Hole Scoring Distribution</h3>
+                    <div class="scoring-dist-bar">
+                        ${summary.eagles > 0 ? `<div class="scoring-dist-seg dist-eagle" style="width:${(summary.eagles / summary.holes) * 100}%;" title="Eagles: ${summary.eagles}"></div>` : ''}
+                        ${summary.birdies > 0 ? `<div class="scoring-dist-seg dist-birdie" style="width:${(summary.birdies / summary.holes) * 100}%;" title="Birdies: ${summary.birdies}"></div>` : ''}
+                        ${summary.pars > 0 ? `<div class="scoring-dist-seg dist-par" style="width:${(summary.pars / summary.holes) * 100}%;" title="Pars: ${summary.pars}"></div>` : ''}
+                        ${summary.bogeys > 0 ? `<div class="scoring-dist-seg dist-bogey" style="width:${(summary.bogeys / summary.holes) * 100}%;" title="Bogeys: ${summary.bogeys}"></div>` : ''}
+                        ${summary.doubleBogeys > 0 ? `<div class="scoring-dist-seg dist-double" style="width:${(summary.doubleBogeys / summary.holes) * 100}%;" title="Double Bogeys: ${summary.doubleBogeys}"></div>` : ''}
+                        ${summary.tripleBogeys > 0 ? `<div class="scoring-dist-seg dist-triple" style="width:${(summary.tripleBogeys / summary.holes) * 100}%;" title="Triples+: ${summary.tripleBogeys}"></div>` : ''}
+                    </div>
+
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b5cf6;"></span> Eagles: <strong>${summary.eagles}</strong></div>
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;"></span> Birdies: <strong>${summary.birdies}</strong></div>
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#3b82f6;"></span> Pars: <strong>${summary.pars}</strong></div>
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;"></span> Bogeys: <strong>${summary.bogeys}</strong></div>
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> Doubles: <strong>${summary.doubleBogeys}</strong></div>
+                        <div style="display: flex; align-items: center; gap: 6px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#991b1b;"></span> Triples+: <strong>${summary.tripleBogeys}</strong></div>
+                    </div>
+
+                    ${selectedRound.notes ? `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                        <strong style="color: var(--text-light); font-size: 0.9rem;">Round Notes:</strong>
+                        <div style="margin-top: 5px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;">${selectedRound.notes}</div>
+                    </div>` : ''}
                 </div>
             </div>
 
@@ -6922,7 +7266,7 @@ class App {
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                     <h3 style="margin: 0; color: var(--text-light); font-size: 1.15rem;">Rounds in this Period (${windowRounds.length})</h3>
-                    <span style="font-size: 0.85rem; color: var(--text-muted);">Click "Analyze" on any round to view its deep-dive summary</span>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">Click "Analyze" on any round to view its deep-dive summary above</span>
                 </div>
                 <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                     <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
@@ -6942,30 +7286,38 @@ class App {
                         </thead>
                         <tbody>
                             ${windowRounds.map(r => {
-                                const rSummary = this.generateRoundSummary(r);
+                                const rSummary = this.generateRoundSummary(r, currentTargetScore);
                                 const num = String(r.roundNum || '?').padStart(3, '0');
+                                const origH = this.getRoundOriginalHoles(r) || r.holes || 18;
+                                const isCur = (r.id === selectedRound.id);
                                 return `
-                                <tr style="border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer;" onclick="window.app.viewRoundInInsights('${r.id}')">
-                                    <td style="padding: 10px 12px; color: var(--text-muted); font-size: 0.85rem;">#${num}</td>
-                                    <td style="padding: 10px 12px; white-space: nowrap;">${this.formatDateDisplay(r.date)}</td>
-                                    <td style="padding: 10px 12px; font-weight: 500; color: var(--primary-green);">${this.normalizeCourse(r.course)}</td>
-                                    <td style="padding: 10px 12px; text-align: center; font-weight: 700;">
-                                        ${r.score} <span style="font-size:0.8em;color:${Number(r.scoreToPar) <= 0 ? 'var(--primary-green)' : '#ef4444'}">(${Number(r.scoreToPar) > 0 ? '+' : ''}${r.scoreToPar})</span>
+                                <tr style="border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer; ${isCur ? 'background: rgba(16,185,129,0.08); font-weight:600;' : ''}" onclick="window.app.selectInsightRound('${r.id}')">
+                                    <td style="padding: 10px 12px; color: var(--text-muted);">${isCur ? '👉 #' + num : '#' + num}</td>
+                                    <td style="padding: 10px 12px;">${this.formatDateShort(r.date)}</td>
+                                    <td style="padding: 10px 12px;">${this.normalizeCourse(r.course)}</td>
+                                    <td style="padding: 10px 12px; text-align: center; font-weight: 700; color: ${r.score <= baselines.score ? 'var(--primary-green)' : '#ef4444'};">
+                                        ${r.score} <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(${r.scoreToPar > 0 ? '+' : ''}${r.scoreToPar})</span>
                                     </td>
                                     <td style="padding: 10px 12px; text-align: center;">
-                                        ${Number(r.goodShotsTarget) > 0 ? `<span style="font-weight:600; color:${rSummary.goodShotsPercent >= 70 ? 'var(--primary-green)' : '#f59e0b'}">${r.goodShots}/${r.goodShotsTarget} (${rSummary.goodShotsPercent}%)</span>` : '<span style="color:var(--text-muted);">—</span>'}
+                                        ${r.goodShotsTarget > 0 ? `${r.goodShots}/${r.goodShotsTarget} (${Math.round((r.goodShots / r.goodShotsTarget) * 100)}%)` : '—'}
                                     </td>
-                                    <td style="padding: 10px 12px; text-align: center;">${r.firChances > 0 ? `${r.fir}/${r.firChances}` : '—'}</td>
-                                    <td style="padding: 10px 12px; text-align: center;">${r.gir}/${r.holes || 18}</td>
-                                    <td style="padding: 10px 12px; text-align: center;">${Math.round(r.putts || 0)}</td>
                                     <td style="padding: 10px 12px; text-align: center;">
-                                        <span class="verdict-badge ${rSummary.verdict.class}" style="font-size: 0.75rem; padding: 3px 8px;">
+                                        ${r.firChances > 0 ? `${r.fir}/${r.firChances}` : '—'}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: center;">
+                                        ${r.gir || 0}/${origH}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: center;">
+                                        ${r.putts || 0}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: center;">
+                                        <span class="verdict-badge ${rSummary.verdict.class}" style="font-size: 0.75rem; padding: 2px 8px;">
                                             ${rSummary.verdict.icon} ${rSummary.verdict.text}
                                         </span>
                                     </td>
-                                    <td style="padding: 10px 12px; text-align: right;" onclick="event.stopPropagation()">
-                                        <button class="btn btn-secondary" onclick="window.app.viewRoundInInsights('${r.id}')" style="padding: 4px 10px; font-size: 0.8rem;">
-                                            Analyze 🔍
+                                    <td style="padding: 10px 12px; text-align: right;">
+                                        <button class="btn btn-secondary" onclick="event.stopPropagation(); window.app.selectInsightRound('${r.id}')" style="padding: 4px 10px; font-size: 0.8rem;">
+                                            ${isCur ? 'Viewing' : 'Analyze'}
                                         </button>
                                     </td>
                                 </tr>
@@ -6977,18 +7329,51 @@ class App {
             </div>
         `;
 
-        // Render Chart.js charts asynchronously
+        // Render the multi-select filters into the top container
+        this.renderFilters('insights-filters', () => this.renderInsights());
+
+        // Bind target selector change events
+        const typeSelect = document.getElementById('insight-target-type');
+        const valSelect = document.getElementById('insight-target-value');
+
+        if (typeSelect && valSelect) {
+            typeSelect.onchange = (e) => {
+                this.insightsTargetType = e.target.value;
+                const opts = this.insightsTargetType === 'handicap' ? Object.keys(handicapMap) : Object.keys(scoreMap);
+                this.insightsTargetValue = opts[0];
+                this.renderInsights();
+            };
+
+            valSelect.onchange = (e) => {
+                this.insightsTargetValue = e.target.value;
+                this.renderInsights();
+            };
+        }
+
+        // Bind round picker select
+        const roundPicker = document.getElementById('insight-single-round-picker');
+        if (roundPicker) {
+            roundPicker.onchange = (e) => {
+                this.selectInsightRound(e.target.value);
+            };
+        }
+
+        // Initialize Chart.js instances after DOM injection
         setTimeout(() => {
             this.destroyInsightsCharts();
-            if (typeof Chart === 'undefined') return;
 
-            const chartLabels = chronoRounds.map(r => `#${r.roundNum || ''} ${this.formatDateShort(r.date)}`);
-            const chartScores = chronoRounds.map(r => Number(r.score) || 0);
-            const targetLineData = chronoRounds.map(() => Math.round(baselines.score));
+            const roundLabels = chronoRounds.map(r => {
+                const est = this.getEST(r.date);
+                return `${String(est.m + 1).padStart(2, '0')}/${String(est.d).padStart(2, '0')}`;
+            });
+            const chartLabels = [...roundLabels, 'AVG'];
 
-            // 1. Scoring Chart
+            // 1. Scoring Progression Chart
             const scoreCtx = document.getElementById('insightsTrendScoreChart');
             if (scoreCtx) {
+                const scoreData = [...chronoRounds.map(r => Number(r.score) || 0), Number(avgScore.toFixed(1))];
+                const targetLineData = [...chronoRounds.map(() => Math.round(baselines.score)), Math.round(baselines.score)];
+
                 this.insightsCharts.score = new Chart(scoreCtx, {
                     type: 'line',
                     data: {
@@ -6996,14 +7381,15 @@ class App {
                         datasets: [
                             {
                                 label: 'Score',
-                                data: chartScores,
-                                borderColor: '#163e20',
-                                backgroundColor: 'rgba(22, 62, 32, 0.1)',
-                                tension: 0.3,
+                                data: scoreData,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                borderWidth: 3,
                                 fill: true,
-                                pointRadius: 5,
-                                pointBackgroundColor: '#163e20',
-                                pointHoverRadius: 7
+                                tension: 0.3,
+                                pointBackgroundColor: (ctx) => ctx.dataIndex === chronoRounds.length ? '#059669' : '#10b981',
+                                pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 7 : 5,
+                                pointHoverRadius: 8
                             },
                             {
                                 label: 'Target',
@@ -7027,7 +7413,10 @@ class App {
                             },
                             x: {
                                 grid: { display: false },
-                                ticks: { color: 'var(--text-muted)' }
+                                ticks: {
+                                    color: (ctx) => ctx.index === chronoRounds.length ? 'var(--primary-green)' : 'var(--text-muted)',
+                                    font: (ctx) => ctx.index === chronoRounds.length ? { weight: 'bold' } : {}
+                                }
                             }
                         },
                         plugins: {
@@ -7039,6 +7428,9 @@ class App {
                                 padding: 10,
                                 callbacks: {
                                     afterLabel: (ctx) => {
+                                        if (ctx.dataIndex === chronoRounds.length) {
+                                            return `Period Avg: ${avgScore.toFixed(1)} (${avgScoreToPar > 0 ? '+' : ''}${avgScoreToPar.toFixed(1)} to par)`;
+                                        }
                                         if (ctx.datasetIndex === 0) {
                                             const r = chronoRounds[ctx.dataIndex];
                                             return `Course: ${r.course || 'Unknown'}\nTo Par: ${Number(r.scoreToPar) > 0 ? '+' : ''}${r.scoreToPar}`;
@@ -7052,21 +7444,113 @@ class App {
                 });
             }
 
-            // 2. Accuracy & Good Shot Quality Chart (GIR%, FIR%, Good Shots %)
+            // 2. Putting Progression Chart (Dedicated putting scale)
+            const puttsCtx = document.getElementById('insightsTrendPuttingChart');
+            if (puttsCtx) {
+                const puttsData = [...chronoRounds.map(r => Number(r.putts) || 0), Number(avgPutts.toFixed(1))];
+                const targetPuttsData = [...chronoRounds.map(() => baselines.putts), baselines.putts];
+
+                this.insightsCharts.putting = new Chart(puttsCtx, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [
+                            {
+                                label: 'Putts',
+                                data: puttsData,
+                                borderColor: '#8b5cf6',
+                                backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                                borderWidth: 2.5,
+                                fill: true,
+                                tension: 0.3,
+                                pointBackgroundColor: (ctx) => ctx.dataIndex === chronoRounds.length ? '#7c3aed' : '#8b5cf6',
+                                pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 6 : 4,
+                                pointHoverRadius: 7
+                            },
+                            {
+                                label: `Target (${baselines.putts})`,
+                                data: targetPuttsData,
+                                borderColor: '#f59e0b',
+                                borderDash: [4, 4],
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            y: {
+                                grid: { color: 'rgba(0,0,0,0.06)' },
+                                ticks: { color: 'var(--text-muted)', precision: 0 }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: {
+                                    color: (ctx) => ctx.index === chronoRounds.length ? '#8b5cf6' : 'var(--text-muted)',
+                                    font: (ctx) => ctx.index === chronoRounds.length ? { weight: 'bold' } : {}
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: { boxWidth: 12, color: 'var(--text-primary)' }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                padding: 10,
+                                callbacks: {
+                                    afterLabel: (ctx) => {
+                                        if (ctx.dataIndex === chronoRounds.length) {
+                                            return `Period Avg: ${avgPutts.toFixed(1)} putts`;
+                                        }
+                                        return null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 3. Accuracy, Quality & Scrambling % Chart (All on the same 0-100% scale)
             const accCtx = document.getElementById('insightsTrendAccuracyChart');
             if (accCtx) {
-                const girData = chronoRounds.map(r => {
-                    const h = this.getRoundOriginalHoles(r) || r.holes || 18;
-                    return h > 0 ? Math.round((Number(r.gir) || 0) / h * 100) : 0;
-                });
-                const firData = chronoRounds.map(r => {
-                    const fc = Number(r.firChances) || 0;
-                    return fc > 0 ? Math.round((Number(r.fir) || 0) / fc * 100) : null;
-                });
-                const gsData = chronoRounds.map(r => {
-                    const gst = Number(r.goodShotsTarget) || 0;
-                    return gst > 0 ? Math.round((Number(r.goodShots) || 0) / gst * 100) : null;
-                });
+                const girData = [
+                    ...chronoRounds.map(r => {
+                        const h = this.getRoundOriginalHoles(r) || r.holes || 18;
+                        return h > 0 ? Math.round((Number(r.gir) || 0) / h * 100) : 0;
+                    }),
+                    periodGIR
+                ];
+                const firData = [
+                    ...chronoRounds.map(r => {
+                        const fc = Number(r.firChances) || 0;
+                        return fc > 0 ? Math.round((Number(r.fir) || 0) / fc * 100) : null;
+                    }),
+                    totFIRChances > 0 ? periodFIR : null
+                ];
+                const scrambleData = [
+                    ...chronoRounds.map(r => {
+                        const uc = Number(r.upDownChances) || 0;
+                        return uc > 0 ? Math.round((Number(r.upDownSuccesses) || 0) / uc * 100) : null;
+                    }),
+                    totUDC > 0 ? periodScrambling : null
+                ];
+                const gsData = [
+                    ...chronoRounds.map(r => {
+                        const gst = Number(r.goodShotsTarget) || 0;
+                        return gst > 0 ? Math.round((Number(r.goodShots) || 0) / gst * 100) : null;
+                    }),
+                    goodShotRoundsCount > 0 ? periodGoodShots : null
+                ];
 
                 const datasets = [
                     {
@@ -7075,7 +7559,8 @@ class App {
                         borderColor: '#10b981',
                         backgroundColor: 'transparent',
                         tension: 0.3,
-                        pointRadius: 4
+                        pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 6 : 4,
+                        pointHoverRadius: 7
                     },
                     {
                         label: 'FIR %',
@@ -7083,21 +7568,32 @@ class App {
                         borderColor: '#3b82f6',
                         backgroundColor: 'transparent',
                         tension: 0.3,
-                        pointRadius: 4,
+                        pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 6 : 4,
+                        pointHoverRadius: 7,
+                        spanGaps: true
+                    },
+                    {
+                        label: 'Scrambling %',
+                        data: scrambleData,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'transparent',
+                        tension: 0.3,
+                        pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 6 : 4,
+                        pointHoverRadius: 7,
                         spanGaps: true
                     }
                 ];
 
-                // If any good shots are present in this window, add Good Shots dataset
                 if (gsData.some(v => v !== null)) {
                     datasets.push({
                         label: 'Good Shots %',
                         data: gsData,
                         borderColor: '#8b5cf6',
-                        borderDash: [3, 3],
                         backgroundColor: 'transparent',
+                        borderDash: [4, 4],
                         tension: 0.3,
-                        pointRadius: 4,
+                        pointRadius: (ctx) => ctx.dataIndex === chronoRounds.length ? 6 : 4,
+                        pointHoverRadius: 7,
                         spanGaps: true
                     });
                 }
@@ -7111,6 +7607,7 @@ class App {
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
                         scales: {
                             y: {
                                 min: 0,
@@ -7120,7 +7617,10 @@ class App {
                             },
                             x: {
                                 grid: { display: false },
-                                ticks: { color: 'var(--text-muted)' }
+                                ticks: {
+                                    color: (ctx) => ctx.index === chronoRounds.length ? 'var(--primary-green)' : 'var(--text-muted)',
+                                    font: (ctx) => ctx.index === chronoRounds.length ? { weight: 'bold' } : {}
+                                }
                             }
                         },
                         plugins: {
@@ -7128,81 +7628,34 @@ class App {
                                 display: true,
                                 position: 'top',
                                 labels: { boxWidth: 12, color: 'var(--text-primary)' }
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 3. Short Game Chart (Putts & Scrambling %)
-            const sgCtx = document.getElementById('insightsTrendShortGameChart');
-            if (sgCtx) {
-                const puttsData = chronoRounds.map(r => Number(r.putts) || 0);
-                const scrambleData = chronoRounds.map(r => {
-                    const uc = Number(r.upDownChances) || 0;
-                    return uc > 0 ? Math.round((Number(r.upDownSuccesses) || 0) / uc * 100) : null;
-                });
-
-                this.insightsCharts.shortGame = new Chart(sgCtx, {
-                    type: 'line',
-                    data: {
-                        labels: chartLabels,
-                        datasets: [
-                            {
-                                label: 'Total Putts',
-                                data: puttsData,
-                                borderColor: '#8b5cf6',
-                                backgroundColor: 'transparent',
-                                tension: 0.3,
-                                pointRadius: 4,
-                                yAxisID: 'yPutts'
                             },
-                            {
-                                label: 'Scrambling %',
-                                data: scrambleData,
-                                borderColor: '#f59e0b',
-                                backgroundColor: 'transparent',
-                                tension: 0.3,
-                                pointRadius: 4,
-                                spanGaps: true,
-                                yAxisID: 'yPct'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            yPutts: {
-                                type: 'linear',
-                                position: 'left',
-                                grid: { color: 'rgba(0,0,0,0.06)' },
-                                ticks: { color: '#8b5cf6', precision: 0 }
-                            },
-                            yPct: {
-                                type: 'linear',
-                                position: 'right',
-                                min: 0,
-                                max: 100,
-                                grid: { display: false },
-                                ticks: { color: '#f59e0b', callback: v => v + '%' }
-                            },
-                            x: {
-                                grid: { display: false },
-                                ticks: { color: 'var(--text-muted)' }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: { boxWidth: 12, color: 'var(--text-primary)' }
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                padding: 10,
+                                callbacks: {
+                                    afterLabel: (ctx) => {
+                                        if (ctx.dataIndex === chronoRounds.length) {
+                                            return `Period Average (${windowRounds.length} rounds)`;
+                                        }
+                                        return null;
+                                    }
+                                }
                             }
                         }
                     }
                 });
             }
         }, 50);
+    }
+
+    renderInsightsSingleRound(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
+        this.renderInsightsPerformance(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
+    }
+
+    renderInsightsTrends(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
+        this.renderInsightsPerformance(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines);
     }
 
     renderInsightsTargetBenchmarks(container, currentTargetScore, holeMultiplier, handicapMap, scoreMap, baselines) {
