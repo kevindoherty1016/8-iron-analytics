@@ -1006,6 +1006,66 @@ class App {
         this.switchView('dashboard');
     }
 
+    calculateRoundQuota(round) {
+        if (!round) return { quotaPoints: 0, playerQuota: 36, quotaDiff: -36, quotaPercent: 0, courseHandicap: 0 };
+
+        const rHoles = this.getRoundOriginalHoles ? (this.getRoundOriginalHoles(round) || round.holes || 18) : (round.holes || 18);
+
+        // 1. Calculate Quota Points Earned
+        let quotaPoints = 0;
+        if (round.holeData && Array.isArray(round.holeData) && round.holeData.length > 0) {
+            round.holeData.forEach(h => {
+                const score = Number(h.score) || 0;
+                const par = Number(h.par) || 4;
+                if (score > 0 && par > 0) {
+                    const diff = score - par;
+                    if (diff <= -3) quotaPoints += 8;       // Double Eagle (Albatross)
+                    else if (diff === -2) quotaPoints += 4;  // Eagle
+                    else if (diff === -1) quotaPoints += 3;  // Birdie
+                    else if (diff === 0) quotaPoints += 2;   // Par
+                    else if (diff === 1) quotaPoints += 1;   // Bogey
+                    // Double bogey or worse (diff >= 2) = 0 points
+                }
+            });
+        } else {
+            // Fallback to round aggregate stats
+            const eagles = Number(round.eagles) || 0;
+            const birdies = Number(round.birdies) || 0;
+            const pars = Number(round.pars) || 0;
+            const bogeys = Number(round.bogeys) || 0;
+            const albatrosses = Number(round.albatrosses || round.doubleEagles) || 0;
+            quotaPoints = (albatrosses * 8) + (eagles * 4) + (birdies * 3) + (pars * 2) + (bogeys * 1);
+        }
+
+        // 2. Determine Course Handicap
+        let courseHandicap = 0;
+        if (round.courseHandicap !== undefined && round.courseHandicap !== null && round.courseHandicap !== '') {
+            courseHandicap = Number(round.courseHandicap);
+        } else if (round.prevHandicap !== undefined && round.slope && round.rating && round.par) {
+            const rawCH = round.prevHandicap * (round.slope / 113) + (round.rating - round.par);
+            courseHandicap = Math.round(rawCH);
+        } else if (round.prevHandicap !== undefined) {
+            courseHandicap = Math.round(round.prevHandicap);
+        } else if (this.profile && this.profile.handicap !== undefined) {
+            courseHandicap = Math.round(this.profile.handicap || 0);
+        }
+
+        // 3. Player's Quota (Standard 18 holes = 36 - Course Handicap)
+        const baseQuota = Math.max(1, 36 - courseHandicap);
+        const playerQuota = rHoles === 9 ? baseQuota / 2 : baseQuota * (rHoles / 18);
+
+        const quotaDiff = quotaPoints - playerQuota;
+        const quotaPercent = playerQuota > 0 ? (quotaPoints / playerQuota) * 100 : 0;
+
+        return {
+            quotaPoints,
+            playerQuota: Math.round(playerQuota * 10) / 10,
+            quotaDiff: Math.round(quotaDiff * 10) / 10,
+            quotaPercent: Math.round(quotaPercent * 10) / 10,
+            courseHandicap
+        };
+    }
+
 
     toggleDataEntryMode(skipRegeneration = false) {
         const mode = document.getElementById('entry-mode-select').value;
@@ -3858,6 +3918,20 @@ class App {
                 }
             });
 
+            let totalQuotaPoints = 0;
+            let totalPlayerQuota = 0;
+            scoringRounds.forEach(r => {
+                const qData = this.calculateRoundQuota(r);
+                const sFactor = scalingFactor(r);
+                totalQuotaPoints += (qData.quotaPoints * sFactor);
+                totalPlayerQuota += (qData.playerQuota * sFactor);
+            });
+
+            const avgQuotaPercent = totalPlayerQuota > 0 ? (totalQuotaPoints / totalPlayerQuota) * 100 : 0;
+            const avgQuotaPoints = mathScoringCount > 0 ? (totalQuotaPoints / mathScoringCount) : 0;
+            const avgPlayerQuota = mathScoringCount > 0 ? (totalPlayerQuota / mathScoringCount) : (benchmarkHoles === 9 ? 18 : 36);
+            const avgQuotaDiff = avgQuotaPoints - avgPlayerQuota;
+
             // Normalized Averages (Benchmark explicitly mapped across valid round count)
             const count = filteredRounds.length;
             const uniqueCourseCount = new Set(filteredRounds.map(r => r.course).filter(Boolean)).size;
@@ -3987,6 +4061,12 @@ class App {
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px;">Target: ${displayTargets.goodShotsPercent}% (${Math.round(displayTargets.goodShotsPercent / 100 * avgGoodShotsTargetPerRound)}/${Math.round(avgGoodShotsTargetPerRound)})</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 3px;">* Good Shot era (8/9/2026+)</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-title">Avg Quota % Hit</div>
+                    <div class="stat-value" style="color: ${totalPlayerQuota > 0 ? getColor(avgQuotaPercent, 100, false) : 'var(--text-muted)'};">${totalPlayerQuota > 0 ? avgQuotaPercent.toFixed(1) + '%' : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">(${avgQuotaPoints.toFixed(1)}/${avgPlayerQuota.toFixed(1)} pts)</span></div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: 100% (${avgQuotaDiff > 0 ? '+' : ''}${avgQuotaDiff.toFixed(1)} vs Quota)</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">* Formula: 36 - Course Hdcp</div>
                 </div>
                 <div class="card stat-card">
                     <div class="stat-title">Avg Putts (${benchmarkHoles} Holes)</div>
@@ -5017,6 +5097,9 @@ class App {
         const statOptions = [
             { value: 'score', label: 'Total Score' },
             { value: 'scoreToPar', label: 'Score to Par' },
+            { value: 'quotaPercent', label: 'Quota % Hit' },
+            { value: 'quotaPoints', label: 'Quota Points' },
+            { value: 'quotaDiff', label: 'Quota +/-' },
             { value: 'putts', label: 'Putts' },
             { value: 'puttsPerHole', label: 'Putts Per Hole' },
             { value: 'gir', label: 'Greens in Regulation' },
@@ -5136,6 +5219,7 @@ class App {
                     eagles: 0, birdies: 0, pars: 0, bogeys: 0, doubleBogeys: 0, tripleBogeys: 0,
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
+                    quotaPoints: 0, playerQuota: 0,
                     goodShots: 0, goodShotsTarget: 0,
                     goodTeeShots: 0, goodTeeTarget: 0,
                     goodApproachShots: 0, goodApproachTarget: 0,
@@ -5160,6 +5244,11 @@ class App {
             g.upDownSuccesses += (r.upDownSuccesses || 0);
             g.threePutts += (r.threePutts || 0);
             g.lostBalls += (r.lostBalls || 0);
+
+            const qData = this.calculateRoundQuota(r);
+            g.quotaPoints += (qData.quotaPoints || 0);
+            g.playerQuota += (qData.playerQuota || 0);
+
             if (est.ts >= this.getEST('2026-01-01').ts) {
                 g.fir += (r.fir || 0);
                 g.firChances += (r.firChances || 0);
@@ -5206,6 +5295,8 @@ class App {
 
         const chartData = Object.values(groups).map(g => {
             const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
+            const qPts = g.quotaPoints * factorBenchmark;
+            const qTarget = g.playerQuota * factorBenchmark;
             return {
                 ...g,
                 holesPlayed: g.holes,
@@ -5213,6 +5304,10 @@ class App {
                 putts: g.putts * factorBenchmark,
                 gir: g.gir * factorBenchmark,
                 fir: g.fir * factorBenchmark,
+                quotaPoints: qPts,
+                playerQuota: qTarget,
+                quotaDiff: qPts - qTarget,
+                quotaPercent: qTarget > 0 ? (qPts / qTarget) * 100 : 0,
                 goodShots: g.goodShots * factorBenchmark,
                 goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : 0,
                 goodTeeShots: g.goodTeeShots * factorBenchmark,
@@ -5450,6 +5545,7 @@ class App {
 
         const modal = document.getElementById('round-details-modal');
         const content = document.getElementById('round-details-content');
+        const qData = this.calculateRoundQuota(round);
 
         const summary = this.generateRoundSummary(round);
         const girPercent = Math.round((round.gir || 0) / (round.holes || 18) * 100);
@@ -5463,9 +5559,10 @@ class App {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                     <div>
                         <h2 style="margin: 0; font-size: 1.8rem; color: var(--text-primary);"><span style="color: var(--text-muted); font-size: 0.9em; font-weight: 400; margin-right: 10px;">#${num}</span>${round.course ? this.normalizeCourse(round.course) : ''}</h2>
-                        <div style="color: var(--text-muted); margin-top: 5px; font-size: 1rem;">
-                            ${this.formatDateDisplay(round.date)}${round.teeName ? ` • ${round.teeName} Tees` : ''} • ${round.holes || 18} Holes
-                            ${summary && summary.hasGoodShots ? ` • <span class="goodshot-badge">🎯 ${summary.goodShots}/${summary.goodShotsTarget} Good Shots (${summary.goodShotsPercent}%)</span>` : ''}
+                        <div style="color: var(--text-muted); margin-top: 5px; font-size: 0.95rem;">
+                            ${round.date} • ${round.teeName || 'Unknown'} Tees • ${round.holes || 18} Holes • Par ${round.coursePar || 72}
+                            ${round.event ? ` • <span style="color: var(--primary-green); font-weight: 600;">${round.event}</span>` : ''}
+                            ${round.group ? ` • <span style="color: var(--text-muted);">${round.group}</span>` : ''}
                         </div>
                     </div>
                     ${summary ? `
@@ -5497,30 +5594,31 @@ class App {
             </div>
             ` : ''}
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px;">
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">Score</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${round.score} (${round.scoreToPar > 0 ? '+' : ''}${round.scoreToPar})</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 30px;">
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Score</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">${round.score} (${round.scoreToPar > 0 ? '+' : ''}${round.scoreToPar})</div>
                 </div>
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">Putts</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${Math.round(round.putts || 0)}</div>
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Point Quota</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: ${qData.quotaDiff >= 0 ? 'var(--primary-green)' : 'var(--text-primary)'};">${qData.quotaPoints}/${qData.playerQuota}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff} (${qData.quotaPercent}%)</div>
                 </div>
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">GIR</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${round.gir}/${round.holes || 18} (${girPercent}%)</div>
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">Putts</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">${Math.round(round.putts || 0)}</div>
                 </div>
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Fairways Hits (FIR)</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">${round.firChances > 0 ? `${round.fir}/${round.firChances} (${firPercent}%)` : 'N/A'}</div>
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 4px;">GIR</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">${round.gir}/${round.holes || 18} (${girPercent}%)</div>
                 </div>
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Good Shots</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</div>
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Fairways (FIR)</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">${round.firChances > 0 ? `${round.fir}/${round.firChances} (${firPercent}%)` : 'N/A'}</div>
                 </div>
-                <div class="card" style="padding: 15px; text-align: center; background: var(--bg-dark); grid-column: span 2;">
-                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 5px;">Putter Used</div>
-                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);">${round.putter || 'Not specified'}</div>
+                <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Good Shots</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</div>
                 </div>
             </div>
 
