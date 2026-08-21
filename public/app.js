@@ -5628,6 +5628,54 @@ class App {
                 </div>
             </div>
 
+            <div style="background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h3 style="margin: 0; color: var(--text-light); font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                        <span>🏆 Point Quota Calculation</span>
+                    </h3>
+                    <div style="font-size: 0.9rem; font-weight: 600; color: ${qData.quotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444'}; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 6px;">
+                        ${qData.quotaPoints} / ${qData.playerQuota} pts (${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff} • ${qData.quotaPercent}%)
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                    <div>
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">1. Quota Target Formula</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; background: var(--bg-card); padding: 10px; border-radius: 6px;">
+                            <div>Course Handicap: <strong style="color: var(--text-primary);">${qData.courseHandicap}</strong></div>
+                            <div>Formula: ${round.holes === 9 ? '18 - (Course Hdcp / 2)' : '36 - Course Hdcp'} (${qData.courseHandicap})</div>
+                            <div>Target Quota: <strong style="color: var(--primary-green); font-size: 1.05rem;">${qData.playerQuota} pts</strong></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">2. Points Earned Breakdown</div>
+                        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; background: var(--bg-card); padding: 10px; border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>🦅 Albatross / Eagles (4/8 pts):</span>
+                                <span style="font-weight: 600; color: #10b981;">${(round.eagles || 0) + (round.albatrosses || 0)} (${((round.albatrosses || 0) * 8) + ((round.eagles || 0) * 4)} pts)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>🐤 Birdies (3 pts):</span>
+                                <span style="font-weight: 600; color: #10b981;">${round.birdies || 0} (${(round.birdies || 0) * 3} pts)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>⛳ Pars (2 pts):</span>
+                                <span style="font-weight: 600; color: #3b82f6;">${round.pars || 0} (${(round.pars || 0) * 2} pts)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>🟧 Bogeys (1 pt):</span>
+                                <span style="font-weight: 600; color: #f97316;">${round.bogeys || 0} (${(round.bogeys || 0) * 1} pts)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--border-color); padding-top: 4px; margin-top: 2px;">
+                                <span>Total Scored:</span>
+                                <strong style="color: var(--primary-green); font-size: 0.95rem;">${qData.quotaPoints} pts</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
                 <div>
                     <h3 style="margin-top: 0; color: var(--text-light); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Scoring Breakdown</h3>
