@@ -4098,6 +4098,12 @@ class App {
                     <div class="stat-value" style="color: var(--text-primary);">${physicalTotalHoles.toLocaleString()}</div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Played</div>
                 </div>
+                <div class="card stat-card">
+                    <div class="stat-title">Avg Quota +/-</div>
+                    <div class="stat-value" style="color: ${totalPlayerQuota > 0 ? (avgQuotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444') : 'var(--text-muted)'};">${totalPlayerQuota > 0 ? (avgQuotaDiff > 0 ? '+' : '') + avgQuotaDiff.toFixed(1) : 'N/A'} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: normal;">pts</span></div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Target: E (+0.0 vs Quota)</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">* ${avgQuotaPoints.toFixed(1)} / ${avgPlayerQuota.toFixed(1)} pts avg</div>
+                </div>
             `;
 
             this.renderCharts(filteredRounds);
