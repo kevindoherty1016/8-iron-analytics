@@ -1963,12 +1963,30 @@ class App {
         for (const r of this.rounds) {
             if (validRounds.length >= 20) break;
 
-            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
-            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+            const cName = r.course ? r.course.replace(' (9 Holes x2)', '').trim().toLowerCase() : '';
+            const course = this.courseLayouts ? this.courseLayouts.find(c =>
+                (r.courseId && c.courseId === r.courseId) ||
+                (c.courseName && c.courseName.trim().toLowerCase() === cName) ||
+                (c.name && c.name.trim().toLowerCase() === cName)
+            ) : null;
 
-            const tee = course.tees[r.teeName];
-            let rating = tee.rating || 0;
-            const slope = tee.slope || 0;
+            let tee = null;
+            if (course && course.tees) {
+                if (r.teeName && course.tees[r.teeName]) {
+                    tee = course.tees[r.teeName];
+                } else if (r.teeName) {
+                    const tKey = Object.keys(course.tees).find(k => k.trim().toLowerCase() === r.teeName.trim().toLowerCase());
+                    if (tKey) tee = course.tees[tKey];
+                }
+                if (!tee) {
+                    const firstKey = Object.keys(course.tees)[0];
+                    if (firstKey) tee = course.tees[firstKey];
+                }
+            }
+
+            let rating = tee ? (Number(tee.rating) || 0) : (Number(r.rating) || 0);
+            const slope = tee ? (Number(tee.slope) || 0) : (Number(r.slope) || 0);
+            if (!rating || !slope) continue;
 
             // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
             if (rating >= 30 && rating < 45) {
@@ -2051,13 +2069,32 @@ class App {
         for (const r of chronologicalRounds) {
             if (r.isTeamTournament) continue; // Exclude team tournaments from handicap
 
-            const course = this.courseLayouts.find(c => c.courseId === r.courseId);
-            if (!course || !course.tees || !r.teeName || !course.tees[r.teeName]) continue;
+            const cName = r.course ? r.course.replace(' (9 Holes x2)', '').trim().toLowerCase() : '';
+            const course = this.courseLayouts ? this.courseLayouts.find(c =>
+                (r.courseId && c.courseId === r.courseId) ||
+                (c.courseName && c.courseName.trim().toLowerCase() === cName) ||
+                (c.name && c.name.trim().toLowerCase() === cName)
+            ) : null;
 
-            const tee = course.tees[r.teeName];
-            let rating = tee.rating || 0;
-            const slope = tee.slope || 0;
+            let tee = null;
+            if (course && course.tees) {
+                if (r.teeName && course.tees[r.teeName]) {
+                    tee = course.tees[r.teeName];
+                } else if (r.teeName) {
+                    const tKey = Object.keys(course.tees).find(k => k.trim().toLowerCase() === r.teeName.trim().toLowerCase());
+                    if (tKey) tee = course.tees[tKey];
+                }
+                if (!tee) {
+                    const firstKey = Object.keys(course.tees)[0];
+                    if (firstKey) tee = course.tees[firstKey];
+                }
+            }
+
+            let rating = tee ? (Number(tee.rating) || 0) : (Number(r.rating) || 0);
+            const slope = tee ? (Number(tee.slope) || 0) : (Number(r.slope) || 0);
             let ratingAdjusted = false;
+
+            if (!rating || !slope) continue;
 
             // Handle 9-hole ratings (typically in the 30s) by doubling them for 18-hole equivalent math
             if (rating >= 30 && rating < 45) {
