@@ -1075,14 +1075,17 @@ class App {
 
         // 4. Calculate Course Handicap using USGA formula
         let courseHandicap = 0;
+        let rawCH = 0;
         if (round.courseHandicap !== undefined && round.courseHandicap !== null && round.courseHandicap !== '') {
             courseHandicap = Number(round.courseHandicap);
+            rawCH = courseHandicap;
         } else if (rating > 0 && slope > 0) {
             // USGA WHS Formula: Handicap Index * (Slope / 113) + (Rating - Par)
-            const rawCH = handicapIndex * (slope / 113) + (rating - par);
+            rawCH = handicapIndex * (slope / 113) + (rating - par);
             courseHandicap = Math.round(rawCH);
         } else {
             courseHandicap = Math.round(handicapIndex);
+            rawCH = handicapIndex;
         }
 
         // 5. Player's Quota (Standard 18 holes = 36 - Course Handicap)
@@ -1098,6 +1101,7 @@ class App {
             quotaDiff: Math.round(quotaDiff * 10) / 10,
             quotaPercent: Math.round(quotaPercent * 10) / 10,
             courseHandicap,
+            rawCH: Math.round(rawCH * 100) / 100,
             handicapIndex: Math.round(handicapIndex * 10) / 10,
             slope: slope || 113,
             rating: rating || (rHoles === 9 ? 36 : 72),
@@ -5679,13 +5683,21 @@ class App {
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
                     <div>
-                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">1. Quota Target Formula</div>
-                        <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; background: var(--bg-card); padding: 10px; border-radius: 6px;">
-                            <div>Handicap Index: <strong style="color: var(--text-primary);">${qData.handicapIndex}</strong></div>
-                            <div>Tee Rating / Slope: <strong style="color: var(--text-primary);">${qData.rating} / ${qData.slope}</strong> (Par ${qData.par})</div>
-                            <div>Course Handicap: <strong style="color: var(--primary-green); font-size: 0.95rem;">${qData.courseHandicap}</strong> <span style="font-size: 0.75rem; opacity: 0.8;">(${qData.handicapIndex} × ${qData.slope}/113 + ${qData.rating} - ${qData.par})</span></div>
-                            <div style="margin-top: 4px; border-top: 1px dashed var(--border-color); padding-top: 4px;">Formula: ${round.holes === 9 ? '18 - (Course Hdcp / 2)' : '36 - Course Hdcp'} (${qData.courseHandicap})</div>
-                            <div>Target Quota: <strong style="color: var(--primary-green); font-size: 1.05rem;">${qData.playerQuota} pts</strong></div>
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">1. Quota Target Formula & Math</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; background: var(--bg-card); padding: 12px; border-radius: 6px;">
+                            <div style="margin-bottom: 4px;">Handicap Index: <strong style="color: var(--text-primary);">${qData.handicapIndex}</strong> • Tee Rating/Slope: <strong style="color: var(--text-primary);">${qData.rating} / ${qData.slope}</strong> (Par ${qData.par})</div>
+                            <div style="margin: 6px 0; padding: 6px 8px; background: rgba(16, 185, 129, 0.08); border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Course Handicap Calculation:</div>
+                                <div style="font-size: 0.82rem; font-family: monospace; color: var(--text-primary); margin-top: 2px;">
+                                    ${qData.handicapIndex} × (${qData.slope} / 113) + (${qData.rating} - ${qData.par}) = <strong>${qData.rawCH}</strong> → <strong>${qData.courseHandicap} Course Hdcp</strong>
+                                </div>
+                            </div>
+                            <div style="padding: 6px 8px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Player Quota Target:</div>
+                                <div style="font-size: 0.82rem; font-family: monospace; color: var(--text-primary); margin-top: 2px;">
+                                    ${round.holes === 9 ? `18 - (${qData.courseHandicap} / 2)` : `36 - ${qData.courseHandicap}`} = <strong style="color: var(--primary-green); font-size: 0.95rem;">${qData.playerQuota} pts Target</strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
