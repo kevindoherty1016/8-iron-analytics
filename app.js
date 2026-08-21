@@ -1064,13 +1064,37 @@ class App {
         }
 
         // 3. Determine Player Handicap Index for this round
-        let handicapIndex = 0;
-        if (round.prevHandicap !== undefined && round.prevHandicap !== null) {
-            handicapIndex = Number(round.prevHandicap);
-        } else if (round.handicapIndex !== undefined && round.handicapIndex !== null) {
+        let handicapIndex = null;
+        let hdcpSource = 'WHS Historical Index';
+
+        if (round.handicapIndex !== undefined && round.handicapIndex !== null) {
             handicapIndex = Number(round.handicapIndex);
-        } else if (this.profile && this.profile.handicap !== undefined) {
-            handicapIndex = Number(this.profile.handicap || 0);
+            hdcpSource = 'Round Manual Entry';
+        } else if (round.prevHandicap !== undefined && round.prevHandicap !== null) {
+            handicapIndex = Number(round.prevHandicap);
+            hdcpSource = 'Index at Time of Round';
+        } else if (this.rounds && this.rounds.length > 0) {
+            const history = this.calculateHandicapHistory ? this.calculateHandicapHistory() : [];
+            const histItem = history.find(h => h.id === round.id || (h.date === round.date && h.score === round.score));
+            if (histItem && histItem.prevHandicap !== undefined) {
+                handicapIndex = Number(histItem.prevHandicap);
+                hdcpSource = 'Index at Time of Round';
+            }
+        }
+
+        if (handicapIndex === null || isNaN(handicapIndex)) {
+            const currentHdcpData = this.calculateHandicapIndex ? this.calculateHandicapIndex() : null;
+            if (currentHdcpData && currentHdcpData.value && currentHdcpData.value !== '--') {
+                const valStr = String(currentHdcpData.value);
+                handicapIndex = valStr.startsWith('+') ? -parseFloat(valStr.substring(1)) : parseFloat(valStr);
+                hdcpSource = 'Current WHS Index';
+            } else if (this.profile && this.profile.handicap !== undefined) {
+                handicapIndex = Number(this.profile.handicap || 0);
+                hdcpSource = 'Profile Setting';
+            } else {
+                handicapIndex = 0;
+                hdcpSource = 'Default (0.0)';
+            }
         }
 
         // 4. Calculate Course Handicap using USGA formula
@@ -1103,6 +1127,7 @@ class App {
             courseHandicap,
             rawCH: Math.round(rawCH * 100) / 100,
             handicapIndex: Math.round(handicapIndex * 10) / 10,
+            hdcpSource: hdcpSource || 'WHS Index',
             slope: slope || 113,
             rating: rating || (rHoles === 9 ? 36 : 72),
             par: par || (rHoles === 9 ? 36 : 72)
@@ -5685,7 +5710,7 @@ class App {
                     <div>
                         <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">1. Quota Target Formula & Math</div>
                         <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; background: var(--bg-card); padding: 12px; border-radius: 6px;">
-                            <div style="margin-bottom: 4px;">Handicap Index: <strong style="color: var(--text-primary);">${qData.handicapIndex}</strong> • Tee Rating/Slope: <strong style="color: var(--text-primary);">${qData.rating} / ${qData.slope}</strong> (Par ${qData.par})</div>
+                            <div style="margin-bottom: 4px;">Handicap Index: <strong style="color: var(--text-primary);">${qData.handicapIndex}</strong> <span style="font-size: 0.75rem; background: var(--bg-dark); padding: 1px 6px; border-radius: 4px; color: var(--text-muted); font-weight: 500;">${qData.hdcpSource}</span> • Tee Rating/Slope: <strong style="color: var(--text-primary);">${qData.rating} / ${qData.slope}</strong> (Par ${qData.par})</div>
                             <div style="margin: 6px 0; padding: 6px 8px; background: rgba(16, 185, 129, 0.08); border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.2);">
                                 <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Course Handicap Calculation:</div>
                                 <div style="font-size: 0.82rem; font-family: monospace; color: var(--text-primary); margin-top: 2px;">
