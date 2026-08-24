@@ -1287,3 +1287,128 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     border-bottom: 1px dashed rgba(0, 0, 0, 0.06);
     font-size: 0.9rem;
 }
+
+/* Excel-Style Table Column Filters */
+.excel-filter-popover {
+    position: absolute;
+    z-index: 1050;
+    width: 250px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    padding: 12px;
+    color: #f8fafc;
+    font-size: 0.85rem;
+}
+
+.excel-filter-popover .popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #334155;
+}
+
+.excel-filter-popover .popover-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.excel-filter-popover .popover-close:hover {
+    color: #f8fafc;
+}
+
+.excel-filter-popover .popover-actions {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.popover-actions .btn-xs {
+    padding: 4px 6px;
+    font-size: 0.75rem;
+    flex: 1;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #cbd5e1;
+    cursor: pointer;
+}
+
+.popover-actions .btn-xs:hover {
+    background: #334155;
+    color: #ffffff;
+}
+
+.excel-filter-popover .popover-search input {
+    width: 100%;
+    padding: 5px 8px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #f8fafc;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+
+.excel-filter-popover .popover-select-all {
+    margin-bottom: 6px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.excel-filter-popover .popover-items-list {
+    max-height: 160px;
+    overflow-y: auto;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 6px;
+    background: #0f172a;
+    margin-bottom: 10px;
+}
+
+.popover-items-list label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+}
+
+.popover-items-list label:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.excel-filter-popover .popover-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.col-filter-btn {
+    display: inline-block;
+    margin-left: 3px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0.6;
+    transition: all 0.2s;
+}
+
+.col-filter-btn:hover, .col-filter-btn.active {
+    opacity: 1;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.2);
+}

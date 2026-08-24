@@ -5538,9 +5538,38 @@ class App {
             this.historySortDir = this.historySortDir === 'asc' ? 'desc' : 'asc';
         } else {
             this.historySortCol = col;
-            this.historySortDir = col === 'date' || col === 'course' ? 'asc' : 'desc'; // Default numerical to desc (highest first, or lowest depending on user pref, simple toggle is fine)
+            this.historySortDir = (col === 'date' || col === 'course' || col === 'teeName') ? 'asc' : 'desc';
         }
         this.renderHistory();
+    }
+
+    getRoundColumnValue(r, col) {
+        if (!r) return '';
+        if (col === 'roundNum') return r.roundNum != null ? `#${String(r.roundNum).padStart(3, '0')}` : '';
+        if (col === 'date') return this.formatDateDisplay(r.date);
+        if (col === 'course') return String(r.course || 'Unknown').trim();
+        if (col === 'teeName') return String(r.teeName || '---').trim();
+        if (col === 'score') return String(r.score || 0);
+        if (col === 'scoreToPar') return r.scoreToPar > 0 ? `+${r.scoreToPar}` : String(r.scoreToPar || 0);
+        if (col === 'fir') return String(r.fir || 0);
+        if (col === 'gir') return String(r.gir || 0);
+        if (col === 'scrambling') {
+            const udS = Number(r.upDownSuccesses) || 0, udC = Number(r.upDownChances) || 0;
+            const scramblingPct = udC > 0 ? Math.round((udS / udC) * 100) : 0;
+            return `${udS}/${udC} (${scramblingPct}%)`;
+        }
+        if (col === 'goodShots') {
+            const goodShots = Number(r.goodShots) || 0;
+            const target = Number(r.goodShotsTarget) || (r.holes === 9 ? 18 : 36);
+            const pct = target > 0 ? Math.round((goodShots / target) * 100) : 0;
+            return `${goodShots}/${target} (${pct}%)`;
+        }
+        if (col === 'putts') return String(Math.round(Number(r.putts) || 0));
+        if (col === 'quota') {
+            const qData = this.calculateRoundQuota(r);
+            return `${qData.quotaPoints}/${qData.playerQuota} (${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff})`;
+        }
+        return String(r[col] || '');
     }
 
     renderHistory() {
@@ -5622,6 +5651,18 @@ class App {
                 }
             }
 
+            // Apply Excel Column Filters
+            if (this.historyColumnFilters && Object.keys(this.historyColumnFilters).length > 0) {
+                filteredRounds = filteredRounds.filter(r => {
+                    for (const [col, selectedVals] of Object.entries(this.historyColumnFilters)) {
+                        if (!selectedVals || !(selectedVals instanceof Set) || selectedVals.size === 0) continue;
+                        const itemVal = this.getRoundColumnValue(r, col);
+                        if (!selectedVals.has(itemVal)) return false;
+                    }
+                    return true;
+                });
+            }
+
             // Apply Sorting
             filteredRounds.sort((a, b) => {
                 let valA = a[this.historySortCol];
@@ -5649,8 +5690,12 @@ class App {
                 } else if (this.historySortCol === 'quota') {
                     const qA = this.calculateRoundQuota(a);
                     const qB = this.calculateRoundQuota(b);
-                    valA = qA.quotaDiff;
-                    valB = qB.quotaDiff;
+                    valA = typeof qA.quotaDiff === 'number' ? qA.quotaDiff : -999;
+                    valB = typeof qB.quotaDiff === 'number' ? qB.quotaDiff : -999;
+                    if (valA === valB) {
+                        valA = Number(qA.quotaPoints) || 0;
+                        valB = Number(qB.quotaPoints) || 0;
+                    }
                 } else if (this.historySortCol === 'roundNum') {
                     valA = Number(a.roundNum) || 0;
                     valB = Number(b.roundNum) || 0;
@@ -5665,13 +5710,15 @@ class App {
                 return 0;
             });
 
-            // Update sort indicators in header
+            // Update sort indicators & filter button states in header
             document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '⇅');
             const activeHeader = document.getElementById(`sort-${this.historySortCol}`);
             if (activeHeader) {
                 const icon = activeHeader.querySelector('.sort-icon');
                 if (icon) icon.textContent = this.historySortDir === 'asc' ? '↑' : '↓';
             }
+
+            this.updateFilterButtonsState();
 
             if (filteredRounds.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-muted); padding: 40px;">No rounds match the current search or filters.</td></tr>`;
@@ -5725,6 +5772,143 @@ class App {
             const tbody = document.getElementById('history-table-body');
             if (tbody) tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #ef4444; padding: 40px;">Error loading history. Please check console for details.</td></tr>`;
         }
+    }
+
+    toggleColumnFilterMenu(event, colKey) {
+        event.stopPropagation();
+        const popover = document.getElementById('excel-filter-popover');
+        if (!popover) return;
+
+        if (this.activeFilterCol === colKey && !popover.classList.contains('hidden')) {
+            this.closeColumnFilterMenu();
+            return;
+        }
+
+        this.activeFilterCol = colKey;
+        const colTitle = document.getElementById(`sort-${colKey}`) ? document.getElementById(`sort-${colKey}`).innerText.replace(/[⇅↑↓🔻🟢]/g, '').trim() : colKey;
+        document.getElementById('popover-title').innerText = `Filter ${colTitle}`;
+
+        const searchInput = document.getElementById('popover-search-input');
+        if (searchInput) searchInput.value = '';
+
+        this.populatePopoverItems(colKey);
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const popWidth = 250;
+        let left = rect.left + window.scrollX;
+        if (left + popWidth > window.innerWidth - 10) {
+            left = window.innerWidth - popWidth - 15;
+        }
+        popover.style.top = `${rect.bottom + window.scrollY + 6}px`;
+        popover.style.left = `${left}px`;
+        popover.classList.remove('hidden');
+    }
+
+    populatePopoverItems(colKey) {
+        const container = document.getElementById('popover-items-list');
+        if (!container) return;
+
+        const valCounts = new Map();
+        (this.rounds || []).forEach(r => {
+            const val = this.getRoundColumnValue(r, colKey);
+            valCounts.set(val, (valCounts.get(val) || 0) + 1);
+        });
+
+        const sortedVals = Array.from(valCounts.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        if (!this.historyColumnFilters) this.historyColumnFilters = {};
+        const activeVals = this.historyColumnFilters[colKey];
+
+        const selectAllCb = document.getElementById('popover-select-all-cb');
+        if (selectAllCb) selectAllCb.checked = !activeVals || activeVals.size === sortedVals.length;
+
+        container.innerHTML = sortedVals.map(val => {
+            const isChecked = !activeVals || activeVals.has(val);
+            const safeVal = val.replace(/"/g, '&quot;');
+            return `<label><input type="checkbox" class="popover-item-cb" value="${safeVal}" ${isChecked ? 'checked' : ''} onchange="window.app.checkPopoverSelectAllState()"> <span>${val}</span> <span style="margin-left:auto; font-size:0.75em; color:var(--text-muted);">(${valCounts.get(val)})</span></label>`;
+        }).join('');
+    }
+
+    filterPopoverList(query) {
+        const q = String(query || '').toLowerCase();
+        document.querySelectorAll('#popover-items-list label').forEach(lbl => {
+            const text = lbl.innerText.toLowerCase();
+            lbl.style.display = text.includes(q) ? 'flex' : 'none';
+        });
+    }
+
+    togglePopoverSelectAll(checked) {
+        document.querySelectorAll('.popover-item-cb').forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    checkPopoverSelectAllState() {
+        const cbs = Array.from(document.querySelectorAll('.popover-item-cb'));
+        const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
+        const selectAllCb = document.getElementById('popover-select-all-cb');
+        if (selectAllCb) selectAllCb.checked = allChecked;
+    }
+
+    sortHistoryFromPopover(dir) {
+        if (this.activeFilterCol) {
+            this.historySortCol = this.activeFilterCol;
+            this.historySortDir = dir;
+            this.renderHistory();
+        }
+    }
+
+    applyColumnFilter() {
+        if (!this.activeFilterCol) return;
+        if (!this.historyColumnFilters) this.historyColumnFilters = {};
+
+        const cbs = Array.from(document.querySelectorAll('.popover-item-cb'));
+        const selected = new Set(cbs.filter(cb => cb.checked).map(cb => cb.value));
+
+        if (selected.size === cbs.length) {
+            delete this.historyColumnFilters[this.activeFilterCol];
+        } else {
+            this.historyColumnFilters[this.activeFilterCol] = selected;
+        }
+
+        this.updateFilterButtonsState();
+        this.closeColumnFilterMenu();
+        this.renderHistory();
+    }
+
+    clearColumnFilter() {
+        if (!this.activeFilterCol) return;
+        if (this.historyColumnFilters) {
+            delete this.historyColumnFilters[this.activeFilterCol];
+        }
+        this.updateFilterButtonsState();
+        this.closeColumnFilterMenu();
+        this.renderHistory();
+    }
+
+    clearAllColumnFilters() {
+        this.historyColumnFilters = {};
+        this.updateFilterButtonsState();
+        this.renderHistory();
+    }
+
+    updateFilterButtonsState() {
+        document.querySelectorAll('.col-filter-btn').forEach(btn => {
+            const col = btn.dataset.col;
+            if (this.historyColumnFilters && this.historyColumnFilters[col]) {
+                btn.classList.add('active');
+                btn.textContent = '🟢';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🔻';
+            }
+        });
+    }
+
+    closeColumnFilterMenu() {
+        const popover = document.getElementById('excel-filter-popover');
+        if (popover) popover.classList.add('hidden');
+        this.activeFilterCol = null;
     }
 
     showRoundDetails(id) {

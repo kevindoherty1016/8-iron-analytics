@@ -1009,43 +1009,29 @@
                                         <input type="checkbox" id="selectAllHistory"
                                             onchange="window.app.toggleSelectAll(this)">
                                     </th>
-                                    <th id="sort-roundNum" style="cursor: pointer; color: var(--text-muted); font-size: 0.8rem;" onclick="window.app.sortHistory('roundNum')"># <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-date" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('date')">
-                                        Date <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-course" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('course')">Course <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-teeName" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('teeName')">Tee <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-score" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('score')">
-                                        Score <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-scoreToPar" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('scoreToPar')">To Par <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                    <th id="sort-roundNum" style="cursor: pointer; color: var(--text-muted); font-size: 0.8rem;" onclick="window.app.sortHistory('roundNum')"># <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="roundNum" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'roundNum')" title="Filter #">🔻</span></th>
+                                    <th id="sort-date" style="cursor: pointer;" onclick="window.app.sortHistory('date')">
+                                        Date <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="date" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'date')" title="Filter Date">🔻</span></th>
+                                    <th id="sort-course" style="cursor: pointer;" onclick="window.app.sortHistory('course')">
+                                        Course <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="course" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'course')" title="Filter Course">🔻</span></th>
+                                    <th id="sort-teeName" style="cursor: pointer;" onclick="window.app.sortHistory('teeName')">
+                                        Tee <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="teeName" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'teeName')" title="Filter Tee">🔻</span></th>
+                                    <th id="sort-score" style="cursor: pointer;" onclick="window.app.sortHistory('score')">
+                                        Score <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="score" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'score')" title="Filter Score">🔻</span></th>
+                                    <th id="sort-scoreToPar" style="cursor: pointer;" onclick="window.app.sortHistory('scoreToPar')">
+                                        To Par <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="scoreToPar" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'scoreToPar')" title="Filter To Par">🔻</span></th>
                                     <th id="sort-fir" style="cursor: pointer;" onclick="window.app.sortHistory('fir')">
-                                        FIR <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                        FIR <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="fir" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'fir')" title="Filter FIR">🔻</span></th>
                                     <th id="sort-gir" style="cursor: pointer;" onclick="window.app.sortHistory('gir')">
-                                        GIR <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                        GIR <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="gir" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'gir')" title="Filter GIR">🔻</span></th>
                                     <th id="sort-scrambling" style="cursor: pointer;" onclick="window.app.sortHistory('scrambling')">
-                                        Scrambling <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                        Scrambling <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="scrambling" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'scrambling')" title="Filter Scrambling">🔻</span></th>
                                     <th id="sort-goodShots" style="cursor: pointer;" onclick="window.app.sortHistory('goodShots')">
-                                        Good Shots <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-putts" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('putts')">
-                                        Putts <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                        Good Shots <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="goodShots" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'goodShots')" title="Filter Good Shots">🔻</span></th>
+                                    <th id="sort-putts" style="cursor: pointer;" onclick="window.app.sortHistory('putts')">
+                                        Putts <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="putts" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'putts')" title="Filter Putts">🔻</span></th>
                                     <th id="sort-quota" style="cursor: pointer;" onclick="window.app.sortHistory('quota')">
-                                        Quota <span class="sort-icon"
-                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                        Quota <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="quota" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'quota')" title="Filter Quota">🔻</span></th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -1054,6 +1040,32 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <!-- Floating Excel-Style Column Filter Popover -->
+            <div id="excel-filter-popover" class="excel-filter-popover hidden">
+                <div class="popover-header">
+                    <span id="popover-title">Filter Column</span>
+                    <button type="button" class="popover-close" onclick="window.app.closeColumnFilterMenu()">&times;</button>
+                </div>
+                <div class="popover-actions">
+                    <button type="button" class="btn-xs" onclick="window.app.sortHistoryFromPopover('asc')">Sort A → Z (Lowest)</button>
+                    <button type="button" class="btn-xs" onclick="window.app.sortHistoryFromPopover('desc')">Sort Z → A (Highest)</button>
+                </div>
+                <div class="popover-search">
+                    <input type="text" id="popover-search-input" placeholder="Search filter values..." onkeyup="window.app.filterPopoverList(this.value)">
+                </div>
+                <div class="popover-select-all">
+                    <label><input type="checkbox" id="popover-select-all-cb" onchange="window.app.togglePopoverSelectAll(this.checked)" checked> <strong>(Select All)</strong></label>
+                </div>
+                <div id="popover-items-list" class="popover-items-list">
+                    <!-- Checkboxes injected dynamically -->
+                </div>
+                <div class="popover-footer">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="window.app.applyColumnFilter()">Apply</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="window.app.clearColumnFilter()">Clear</button>
+                    <button type="button" class="btn btn-dark btn-sm" onclick="window.app.closeColumnFilterMenu()">Cancel</button>
                 </div>
             </div>
 
