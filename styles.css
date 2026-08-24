@@ -151,6 +151,49 @@ body.landing-mode .view-container {
     font-weight: 500;
 }
 
+/* Hero Action Buttons */
+.hero-content .btn-primary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff !important;
+    border: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 14px 28px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    transition: all 0.25s ease;
+}
+
+.hero-content .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.6);
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+.hero-content .btn-secondary {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid #ffffff;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 14px 28px;
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    transition: all 0.25s ease;
+}
+
+.hero-content .btn-secondary:hover {
+    background: #ffffff;
+    color: #0f172a !important;
+    border-color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 255, 255, 0.4);
+    text-shadow: none;
+}
+
 /* Password Toggle */
 .password-wrapper {
     position: relative;
