@@ -5578,14 +5578,48 @@ class App {
                     (this.filterEvents.length === 0 || this.filterEvents.includes(rEvent) || (rEvent === '' && this.filterEvents.includes('none')));
             });
 
-            // Apply Search Filter
+            // Apply Search Filter (Deep Search across all round details)
             if (this.historySearch) {
-                const s = String(this.historySearch || '').toLowerCase();
-                filteredRounds = filteredRounds.filter(r => {
-                    const course = String(r.course || '').toLowerCase();
-                    const date = String(r.date || '');
-                    return course.includes(s) || date.includes(s);
-                });
+                const s = String(this.historySearch || '').toLowerCase().trim();
+                if (s) {
+                    filteredRounds = filteredRounds.filter(r => {
+                        if (!r) return false;
+                        const fields = [
+                            r.course,
+                            r.teeName,
+                            r.date,
+                            this.formatDateDisplay(r.date),
+                            r.event,
+                            r.group,
+                            r.notes,
+                            r.comments,
+                            r.roundNotes,
+                            r.weather,
+                            r.score != null ? String(r.score) : '',
+                            r.scoreToPar != null ? (r.scoreToPar > 0 ? `+${r.scoreToPar}` : String(r.scoreToPar)) : '',
+                            r.roundNum != null ? `#${String(r.roundNum).padStart(3, '0')}` : '',
+                            r.roundNum != null ? String(r.roundNum) : ''
+                        ];
+
+                        if (r.holeData && Array.isArray(r.holeData)) {
+                            r.holeData.forEach(h => {
+                                if (h.notes) fields.push(h.notes);
+                                if (h.teeShot) fields.push(h.teeShot);
+                                if (h.approachShot) fields.push(h.approachShot);
+                                if (h.club) fields.push(h.club);
+                            });
+                        }
+
+                        const summary = this.generateRoundSummary ? this.generateRoundSummary(r) : null;
+                        if (summary) {
+                            if (summary.narrative) fields.push(summary.narrative);
+                            if (summary.verdict && summary.verdict.text) fields.push(summary.verdict.text);
+                        }
+
+                        const fullText = fields.filter(Boolean).join(' ').toLowerCase();
+                        return fullText.includes(s);
+                    });
+                }
             }
 
             // Apply Sorting
@@ -5600,6 +5634,26 @@ class App {
                 } else if (this.historySortCol === 'course' || this.historySortCol === 'teeName') {
                     valA = valA ? String(valA).toLowerCase() : '';
                     valB = valB ? String(valB).toLowerCase() : '';
+                } else if (this.historySortCol === 'scrambling') {
+                    const udSa = Number(a.upDownSuccesses) || 0, udCa = Number(a.upDownChances) || 0;
+                    const udSb = Number(b.upDownSuccesses) || 0, udCb = Number(b.upDownChances) || 0;
+                    valA = udCa > 0 ? (udSa / udCa) : -1;
+                    valB = udCb > 0 ? (udSb / udCb) : -1;
+                } else if (this.historySortCol === 'goodShots') {
+                    const gSa = Number(a.goodShots) || 0;
+                    const gTa = Number(a.goodShotsTarget) || (a.holes === 9 ? 18 : 36);
+                    const gSb = Number(b.goodShots) || 0;
+                    const gTb = Number(b.goodShotsTarget) || (b.holes === 9 ? 18 : 36);
+                    valA = gTa > 0 ? (gSa / gTa) : -1;
+                    valB = gTb > 0 ? (gSb / gTb) : -1;
+                } else if (this.historySortCol === 'quota') {
+                    const qA = this.calculateRoundQuota(a);
+                    const qB = this.calculateRoundQuota(b);
+                    valA = qA.quotaDiff;
+                    valB = qB.quotaDiff;
+                } else if (this.historySortCol === 'roundNum') {
+                    valA = Number(a.roundNum) || 0;
+                    valB = Number(b.roundNum) || 0;
                 } else {
                     // Ensure numerical for other columns
                     valA = Number(valA) || 0;
@@ -5611,8 +5665,6 @@ class App {
                 return 0;
             });
 
-
-
             // Update sort indicators in header
             document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '⇅');
             const activeHeader = document.getElementById(`sort-${this.historySortCol}`);
@@ -5622,7 +5674,7 @@ class App {
             }
 
             if (filteredRounds.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 40px;">No rounds match the current filters.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: var(--text-muted); padding: 40px;">No rounds match the current search or filters.</td></tr>`;
                 return;
             }
 
@@ -5634,10 +5686,15 @@ class App {
                 const fir = Number(round.fir) || 0;
                 const gir = Number(round.gir) || 0;
                 const putts = Math.round(Number(round.putts) || 0);
-                const penalties = Number(round.penaltyStrokes) || 0;
                 const udS = Number(round.upDownSuccesses) || 0;
                 const udC = Number(round.upDownChances) || 0;
                 const scramblingPct = udC > 0 ? Math.round((udS / udC) * 100) : 0;
+
+                const goodShots = Number(round.goodShots) || 0;
+                const goodShotsTarget = Number(round.goodShotsTarget) || (round.holes === 9 ? 18 : 36);
+                const goodShotsPct = goodShotsTarget > 0 ? Math.round((goodShots / goodShotsTarget) * 100) : 0;
+
+                const qData = this.calculateRoundQuota(round);
 
                 return `
                 <tr onclick="window.app.showRoundDetails('${round.id}')" style="cursor: pointer;">
@@ -5654,8 +5711,9 @@ class App {
                     <td>${fir}</td>
                     <td>${gir}</td>
                     <td>${udS}/${udC} <span style="font-size:0.75em;color:var(--text-muted)">(${scramblingPct}%)</span></td>
+                    <td>${goodShots}/${goodShotsTarget} <span style="font-size:0.75em;color:var(--primary-green)">(${goodShotsPct}%)</span></td>
                     <td>${putts}</td>
-                    <td>${penalties}</td>
+                    <td>${qData.quotaPoints}/${qData.playerQuota} <span style="font-size:0.75em;color:${qData.quotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444'}">(${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff})</span></td>
                     <td onclick="event.stopPropagation()">
                         <button class="btn btn-secondary" onclick="window.app.editRound('${round.id}')" style="padding: 4px 8px; font-size: 0.8rem; margin-right: 4px;">Edit</button>
                         <button class="btn btn-danger" onclick="window.app.deleteRound('${round.id}')" style="padding: 4px 8px; font-size: 0.8rem;">Delete</button>
@@ -5665,7 +5723,7 @@ class App {
         } catch (e) {
             console.error("Error rendering history:", e);
             const tbody = document.getElementById('history-table-body');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: #ef4444; padding: 40px;">Error loading history. Please check console for details.</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #ef4444; padding: 40px;">Error loading history. Please check console for details.</td></tr>`;
         }
     }
 

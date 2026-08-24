@@ -1009,7 +1009,7 @@
                                         <input type="checkbox" id="selectAllHistory"
                                             onchange="window.app.toggleSelectAll(this)">
                                     </th>
-                                    <th style="color: var(--text-muted); font-size: 0.8rem;">#</th>
+                                    <th id="sort-roundNum" style="cursor: pointer; color: var(--text-muted); font-size: 0.8rem;" onclick="window.app.sortHistory('roundNum')"># <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
                                     <th id="sort-date" style="cursor: pointer;"
                                         onclick="window.app.sortHistory('date')">
                                         Date <span class="sort-icon"
@@ -1033,13 +1033,18 @@
                                     <th id="sort-gir" style="cursor: pointer;" onclick="window.app.sortHistory('gir')">
                                         GIR <span class="sort-icon"
                                             style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th>Scrambling</th>
+                                    <th id="sort-scrambling" style="cursor: pointer;" onclick="window.app.sortHistory('scrambling')">
+                                        Scrambling <span class="sort-icon"
+                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
+                                    <th id="sort-goodShots" style="cursor: pointer;" onclick="window.app.sortHistory('goodShots')">
+                                        Good Shots <span class="sort-icon"
+                                            style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
                                     <th id="sort-putts" style="cursor: pointer;"
                                         onclick="window.app.sortHistory('putts')">
                                         Putts <span class="sort-icon"
                                             style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
-                                    <th id="sort-penaltyStrokes" style="cursor: pointer;"
-                                        onclick="window.app.sortHistory('penaltyStrokes')">Pens <span class="sort-icon"
+                                    <th id="sort-quota" style="cursor: pointer;" onclick="window.app.sortHistory('quota')">
+                                        Quota <span class="sort-icon"
                                             style="font-size:0.8em; color:var(--text-muted);">⇅</span></th>
                                     <th>Actions</th>
                                 </tr>
