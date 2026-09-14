@@ -1188,9 +1188,10 @@ class App {
             document.getElementById('coursePar').required = false;
             document.getElementById('putts').required = false;
 
-            // Generate the scorecard if it hasn't been generated yet
+            // Generate the scorecard if it hasn't been generated yet or if tempHoleData is empty
             const segment = document.getElementById('detail-holes-select')?.value || "18";
-            if (!skipRegeneration && document.getElementById('detailed-scorecard-body').children.length === 0) {
+            const tbody = document.getElementById('detailed-scorecard-body');
+            if (!skipRegeneration && (tbody?.children.length === 0 || Object.keys(this.tempHoleData).length === 0)) {
                 this.handleDetailedHoleChange(segment);
             }
         }
@@ -1575,33 +1576,53 @@ class App {
     }
 
 
-    cancelEdit() {
+    resetAddRoundForm() {
+        this.tempHoleData = {};
+        const tbody = document.getElementById('detailed-scorecard-body');
+        if (tbody) tbody.innerHTML = '';
+
         const form = document.getElementById('add-round-form');
         if (form) {
             form.reset();
-            document.getElementById('edit-round-id').value = '';
-            document.getElementById('add-round-title').textContent = 'Log a Round';
-            document.getElementById('save-round-btn').textContent = 'Save Round';
-            document.getElementById('cancel-edit-btn').style.display = 'none';
 
-            // Reset entry mode
-            document.getElementById('entry-mode-select').value = 'quick';
-            this.toggleDataEntryMode();
+            const editId = document.getElementById('edit-round-id');
+            if (editId) editId.value = '';
 
-            // Reset detailed scorecard
-            if (document.getElementById('detailed-scorecard-body').children.length > 0) {
-                this.generateDetailedScorecard();
-            }
+            const title = document.getElementById('add-round-title');
+            if (title) title.textContent = 'Log a Round';
 
-            document.getElementById('date').valueAsDate = new Date();
+            const btn = document.getElementById('save-round-btn');
+            if (btn) btn.textContent = 'Save Round';
 
-            // Reset course-related readonly fields
+            const cancelBtn = document.getElementById('cancel-edit-btn');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+
+            const dateInput = document.getElementById('date');
+            if (dateInput) dateInput.valueAsDate = new Date();
+
             const cp = document.getElementById('coursePar');
-            if (cp) cp.readOnly = false;
+            if (cp) { cp.readOnly = false; cp.value = 72; }
+
+            const courseInput = document.getElementById('course');
+            if (courseInput) courseInput.value = '';
 
             const ts = document.getElementById('round-tee-set');
             if (ts) ts.innerHTML = '<option value="">Select Course First</option>';
+
+            const teamCb = document.getElementById('isTeamTournament');
+            if (teamCb) teamCb.checked = false;
+
+            const detailHolesSelect = document.getElementById('detail-holes-select');
+            if (detailHolesSelect) detailHolesSelect.value = '18';
+
+            const entrySelect = document.getElementById('entry-mode-select');
+            if (entrySelect) entrySelect.value = 'quick';
         }
+    }
+
+    cancelEdit() {
+        this.resetAddRoundForm();
+        this.toggleDataEntryMode(true);
         this.closeAddRoundModal(); // Close modal on cancel
     }
 
@@ -1821,18 +1842,7 @@ class App {
     openAddRoundModal(isEditMode = false) {
         // Reset form for fresh entry only if we aren't inheriting edit data
         if (!isEditMode) {
-            const form = document.getElementById('add-round-form');
-            if (form) {
-                form.reset();
-                document.getElementById('edit-round-id').value = '';
-                document.getElementById('date').valueAsDate = new Date();
-                document.getElementById('add-round-title').textContent = 'Log a Round';
-                document.getElementById('save-round-btn').textContent = 'Save Round';
-                document.getElementById('cancel-edit-btn').style.display = 'none';
-            }
-            // Only toggle mode on fresh open — editRound() handles this for edit mode
-            // to avoid wiping the pre-populated detailed scorecard
-            this.tempHoleData = {};
+            this.resetAddRoundForm();
             this.toggleDataEntryMode();
         }
 
@@ -1842,6 +1852,12 @@ class App {
     }
 
     closeAddRoundModal() {
+        const editIdInput = document.getElementById('edit-round-id');
+        const isEditMode = editIdInput && editIdInput.value !== '';
+        if (!isEditMode) {
+            this.resetAddRoundForm();
+        }
+
         const modal = document.getElementById('add-round-modal');
         if (modal) modal.classList.add('hidden');
         document.body.style.overflow = ''; // Restore scrolling
