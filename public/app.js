@@ -1616,7 +1616,7 @@ class App {
             if (detailHolesSelect) detailHolesSelect.value = '18';
 
             const entrySelect = document.getElementById('entry-mode-select');
-            if (entrySelect) entrySelect.value = 'quick';
+            if (entrySelect) entrySelect.value = 'detailed';
         }
     }
 
