@@ -821,7 +821,7 @@ class App {
             newRound.upDownSuccesses = parseInt(formData.get('upDownSuccesses') || 0, 10);
             newRound.threePutts = parseInt(formData.get('threePutts') || 0, 10);
             newRound.goodShots = parseInt(formData.get('goodShots') || 0, 10);
-            newRound.goodShotsTarget = parseInt(formData.get('goodShotsTarget') || (holesCount === 9 ? 18 : 36), 10);
+            newRound.goodShotsTarget = newRound.goodShots > 0 ? parseInt(formData.get('goodShotsTarget') || (holesCount === 9 ? 18 : 36), 10) : 0;
         } else {
             // For detailed mode, we are much more robust about saving all data
             const holesSelect = document.getElementById('detail-holes-select');
@@ -926,10 +926,23 @@ class App {
                 }
             });
 
-            newRound.goodTeeShots = goodTeeShots;
-            newRound.goodTeeTarget = newRound.holeData.length;
-            newRound.goodApproachShots = goodApproachShots;
-            newRound.goodApproachTarget = goodApproachTarget;
+            if (goodShotsTotal > 0) {
+                newRound.goodTeeShots = goodTeeShots;
+                newRound.goodTeeTarget = newRound.holeData.length;
+                newRound.goodApproachShots = goodApproachShots;
+                newRound.goodApproachTarget = goodApproachTarget;
+            } else {
+                newRound.goodTeeShots = 0;
+                newRound.goodTeeTarget = 0;
+                newRound.goodApproachShots = 0;
+                newRound.goodApproachTarget = 0;
+                // Clear hole-level goodShots arrays when the round did not track Good Shots
+                newRound.holeData.forEach(h => {
+                    h.goodShots = null;
+                    h.goodShotsCount = null;
+                    h.goodShotsTarget = 0;
+                });
+            }
 
             newRound.score = totalScore;
             newRound.coursePar = totalPar;
@@ -947,7 +960,7 @@ class App {
             newRound.upDownSuccesses = upDownSuccesses;
             newRound.threePutts = threePutts;
             newRound.goodShots = goodShotsTotal;
-            newRound.goodShotsTarget = goodShotsTargetTotal;
+            newRound.goodShotsTarget = goodShotsTotal > 0 ? goodShotsTargetTotal : 0;
             newRound.holes = newRound.holeData.length;
         }
 
@@ -4008,7 +4021,7 @@ class App {
             const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
 
             const goodShotEraStartTs = this.getEST('2026-08-09').ts;
-            const goodShotRounds = scoringRounds.filter(r => this.getEST(r.date).ts >= goodShotEraStartTs);
+            const goodShotRounds = scoringRounds.filter(r => this.getEST(r.date).ts >= goodShotEraStartTs && (Number(r.goodShots) || 0) > 0);
             const mathGoodShotCount = goodShotRounds.reduce((acc, r) => {
                 const sHoles = getScoringHoles(r);
                 return acc + (sHoles === 9 ? (benchmarkHoles === 9 ? 1 : 0.5) : (benchmarkHoles === 18 ? 1 : 2));
@@ -4372,11 +4385,12 @@ class App {
                         s.totalPutts += putts;
                         if (isGIR) s.totalGIR++;
 
+                        const roundHasGoodShots = (Number(r.goodShots) || 0) > 0 || (Array.isArray(r.holeData) && r.holeData.some(hItem => Array.isArray(hItem.goodShots) ? hItem.goodShots.some(Boolean) : (Number(hItem.goodShotsCount || hItem.goodShots) || 0) > 0));
                         const tShots = Math.max(1, (hPar || 4) - 2);
                         let gHits = 0;
                         let hasGoodData = false;
 
-                        if (Array.isArray(hd.goodShots)) {
+                        if (roundHasGoodShots && Array.isArray(hd.goodShots)) {
                             hasGoodData = true;
                             gHits = hd.goodShots.filter(Boolean).length;
                             s.goodTeeTarget++;
@@ -4397,7 +4411,7 @@ class App {
                                     s.goodApproachShots++;
                                 }
                             }
-                        } else if (hd.goodShotsCount !== undefined || (typeof hd.goodShots === 'number' && hd.goodShots >= 0)) {
+                        } else if (roundHasGoodShots && (hd.goodShotsCount !== undefined || (typeof hd.goodShots === 'number' && hd.goodShots >= 0))) {
                             hasGoodData = true;
                             gHits = hd.goodShotsCount !== undefined ? hd.goodShotsCount : hd.goodShots;
                         }
@@ -4447,7 +4461,7 @@ class App {
                                     if (hd.fir === true || hd.fir === 'true') ps.totalFIR++;
                                 }
                             }
-                            if (Array.isArray(hd.goodShots)) {
+                            if (roundHasGoodShots && Array.isArray(hd.goodShots)) {
                                 ps.goodTeeTarget += 1;
                                 if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') ps.goodTee += 1;
                                 if (tShots > 1) {
@@ -5111,8 +5125,9 @@ class App {
                             }
                         }
 
+                        const roundHasGoodShots = (Number(r.goodShots) || 0) > 0 || (Array.isArray(r.holeData) && r.holeData.some(hItem => Array.isArray(hItem.goodShots) ? hItem.goodShots.some(Boolean) : (Number(hItem.goodShotsCount || hItem.goodShots) || 0) > 0));
                         const tShots = Math.max(1, (p || 4) - 2);
-                        if (Array.isArray(hd.goodShots)) {
+                        if (roundHasGoodShots && Array.isArray(hd.goodShots)) {
                             s.goodTeeTarget += 1;
                             if (hd.goodShots[0] === true || hd.goodShots[0] === 'true') s.goodTee += 1;
 
@@ -5366,7 +5381,7 @@ class App {
                     otherScore: 0, upDownChances: 0, upDownSuccesses: 0, firChances: 0,
                     threePutts: 0, lostBalls: 0, penaltyStrokes: 0, scoreToPar: 0,
                     quotaPoints: 0, playerQuota: 0,
-                    goodShots: 0, goodShotsTarget: 0,
+                    goodShots: 0, goodShotsTarget: 0, goodShotsHoles: 0,
                     goodTeeShots: 0, goodTeeTarget: 0,
                     goodApproachShots: 0, goodApproachTarget: 0,
                     cost: 0, winnings: 0, courses: []
@@ -5399,9 +5414,10 @@ class App {
                 g.fir += (r.fir || 0);
                 g.firChances += (r.firChances || 0);
             }
-            if (est.ts >= this.getEST('2026-08-09').ts) {
+            if (est.ts >= this.getEST('2026-08-09').ts && (Number(r.goodShots) || 0) > 0) {
                 g.goodShots += (r.goodShots || 0);
                 g.goodShotsTarget += (r.goodShotsTarget || (r.holes === 9 ? 18 : 36));
+                g.goodShotsHoles += (r.holes || 18);
 
                 let rTee = 0, rApp = 0, rAppTarget = 0;
                 if (r.holeData && r.holeData.length > 0) {
@@ -5441,6 +5457,7 @@ class App {
 
         const chartData = Object.values(groups).map(g => {
             const factorBenchmark = g.holes > 0 ? (benchmarkHoles / g.holes) : 1;
+            const gsFactorBenchmark = g.goodShotsHoles > 0 ? (benchmarkHoles / g.goodShotsHoles) : 1;
             const qPts = g.quotaPoints * factorBenchmark;
             const qTarget = g.playerQuota * factorBenchmark;
             return {
@@ -5454,12 +5471,12 @@ class App {
                 playerQuota: qTarget,
                 quotaDiff: qPts - qTarget,
                 quotaPercent: qTarget > 0 ? (qPts / qTarget) * 100 : 0,
-                goodShots: g.goodShots * factorBenchmark,
-                goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : 0,
-                goodTeeShots: g.goodTeeShots * factorBenchmark,
-                goodTeePercent: g.goodTeeTarget > 0 ? (g.goodTeeShots / g.goodTeeTarget) * 100 : 0,
-                goodApproachShots: g.goodApproachShots * factorBenchmark,
-                goodApproachPercent: g.goodApproachTarget > 0 ? (g.goodApproachShots / g.goodApproachTarget) * 100 : 0,
+                goodShots: g.goodShotsTarget > 0 ? g.goodShots * gsFactorBenchmark : null,
+                goodShotsPercent: g.goodShotsTarget > 0 ? (g.goodShots / g.goodShotsTarget) * 100 : null,
+                goodTeeShots: g.goodTeeTarget > 0 ? g.goodTeeShots * gsFactorBenchmark : null,
+                goodTeePercent: g.goodTeeTarget > 0 ? (g.goodTeeShots / g.goodTeeTarget) * 100 : null,
+                goodApproachShots: g.goodApproachTarget > 0 ? g.goodApproachShots * gsFactorBenchmark : null,
+                goodApproachPercent: g.goodApproachTarget > 0 ? (g.goodApproachShots / g.goodApproachTarget) * 100 : null,
                 scoreToPar: g.scoreToPar * factorBenchmark,
                 roundCount: g.count,
                 girPercent: g.holes > 0 ? (g.gir / g.holes) * 100 : 0,
@@ -5472,13 +5489,13 @@ class App {
             };
         });
 
-        const getVal = (r, stat) => Math.round((r[stat] || 0) * 10) / 10;
+        const getVal = (r, stat) => r[stat] === null || r[stat] === undefined ? null : Math.round((r[stat] || 0) * 10) / 10;
 
         // Apply Chart Sorting (Asc/Desc by Time or Value)
         if (this.chartSortDir === 'val-asc') {
-            chartData.sort((a, b) => (getVal(a, this.currentChartStat) || 0) - (getVal(b, this.currentChartStat) || 0));
+            chartData.sort((a, b) => (getVal(a, this.currentChartStat) ?? 999999) - (getVal(b, this.currentChartStat) ?? 999999));
         } else if (this.chartSortDir === 'val-desc') {
-            chartData.sort((a, b) => (getVal(b, this.currentChartStat) || 0) - (getVal(a, this.currentChartStat) || 0));
+            chartData.sort((a, b) => (getVal(b, this.currentChartStat) ?? -999999) - (getVal(a, this.currentChartStat) ?? -999999));
         } else if (this.chartSortDir === 'chrono-desc' || this.chartSortDir === 'desc') {
             chartData.reverse(); // Groups are initially asc
         }
@@ -5496,6 +5513,7 @@ class App {
             borderWidth: 3,
             tension: 0.3,
             fill: true,
+            spanGaps: true,
             yAxisID: 'y'
         }];
 
@@ -5506,6 +5524,7 @@ class App {
                 borderColor: '#f59e0b',
                 borderWidth: 3,
                 tension: 0.3,
+                spanGaps: true,
                 yAxisID: 'y1'
             });
         }
@@ -5576,6 +5595,7 @@ class App {
         }
         if (col === 'goodShots') {
             const goodShots = Number(r.goodShots) || 0;
+            if (goodShots === 0) return '—';
             const target = Number(r.goodShotsTarget) || (r.holes === 9 ? 18 : 36);
             const pct = target > 0 ? Math.round((goodShots / target) * 100) : 0;
             return `${goodShots}/${target} (${pct}%)`;
@@ -5701,8 +5721,8 @@ class App {
                     const gTa = Number(a.goodShotsTarget) || (a.holes === 9 ? 18 : 36);
                     const gSb = Number(b.goodShots) || 0;
                     const gTb = Number(b.goodShotsTarget) || (b.holes === 9 ? 18 : 36);
-                    valA = gTa > 0 ? (gSa / gTa) : -1;
-                    valB = gTb > 0 ? (gSb / gTb) : -1;
+                    valA = gSa > 0 && gTa > 0 ? (gSa / gTa) : -1;
+                    valB = gSb > 0 && gTb > 0 ? (gSb / gTb) : -1;
                 } else if (this.historySortCol === 'quota') {
                     const qA = this.calculateRoundQuota(a);
                     const qB = this.calculateRoundQuota(b);
@@ -5756,6 +5776,7 @@ class App {
                 const goodShots = Number(round.goodShots) || 0;
                 const goodShotsTarget = Number(round.goodShotsTarget) || (round.holes === 9 ? 18 : 36);
                 const goodShotsPct = goodShotsTarget > 0 ? Math.round((goodShots / goodShotsTarget) * 100) : 0;
+                const hasGoodShots = goodShots > 0;
 
                 const qData = this.calculateRoundQuota(round);
 
@@ -5774,7 +5795,7 @@ class App {
                     <td>${fir}</td>
                     <td>${gir}</td>
                     <td>${udS}/${udC} <span style="font-size:0.75em;color:var(--text-muted)">(${scramblingPct}%)</span></td>
-                    <td>${goodShots}/${goodShotsTarget} <span style="font-size:0.75em;color:var(--primary-green)">(${goodShotsPct}%)</span></td>
+                    <td>${hasGoodShots ? `${goodShots}/${goodShotsTarget} <span style="font-size:0.75em;color:var(--primary-green)">(${goodShotsPct}%)</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
                     <td>${putts}</td>
                     <td>${qData.quotaPoints}/${qData.playerQuota} <span style="font-size:0.75em;color:${qData.quotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444'}">(${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff})</span></td>
                     <td onclick="event.stopPropagation()">
@@ -5939,7 +5960,8 @@ class App {
         const girPercent = Math.round((round.gir || 0) / (round.holes || 18) * 100);
         const firPercent = (round.firChances || 0) > 0 ? Math.round((round.fir || 0) / (round.firChances || 0) * 100) : 0;
         const scramblingPercent = (round.upDownChances || 0) > 0 ? Math.round((round.upDownSuccesses || 0) / (round.upDownChances || 0) * 100) : 0;
-        const goodShotsPercent = (round.goodShotsTarget || 0) > 0 ? Math.round((round.goodShots || 0) / (round.goodShotsTarget || (round.holes === 9 ? 18 : 36)) * 100) : 0;
+        const hasRoundGoodShots = (Number(round.goodShots) || 0) > 0;
+        const goodShotsPercent = hasRoundGoodShots && (round.goodShotsTarget || 0) > 0 ? Math.round((round.goodShots || 0) / (round.goodShotsTarget || (round.holes === 9 ? 18 : 36)) * 100) : 0;
 
         const num = String(round.roundNum || '?').padStart(3, '0');
         content.innerHTML = `
@@ -6006,7 +6028,7 @@ class App {
                 </div>
                 <div class="card" style="padding: 12px; text-align: center; background: var(--bg-dark);">
                     <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">Good Shots</div>
-                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: ${hasRoundGoodShots ? 'var(--primary-green)' : 'var(--text-muted)'};">${hasRoundGoodShots ? `${round.goodShots}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)` : 'N/A'}</div>
                 </div>
             </div>
 
@@ -6106,7 +6128,7 @@ class App {
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; justify-content: space-between;">
                             <span>Good Shots:</span>
-                            <span style="font-weight: 600; color: var(--primary-green);">${round.goodShots || 0}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)</span>
+                            <span style="font-weight: 600; color: ${hasRoundGoodShots ? 'var(--primary-green)' : 'var(--text-muted)'};">${hasRoundGoodShots ? `${round.goodShots}/${round.goodShotsTarget || (round.holes === 9 ? 18 : 36)} (${goodShotsPercent}%)` : 'N/A'}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Scrambling:</span>
@@ -6192,12 +6214,14 @@ class App {
                                     <td style="padding: 10px; text-align: center;">${h.par === 3 ? '<span style="color:var(--text-muted); font-size:0.8em;">N/A</span>' : ((Array.isArray(h.fir) ? h.fir.some(v => v) : h.fir) ? '✅' : '❌')}</td>
                                     <td style="padding: 10px; text-align: center;">${h.gir ? '✅' : '❌'}</td>
                                     <td style="padding: 10px; text-align: center;">
-                                        ${gHits}/${tShots}
-                                        ${Array.isArray(h.goodShots) ? `
-                                            <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:2px;">
-                                                T:${h.goodShots[0] ? '✅' : '❌'}${tShots > 1 ? ' · App:' + h.goodShots.slice(1).map(b => b ? '✅' : '❌').join('/') : ''}
-                                            </span>
-                                        ` : ''}
+                                        ${hasRoundGoodShots ? `
+                                            ${gHits}/${tShots}
+                                            ${Array.isArray(h.goodShots) ? `
+                                                <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:2px;">
+                                                    T:${h.goodShots[0] ? '✅' : '❌'}${tShots > 1 ? ' · App:' + h.goodShots.slice(1).map(b => b ? '✅' : '❌').join('/') : ''}
+                                                </span>
+                                            ` : ''}
+                                        ` : '<span style="color:var(--text-muted);">—</span>'}
                                     </td>
                                 </tr>
                             `;}).join('')}
@@ -6343,13 +6367,16 @@ class App {
             if (key === 'roundNumber') return r.roundNum || '';
             if (key === 'firPercent') return r.firChances > 0 ? Math.round(r.fir / r.firChances * 1000) / 10 : 0;
             if (key === 'scramblingPercent') return r.upDownChances > 0 ? Math.round(r.upDownSuccesses / r.upDownChances * 1000) / 10 : 0;
-            if (key === 'goodShots') return r.goodShots !== undefined ? r.goodShots : '';
-            if (key === 'goodShotsTarget') return r.goodShotsTarget !== undefined ? r.goodShotsTarget : (r.goodShots !== undefined ? (r.holes === 9 ? 18 : 36) : '');
+            const hasGS = (Number(r.goodShots) || 0) > 0;
+            if (key === 'goodShots') return hasGS ? r.goodShots : '';
+            if (key === 'goodShotsTarget') return hasGS ? (r.goodShotsTarget || (r.holes === 9 ? 18 : 36)) : '';
             if (key === 'goodShotsPercent') {
+                if (!hasGS) return '';
                 const target = r.goodShotsTarget || (r.holes === 9 ? 18 : 36);
-                return (target > 0 && r.goodShots !== undefined) ? Math.round((r.goodShots / target) * 1000) / 10 : '';
+                return target > 0 ? Math.round((r.goodShots / target) * 1000) / 10 : '';
             }
             if (key === 'goodTeeShots') {
+                if (!hasGS) return '';
                 if (r.goodTeeShots !== undefined) return r.goodTeeShots;
                 if (r.holeData && r.holeData.length > 0) {
                     return r.holeData.filter(h => Array.isArray(h.goodShots) && h.goodShots[0] === true).length;
@@ -6357,6 +6384,7 @@ class App {
                 return '';
             }
             if (key === 'goodTeePercent') {
+                if (!hasGS) return '';
                 let tShots = r.goodTeeShots;
                 let tTarget = r.goodTeeTarget || (r.holes || 18);
                 if (tShots === undefined && r.holeData && r.holeData.length > 0) {
@@ -6366,6 +6394,7 @@ class App {
                 return (tTarget > 0 && tShots !== undefined) ? Math.round((tShots / tTarget) * 1000) / 10 : '';
             }
             if (key === 'goodApproachShots') {
+                if (!hasGS) return '';
                 if (r.goodApproachShots !== undefined) return r.goodApproachShots;
                 if (r.holeData && r.holeData.length > 0) {
                     let appCount = 0;
@@ -6382,6 +6411,7 @@ class App {
                 return '';
             }
             if (key === 'goodApproachPercent') {
+                if (!hasGS) return '';
                 let appCount = r.goodApproachShots;
                 let appTarget = r.goodApproachTarget;
                 if (appCount === undefined && r.holeData && r.holeData.length > 0) {
@@ -6569,6 +6599,7 @@ class App {
 
         const rows = [];
         exportRounds.forEach(r => {
+            const roundHasGoodShots = (Number(r.goodShots) || 0) > 0 || (r.holeData && r.holeData.some(hd => Array.isArray(hd.goodShots) && hd.goodShots.some(Boolean)));
             r.holeData.forEach(h => {
                 const hPar = parseInt(h.par) || 4;
                 const tShots = Math.max(1, hPar - 2);
@@ -6576,7 +6607,7 @@ class App {
                 let teeExec = '';
                 let appExec = '';
 
-                if (Array.isArray(h.goodShots)) {
+                if (roundHasGoodShots && Array.isArray(h.goodShots)) {
                     gHits = h.goodShots.filter(Boolean).length;
                     teeExec = h.goodShots[0] ? 'Hit' : 'Miss';
 
@@ -6596,9 +6627,9 @@ class App {
                         }
                         appExec = `${appHits} of ${tShots - 1}`;
                     }
-                } else if (h.goodShotsCount !== undefined) {
+                } else if (roundHasGoodShots && h.goodShotsCount !== undefined) {
                     gHits = h.goodShotsCount;
-                } else if (typeof h.goodShots === 'number') {
+                } else if (roundHasGoodShots && typeof h.goodShots === 'number') {
                     gHits = h.goodShots;
                 }
 
@@ -6622,7 +6653,7 @@ class App {
                     appExec,
                     scrambleConverted,
                     gHits,
-                    h.par ? tShots : ''
+                    roundHasGoodShots && h.par ? tShots : ''
                 ].map(escape).join(','));
             });
         });
@@ -6766,7 +6797,7 @@ class App {
                 totPen += (Number(r.penaltyStrokes) || 0);
                 totScP += (Number(r.scoreToPar) || 0);
                 totBlow += (Number(r.doubleBogeys) || 0) + (Number(r.tripleBogeys) || 0) + (Number(r.otherScore) || 0);
-                if (Number(r.goodShotsTarget) > 0) {
+                if ((Number(r.goodShots) || 0) > 0 && Number(r.goodShotsTarget) > 0) {
                     totGS += (Number(r.goodShots) || 0);
                     totGST += Number(r.goodShotsTarget);
                 }
@@ -6812,11 +6843,11 @@ class App {
         // --- Good Shot Era Analytics ---
         const goodShots = Number(round.goodShots) || 0;
         let goodShotsTarget = Number(round.goodShotsTarget) || 0;
-        if (goodShotsTarget === 0 && round.holeData && round.holeData.length > 0) {
+        if (goodShots > 0 && goodShotsTarget === 0 && round.holeData && round.holeData.length > 0) {
             goodShotsTarget = round.holeData.reduce((acc, h) => acc + (h.goodShotsTarget || Math.max(1, (h.par || 4) - 2)), 0);
         }
-        const hasGoodShots = (goodShotsTarget > 0 || (goodShots > 0 && goodShotsTarget > 0));
-        const goodShotsPercent = goodShotsTarget > 0 ? Math.round((goodShots / goodShotsTarget) * 100) : 0;
+        const hasGoodShots = (goodShots > 0 && goodShotsTarget > 0);
+        const goodShotsPercent = hasGoodShots ? Math.round((goodShots / goodShotsTarget) * 100) : 0;
 
         const goodTeeShots = Number(round.goodTeeShots) || 0;
         const goodTeeTarget = Number(round.goodTeeTarget) || (round.holeData ? round.holeData.length : (holes || 18));
@@ -7240,7 +7271,7 @@ class App {
             totPen += (Number(r.penaltyStrokes) || 0);
             totBlow += (Number(r.doubleBogeys) || 0) + (Number(r.tripleBogeys) || 0) + (Number(r.otherScore) || 0);
 
-            if (Number(r.goodShotsTarget) > 0) {
+            if ((Number(r.goodShots) || 0) > 0 && Number(r.goodShotsTarget) > 0) {
                 totGS += (Number(r.goodShots) || 0);
                 totGST += Number(r.goodShotsTarget);
                 goodShotRoundsCount += 1;
@@ -7274,12 +7305,12 @@ class App {
             firstHalf.forEach(r => {
                 h1Score += Number(r.score) || 0;
                 h1Holes += (this.getRoundOriginalHoles(r) || r.holes || 18);
-                if (Number(r.goodShotsTarget) > 0) { h1GS += (Number(r.goodShots) || 0); h1GST += Number(r.goodShotsTarget); }
+                if ((Number(r.goodShots) || 0) > 0 && Number(r.goodShotsTarget) > 0) { h1GS += (Number(r.goodShots) || 0); h1GST += Number(r.goodShotsTarget); }
             });
             secondHalf.forEach(r => {
                 h2Score += Number(r.score) || 0;
                 h2Holes += (this.getRoundOriginalHoles(r) || r.holes || 18);
-                if (Number(r.goodShotsTarget) > 0) { h2GS += (Number(r.goodShots) || 0); h2GST += Number(r.goodShotsTarget); }
+                if ((Number(r.goodShots) || 0) > 0 && Number(r.goodShotsTarget) > 0) { h2GS += (Number(r.goodShots) || 0); h2GST += Number(r.goodShotsTarget); }
             });
 
             const avg1 = h1Holes > 0 ? (h1Score / h1Holes) * this.insightsHoles : 0;
@@ -7513,7 +7544,7 @@ class App {
                                     const num = String(r.roundNum || '?').padStart(3, '0');
                                     const sc = Number(r.score) || 0;
                                     const scP = Number(r.scoreToPar) || 0;
-                                    const gsTag = Number(r.goodShotsTarget) > 0 ? ` • 🎯 ${r.goodShots}/${r.goodShotsTarget} GS` : '';
+                                    const gsTag = (Number(r.goodShots) > 0 && Number(r.goodShotsTarget) > 0) ? ` • 🎯 ${r.goodShots}/${r.goodShotsTarget} GS` : '';
                                     return `<option value="${r.id}" ${r.id === selectedRound.id ? 'selected' : ''}>#${num} • ${this.normalizeCourse(r.course)} (${this.formatDateDisplay(r.date)}) — Score: ${sc} (${scP > 0 ? '+' : ''}${scP})${gsTag}</option>`;
                                 }).join('')}
                             </select>
@@ -7958,7 +7989,7 @@ class App {
                                         ${r.score} <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(${r.scoreToPar > 0 ? '+' : ''}${r.scoreToPar})</span>
                                     </td>
                                     <td style="padding: 10px 12px; text-align: center;">
-                                        ${r.goodShotsTarget > 0 ? `${r.goodShots}/${r.goodShotsTarget} (${Math.round((r.goodShots / r.goodShotsTarget) * 100)}%)` : '—'}
+                                        ${(Number(r.goodShots) > 0 && r.goodShotsTarget > 0) ? `${r.goodShots}/${r.goodShotsTarget} (${Math.round((r.goodShots / r.goodShotsTarget) * 100)}%)` : '—'}
                                     </td>
                                     <td style="padding: 10px 12px; text-align: center;">
                                         ${r.firChances > 0 ? `${r.fir}/${r.firChances}` : '—'}
@@ -8205,8 +8236,9 @@ class App {
                 ];
                 const gsData = [
                     ...chronoRounds.map(r => {
+                        const gs = Number(r.goodShots) || 0;
                         const gst = Number(r.goodShotsTarget) || 0;
-                        return gst > 0 ? Math.round((Number(r.goodShots) || 0) / gst * 100) : null;
+                        return (gs > 0 && gst > 0) ? Math.round(gs / gst * 100) : null;
                     }),
                     goodShotRoundsCount > 0 ? periodGoodShots : null
                 ];
