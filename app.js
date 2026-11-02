@@ -1231,20 +1231,20 @@ class App {
         console.debug('Generating scorecard:', segment, 'Prefilled:', prefilledHoles?.length, 'TempData Keys:', Object.keys(this.tempHoleData).length);
 
         try {
-            // First ensure any currently visible data is saved before we clear,
-            // but ONLY if we are not already in the middle of a regeneration/load.
-            if (!this.isRegeneratingScorecard) {
-                this.calculateDetailedTotals();
-            }
-
-            this.isRegeneratingScorecard = true;
-
             const thead = document.getElementById('detailed-scorecard-head');
             const tbody = document.getElementById('detailed-scorecard-body');
             if (!tbody) {
                 console.error('detailed-scorecard-body not found!');
                 return;
             }
+
+            // First ensure any currently visible data is saved before we clear,
+            // but ONLY if we are not already in the middle of a regeneration/load and rows exist.
+            if (!this.isRegeneratingScorecard && tbody.children.length > 0) {
+                this.calculateDetailedTotals();
+            }
+
+            this.isRegeneratingScorecard = true;
 
             if (thead) thead.innerHTML = '';
             tbody.innerHTML = '';
@@ -1921,15 +1921,19 @@ class App {
     }
 
     openAddRoundModal(isEditMode = false) {
-        // Reset form for fresh entry only if we aren't inheriting edit data
-        if (!isEditMode) {
-            this.resetAddRoundForm();
-            this.toggleDataEntryMode();
-        }
-
         const modal = document.getElementById('add-round-modal');
         if (modal) modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
+
+        // Reset form for fresh entry only if we aren't inheriting edit data
+        if (!isEditMode) {
+            try {
+                this.resetAddRoundForm();
+                this.toggleDataEntryMode();
+            } catch (err) {
+                console.error('Error initializing Add Round modal:', err);
+            }
+        }
     }
 
     closeAddRoundModal() {
