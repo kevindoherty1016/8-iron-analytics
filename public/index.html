@@ -586,7 +586,7 @@
             <div class="modal-overlay hidden" id="add-round-modal"
                 style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; justify-content: center; align-items: flex-start; backdrop-filter: blur(4px); padding-top: 5vh; overflow-y: auto;">
                 <div class="card"
-                    style="max-width: 800px; width: 90%; position: relative; padding: 30px; margin-bottom: 5vh;">
+                    style="max-width: 1150px; width: 95%; position: relative; padding: 30px; margin-bottom: 5vh;">
                     <button class="btn-close" onclick="window.app.closeAddRoundModal()"
                         style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
 
@@ -703,35 +703,14 @@
                                 </div>
 
                                 <div class="scorecard-container" style="overflow-x: auto; margin-bottom: 20px;">
-                                    <table
-                                        style="width: 100%; border-collapse: collapse; min-width: 500px; text-align: center; font-size: 0.9rem;">
-                                        <thead>
-                                            <tr
-                                                style="background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--border-color);">
-                                                <th style="padding: 10px 5px;">Hole</th>
-                                                <th style="padding: 10px 5px;">Par</th>
-                                                <th style="padding: 10px 5px;">Score</th>
-                                                <th style="padding: 10px 5px;">Putts</th>
-                                                <th style="padding: 10px 5px;" title="Fairway in Regulation">FIR</th>
-                                                <th style="padding: 10px 5px;" title="Green in Regulation">GIR</th>
-                                                <th style="padding: 10px 5px;" title="Good Shots (Par - 2 Target Shots)">Good Shots</th>
-                                            </tr>
+                                    <table class="data-table"
+                                        style="width: 100%; border-collapse: collapse; min-width: 900px; text-align: center; font-size: 0.9rem;">
+                                        <thead id="detailed-scorecard-head">
+                                            <!-- Dynamically injected by JS -->
                                         </thead>
                                         <tbody id="detailed-scorecard-body">
                                             <!-- Dynamically injected by JS -->
                                         </tbody>
-                                        <tfoot>
-                                            <tr
-                                                style="background: rgba(255,255,255,0.02); border-top: 2px solid var(--border-color); font-weight: bold;">
-                                                <td style="padding: 15px 5px; text-align: right;">TOTAL:</td>
-                                                <td style="padding: 15px 5px;" id="calc-total-par">72</td>
-                                                <td style="padding: 15px 5px; color: var(--primary-green);"
-                                                    id="calc-total-score">0</td>
-                                                <td style="padding: 15px 5px; color: var(--primary-blue);"
-                                                    id="calc-total-putts">0</td>
-                                                <td colspan="3" style="padding: 15px 5px; text-align: right; color: var(--primary-green); font-size: 0.85rem;" id="calc-total-goodshots-cell">Good Shots: <span id="calc-total-goodshots">0 / 36 (0%)</span></td>
-                                            </tr>
-                                        </tfoot>
                                     </table>
                                 </div>
                                 <div class="form-divider"></div>

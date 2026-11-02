@@ -739,7 +739,8 @@ class App {
                             const parInput = document.getElementById(`detail-par-${holeNum}`);
                             if (parInput) {
                                 parInput.value = par;
-                                this.updateHoleFIR(holeNum);
+                                this.updateHoleFIR(holeNum, true);
+                                this.updateHoleGoodShots(holeNum, true);
                             }
                         });
                         this.calculateDetailedTotals();
@@ -1238,12 +1239,14 @@ class App {
 
             this.isRegeneratingScorecard = true;
 
+            const thead = document.getElementById('detailed-scorecard-head');
             const tbody = document.getElementById('detailed-scorecard-body');
             if (!tbody) {
                 console.error('detailed-scorecard-body not found!');
                 return;
             }
 
+            if (thead) thead.innerHTML = '';
             tbody.innerHTML = '';
 
             let startIdx = 0;
@@ -1279,33 +1282,88 @@ class App {
 
             console.debug('Effective range:', startIdx, 'to', endIdx);
 
+            const holeNums = [];
+            for (let i = startIdx; i < endIdx; i++) {
+                holeNums.push(i + 1);
+            }
+
+            const stickyLabelStyle = 'min-width: 95px; text-align: left; padding: 8px 12px; font-weight: 700; position: sticky; left: 0; background: var(--bg-card, #ffffff); z-index: 1; border-right: 1px solid var(--border-color);';
+            const totalCellStyle = 'padding: 8px 10px; font-weight: 700; border-left: 2px solid var(--border-color); min-width: 70px; background: rgba(0,0,0,0.015);';
+
+            if (thead) {
+                thead.innerHTML = `
+                    <tr style="background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--border-color);">
+                        <th style="${stickyLabelStyle} z-index: 2;">Hole</th>
+                        ${holeNums.map(hNum => `<th style="padding: 8px 4px; min-width: 48px; text-align: center;">${hNum}</th>`).join('')}
+                        <th style="${totalCellStyle} text-align: center;">Total</th>
+                    </tr>
+                `;
+            }
+
+            let parCells = '';
+            let scoreCells = '';
+            let puttsCells = '';
+            let firCells = '';
+            let girCells = '';
+            let gsCells = '';
+
+            for (let i = startIdx; i < endIdx; i++) {
+                const holeNum = i + 1;
+                let preHole = null;
+                if (prefilledHoles && prefilledHoles.length > 0) {
+                    const lookupIdx = i % prefilledHoles.length;
+                    preHole = prefilledHoles[lookupIdx];
+                }
+                const existing = this.tempHoleData[holeNum];
+                const parVal = preHole ? preHole.par : (existing ? existing.par : 4);
+                const scoreVal = existing ? (existing.score || '') : '';
+                const puttsVal = existing ? (existing.putts || '') : '';
+
+                parCells += `<td style="padding: 5px 3px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${parVal}" class="form-control scorecard-input parser" style="width: 42px; height: 34px; padding: 4px; text-align: center; margin: 0 auto; background: ${preHole ? 'var(--bg-dark)' : '#FFFFFF'}; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly tabindex="-1"' : ''}></td>`;
+                scoreCells += `<td style="padding: 5px 3px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${scoreVal}" class="form-control scorecard-input" style="width: 42px; height: 34px; padding: 4px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font-weight: 600;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>`;
+                puttsCells += `<td style="padding: 5px 3px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${puttsVal}" class="form-control scorecard-input" style="width: 42px; height: 34px; padding: 4px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>`;
+                firCells += `<td style="padding: 5px 3px;" id="detail-fir-container-${holeNum}"><input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}></td>`;
+                girCells += `<td style="padding: 5px 3px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green); pointer-events: none; opacity: 0.7;" tabindex="-1" ${existing && existing.gir ? 'checked' : ''}></td>`;
+                gsCells += `<td style="padding: 5px 3px;" id="detail-goodshots-container-${holeNum}"></td>`;
+            }
+
+            tbody.innerHTML = `
+                <tr id="mgmt-scorecard-par-row" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="${stickyLabelStyle}">Par</td>
+                    ${parCells}
+                    <td style="${totalCellStyle}" id="calc-total-par">72</td>
+                </tr>
+                <tr id="mgmt-scorecard-score-row" style="border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(16, 185, 129, 0.03);">
+                    <td style="${stickyLabelStyle}">Score</td>
+                    ${scoreCells}
+                    <td style="${totalCellStyle} color: var(--primary-green);" id="calc-total-score">0</td>
+                </tr>
+                <tr id="mgmt-scorecard-putts-row" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="${stickyLabelStyle}">Putts</td>
+                    ${puttsCells}
+                    <td style="${totalCellStyle} color: var(--primary-blue);" id="calc-total-putts">0</td>
+                </tr>
+                <tr id="mgmt-scorecard-fir-row" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="${stickyLabelStyle}" title="Fairway in Regulation">FIR</td>
+                    ${firCells}
+                    <td style="${totalCellStyle} font-size: 0.82rem;" id="calc-total-fir">0/0</td>
+                </tr>
+                <tr id="mgmt-scorecard-gir-row" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="${stickyLabelStyle}" title="Green in Regulation (Auto-calculated)">GIR</td>
+                    ${girCells}
+                    <td style="${totalCellStyle} font-size: 0.82rem;" id="calc-total-gir">0/${holeNums.length}</td>
+                </tr>
+                <tr id="mgmt-scorecard-goodshots-row" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="${stickyLabelStyle}" title="Good Shots (Par - 2 Target Shots)">Good Shots</td>
+                    ${gsCells}
+                    <td style="${totalCellStyle} color: var(--primary-green); font-size: 0.8rem; white-space: nowrap;" id="calc-total-goodshots-cell"><span id="calc-total-goodshots">0 / 36 (0%)</span></td>
+                </tr>
+            `;
+
             for (let i = startIdx; i < endIdx; i++) {
                 try {
                     const holeNum = i + 1;
-                    const tr = document.createElement('tr');
-                    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                    tr.id = `hole-row-${holeNum}`;
-
-                    // Looping prefilledHoles: if it has 9 but we are at 10-18, loop back to 0-8
-                    let preHole = null;
-                    if (prefilledHoles && prefilledHoles.length > 0) {
-                        const lookupIdx = i % prefilledHoles.length;
-                        preHole = prefilledHoles[lookupIdx];
-                    }
                     const existing = this.tempHoleData[holeNum];
-
-                    tr.innerHTML = `
-                        <td style="padding: 10px 5px; font-weight: bold;">${holeNum}</td>
-                        <td style="padding: 10px 5px;"><input type="number" id="detail-par-${holeNum}" min="3" max="6" value="${preHole ? preHole.par : (existing ? existing.par : 4)}" class="form-control scorecard-input parser" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})" ${preHole ? 'readonly' : ''}></td>
-                        <td style="padding: 10px 5px;"><input type="number" id="detail-score-${holeNum}" min="1" max="15" value="${existing ? (existing.score || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
-                        <td style="padding: 10px 5px;"><input type="number" id="detail-putts-${holeNum}" min="0" max="10" value="${existing ? (existing.putts || '') : ''}" class="form-control scorecard-input" style="width: 45px; padding: 5px; text-align: center; margin: 0 auto; background: #FFFFFF; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" oninput="window.app.syncHoleDataFromDOM(${holeNum})"></td>
-                        <td style="padding: 10px 5px;" id="detail-fir-container-${holeNum}">
-                            <input type="checkbox" id="detail-fir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" ${existing && (existing.fir === true) ? 'checked' : ''}>
-                        </td>
-                        <td style="padding: 10px 5px;"><input type="checkbox" id="detail-gir-${holeNum}" style="width: 16px; height: 16px; accent-color: var(--primary-green); pointer-events: none; opacity: 0.7;" tabindex="-1" ${existing && existing.gir ? 'checked' : ''}></td>
-                        <td style="padding: 10px 5px;" id="detail-goodshots-container-${holeNum}"></td>
-                    `;
-                    tbody.appendChild(tr);
                     this.updateHoleFIR(holeNum, true); // Pass true to skip calculateTotals in recursive call
                     this.updateHoleGoodShots(holeNum, true);
 
@@ -1346,7 +1404,7 @@ class App {
             container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.7rem;">N/A</span>';
         } else if (par === 5) {
             container.innerHTML = `
-                <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                <div style="display: flex; gap: 3px; justify-content: center; align-items: center;">
                     <input type="checkbox" id="detail-fir-${holeNum}-1" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 1">
                     <input type="checkbox" id="detail-fir-${holeNum}-2" style="width: 14px; height: 14px; accent-color: var(--primary-green);" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="Fairway 2">
                 </div>
@@ -1377,14 +1435,14 @@ class App {
                     ? Array(targetShots).fill(false).map((_, idx) => idx < existing.goodShotsCount)
                     : []));
 
-        let checkboxesHtml = '<div style="display: flex; gap: 6px; justify-content: center; align-items: center;">';
+        let checkboxesHtml = '<div style="display: flex; gap: 3px; justify-content: center; align-items: center;">';
         for (let s = 1; s <= targetShots; s++) {
             const isChecked = savedShots[s - 1] === true;
             let shotLabel = 'T';
             let shotTitle = 'Tee Shot';
             if (s > 1) {
                 if (targetShots === 3 && s === 2) {
-                    shotLabel = '2nd';
+                    shotLabel = '2';
                     shotTitle = '2nd Shot / Layup';
                 } else {
                     shotLabel = 'A';
@@ -1395,8 +1453,8 @@ class App {
             }
             checkboxesHtml += `
                 <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 1px;" title="${shotTitle}">
-                    <span style="font-size: 0.62rem; font-weight: 600; color: ${s === 1 ? 'var(--primary-green)' : 'var(--text-muted)'}; line-height: 1;">${shotLabel}</span>
-                    <input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 15px; height: 15px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="${shotTitle}" ${isChecked ? 'checked' : ''}>
+                    <span style="font-size: 0.58rem; font-weight: 600; color: ${s === 1 ? 'var(--primary-green)' : 'var(--text-muted)'}; line-height: 1;">${shotLabel}</span>
+                    <input type="checkbox" id="detail-goodshot-${holeNum}-${s}" style="width: 14px; height: 14px; accent-color: var(--primary-green); cursor: pointer;" onchange="window.app.syncHoleDataFromDOM(${holeNum})" title="${shotTitle}" ${isChecked ? 'checked' : ''}>
                 </div>
             `;
         }
@@ -1538,10 +1596,18 @@ class App {
             }
         });
 
-        // Update scorecard footer display
-        document.getElementById('calc-total-par').innerText = totalPar;
-        document.getElementById('calc-total-score').innerText = totalScore;
-        document.getElementById('calc-total-putts').innerText = totalPutts;
+        // Update scorecard totals column display
+        const parEl = document.getElementById('calc-total-par');
+        const scoreEl = document.getElementById('calc-total-score');
+        const puttsEl = document.getElementById('calc-total-putts');
+        const firEl = document.getElementById('calc-total-fir');
+        const girEl = document.getElementById('calc-total-gir');
+        if (parEl) parEl.innerText = totalPar;
+        if (scoreEl) scoreEl.innerText = totalScore;
+        if (puttsEl) puttsEl.innerText = totalPutts;
+        if (firEl) firEl.innerText = `${firCount}/${firChances}`;
+        if (girEl) girEl.innerText = `${girCount}/${targetHoles.length}`;
+
         const gsFooter = document.getElementById('calc-total-goodshots');
         if (gsFooter) {
             let goodTeeCount = 0;
@@ -1564,7 +1630,7 @@ class App {
             const gsPct = goodShotsTarget > 0 ? Math.round((goodShotsCount / goodShotsTarget) * 100) : 0;
             const teePct = targetHoles.length > 0 ? Math.round((goodTeeCount / targetHoles.length) * 100) : 0;
             const appPct = goodApproachTarget > 0 ? Math.round((goodApproachCount / goodApproachTarget) * 100) : 0;
-            gsFooter.innerHTML = `${goodShotsCount} / ${goodShotsTarget} (${gsPct}%) <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:2px;">Tee: ${goodTeeCount}/${targetHoles.length} (${teePct}%) · App: ${goodApproachCount}/${goodApproachTarget} (${appPct}%)</span>`;
+            gsFooter.innerHTML = `${goodShotsCount}/${goodShotsTarget} (${gsPct}%) <span style="font-size:0.7rem; color:var(--text-muted); display:block; margin-top:2px;">T:${goodTeeCount}/${targetHoles.length} · A:${goodApproachCount}/${goodApproachTarget}</span>`;
         }
 
         // Sync all quick-entry fields so switching modes shows correct totals
@@ -1591,6 +1657,8 @@ class App {
 
     resetAddRoundForm() {
         this.tempHoleData = {};
+        const thead = document.getElementById('detailed-scorecard-head');
+        if (thead) thead.innerHTML = '';
         const tbody = document.getElementById('detailed-scorecard-body');
         if (tbody) tbody.innerHTML = '';
 
