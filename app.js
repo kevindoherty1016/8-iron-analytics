@@ -520,7 +520,8 @@ class App {
         if (!this.user || this.user.uid === 'local' || !this.db) return;
         try {
             const { doc, setDoc } = window.firebaseDB;
-            await setDoc(doc(this.db, 'users', this.user.uid, 'rounds', roundData.id), window.structuredClone ? structuredClone(roundData) : JSON.parse(JSON.stringify(roundData)));
+            const cleanPayload = JSON.parse(JSON.stringify(roundData));
+            await setDoc(doc(this.db, 'users', this.user.uid, 'rounds', String(roundData.id)), cleanPayload);
         } catch (e) {
             console.error("Error saving round to cloud:", e);
             alert("Failed to save round to cloud database.");
@@ -761,33 +762,54 @@ class App {
         return;
     }
 
-    handleAddRound(form) {
+    async handleAddRound(form) {
         const formData = new FormData(form);
         const existingId = formData.get('id');
+        const existingRoundObj = existingId ? this.rounds.find(r => String(r.id) === String(existingId)) : null;
         const entryMode = document.getElementById('entry-mode-select') ? document.getElementById('entry-mode-select').value : 'quick';
 
-        const courseName = formData.get('course') || document.getElementById('course').value;
-        const teeName = formData.get('teeName');
+        const dateVal = formData.get('date') || document.getElementById('date')?.value;
+        if (!dateVal) {
+            alert("Please enter a Date for the round.");
+            return;
+        }
+
+        const courseName = (formData.get('course') || document.getElementById('course')?.value || '').trim();
+        if (!courseName) {
+            alert("Please enter or select a Course Name.");
+            return;
+        }
+
+        let teeName = formData.get('teeName') || document.getElementById('round-tee-set')?.value || '';
         const normalizedTarget = this.normalizeCourse(courseName);
         const courseLayout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === normalizedTarget);
 
-        if (!courseLayout) {
+        if (!courseLayout && !existingRoundObj) {
             alert("Please select a registered course from the list.");
             return;
         }
 
-        if (!teeName) {
-            alert("Please select a Tee Set.");
-            return;
+        if (courseLayout && courseLayout.tees) {
+            const teeKeys = Object.keys(courseLayout.tees);
+            if (!teeName && teeKeys.length === 1) {
+                teeName = teeKeys[0];
+            } else if (!teeName && existingRoundObj?.teeName) {
+                const matchedKey = teeKeys.find(k => k.trim().toLowerCase() === existingRoundObj.teeName.trim().toLowerCase());
+                teeName = matchedKey || existingRoundObj.teeName;
+            }
+            if (!teeName && teeKeys.length > 0 && !existingRoundObj) {
+                alert("Please select a Tee Set.");
+                return;
+            }
         }
 
         let newRound = {
             id: existingId || Date.now().toString(),
-            date: formData.get('date'),
-            course: courseName,
-            courseId: courseLayout.courseId,
-            teeName: teeName,
-            teeId: (courseLayout.tees && courseLayout.tees[teeName]) ? courseLayout.tees[teeName].teeId : '',
+            date: dateVal,
+            course: courseLayout ? courseLayout.name : courseName,
+            courseId: courseLayout ? courseLayout.courseId : (existingRoundObj?.courseId || ''),
+            teeName: teeName || (existingRoundObj?.teeName || ''),
+            teeId: (courseLayout && courseLayout.tees && courseLayout.tees[teeName]) ? courseLayout.tees[teeName].teeId : (existingRoundObj?.teeId || ''),
             timestamp: new Date().toISOString(),
             putter: formData.get('putter') || '',
             isTeamTournament: document.getElementById('isTeamTournament') ? document.getElementById('isTeamTournament').checked : false
@@ -809,6 +831,10 @@ class App {
             newRound.originalHoles = holesCount;
             newRound.score = parseInt(formData.get('score') || 0, 10);
             newRound.putts = parseInt(formData.get('putts') || 0, 10);
+            if (!newRound.score || newRound.score <= 0) {
+                alert("Please enter a valid Total Score.");
+                return;
+            }
             newRound.gir = parseInt(formData.get('gir') || 0, 10);
             newRound.fir = parseInt(formData.get('fir') || 0, 10);
             newRound.firChances = parseInt(formData.get('firChances') || 0, 10);
@@ -824,13 +850,16 @@ class App {
             newRound.goodShots = parseInt(formData.get('goodShots') || 0, 10);
             newRound.goodShotsTarget = newRound.goodShots > 0 ? parseInt(formData.get('goodShotsTarget') || (holesCount === 9 ? 18 : 36), 10) : 0;
         } else {
+            // Sync any visible scorecard DOM inputs into tempHoleData first
+            for (let hNum = 1; hNum <= 18; hNum++) {
+                if (document.getElementById(`detail-par-${hNum}`)) {
+                    this.syncHoleDataFromDOM(hNum, true);
+                }
+            }
+
             // For detailed mode, we are much more robust about saving all data
             const holesSelect = document.getElementById('detail-holes-select');
             const segment = holesSelect ? holesSelect.value : "18";
-
-            // Initial guess on holesCount based on segment
-            let holesCount = 18;
-            if (segment === "front9" || segment === "back9") holesCount = 9;
 
             newRound.segment = segment;
             newRound.holeData = [];
@@ -854,7 +883,7 @@ class App {
                 const par = hole.par || 0;
                 const score = hole.score || 0;
                 const putts = hole.putts || 0;
-                const fir = hole.fir;
+                const fir = hole.fir !== undefined ? hole.fir : false;
                 const gir = hole.gir || false;
                 const targetShots = Math.max(1, par - 2);
                 let goodShotsArr = [];
@@ -963,6 +992,7 @@ class App {
             newRound.goodShots = goodShotsTotal;
             newRound.goodShotsTarget = goodShotsTotal > 0 ? goodShotsTargetTotal : 0;
             newRound.holes = newRound.holeData.length;
+            newRound.originalHoles = newRound.holeData.length;
         }
 
         // Apply mandatory extras to all entry modes
@@ -980,7 +1010,7 @@ class App {
         newRound.puttsPerHole = newRound.holes > 0 ? (newRound.putts / newRound.holes).toFixed(2) : 0;
 
         if (existingId) {
-            const index = this.rounds.findIndex(r => r.id === existingId);
+            const index = this.rounds.findIndex(r => String(r.id) === String(existingId));
             if (index !== -1) {
                 const existingRound = this.rounds[index];
 
@@ -992,10 +1022,16 @@ class App {
                 }
 
                 // Preserve the existing round number if it exists
-                newRound.roundNum = existingRound.roundNum;
+                if (existingRound.roundNum !== undefined && existingRound.roundNum !== null) {
+                    newRound.roundNum = existingRound.roundNum;
+                }
                 this.rounds[index] = newRound;
             }
         } else {
+            if (entryMode === 'detailed' && newRound.score === 0) {
+                alert('Please enter hole scores on the scorecard before saving.');
+                return;
+            }
             // Assign next sequential round number
             const maxNum = this.rounds.reduce((max, r) => Math.max(max, r.roundNum || 0), 0);
             newRound.roundNum = maxNum + 1;
@@ -1005,19 +1041,37 @@ class App {
         // Sort by date descending
         this.rounds.sort((a, b) => this.getEST(b.date).ts - this.getEST(a.date).ts);
 
-        // Save
-        if (this.user && this.user.uid === 'local') {
-            this.saveData();
-        } else {
-            this.syncRoundToCloud(newRound); // save without blocking UI
+        const saveBtn = document.getElementById('save-round-btn');
+        const origBtnText = saveBtn ? saveBtn.textContent : 'Save Round';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = existingId ? 'Updating...' : 'Saving...';
         }
 
-        // Reset form completely
-        this.cancelEdit();
-        this.closeAddRoundModal(); // Close modal after adding/editing
+        try {
+            // Save
+            if (this.user && this.user.uid === 'local') {
+                this.saveData();
+            } else {
+                await this.syncRoundToCloud(newRound);
+            }
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = origBtnText;
+            }
+        }
 
-        // Switch to dashboard
-        this.switchView('dashboard');
+        // Reset form completely and close modal
+        this.cancelEdit();
+
+        // Keep user on current analytics view when editing, or go to dashboard if adding
+        const stayViews = ['dashboard', 'history', 'insights', 'hole-dash'];
+        if (existingId && stayViews.includes(this.currentView)) {
+            this.render();
+        } else {
+            this.switchView('dashboard');
+        }
     }
 
     calculateRoundQuota(round) {
@@ -1381,6 +1435,9 @@ class App {
                             if (fEl) fEl.checked = (existing.fir === true);
                         }
                     }
+
+                    // Ensure tempHoleData is synced with the rendered hole inputs (including prefilled pars)
+                    this.syncHoleDataFromDOM(holeNum, true);
                 } catch (holeErr) {
                     console.error(`Error rendering hole ${i + 1}:`, holeErr);
                 }
@@ -1466,7 +1523,7 @@ class App {
         }
     }
 
-    syncHoleDataFromDOM(hNum) {
+    syncHoleDataFromDOM(hNum, skipTotals = false) {
         const parInput = document.getElementById(`detail-par-${hNum}`);
         const scoreInput = document.getElementById(`detail-score-${hNum}`);
         const puttsInput = document.getElementById(`detail-putts-${hNum}`);
@@ -1517,12 +1574,14 @@ class App {
 
         // Handle FIR and Good Shots updates if par changes
         const currentEvent = typeof event !== 'undefined' ? event : null;
-        if (parInput === document.activeElement || (currentEvent && currentEvent.target === parInput)) {
+        if (!skipTotals && (parInput === document.activeElement || (currentEvent && currentEvent.target === parInput))) {
             this.updateHoleFIR(hNum, true);
             this.updateHoleGoodShots(hNum, true);
         }
 
-        this.calculateDetailedTotals();
+        if (!skipTotals) {
+            this.calculateDetailedTotals();
+        }
     }
 
     calculateDetailedTotals() {
@@ -1776,7 +1835,7 @@ class App {
         }
         setVal('date', dateVal);
         setVal('course', round.course ? round.course.replace(' (9 Holes x2)', '') : '');
-        this.handleCourseChangeRoundModal();
+        this.handleCourseChangeRoundModal(true);
 
         // 6. SETUP SEGMENT
         let segment = round.segment || (round.holes === 9 ? 'front9' : '18');
@@ -1791,7 +1850,21 @@ class App {
         }
 
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-        const teeName = round.teeName || '';
+        let teeName = round.teeName || '';
+        if (layout && layout.tees) {
+            const teeKeys = Object.keys(layout.tees);
+            if (teeName && !layout.tees[teeName]) {
+                const matchedKey = teeKeys.find(k => k.trim().toLowerCase() === teeName.trim().toLowerCase());
+                if (matchedKey) teeName = matchedKey;
+            }
+            if (!teeName && round.teeId) {
+                const matchedById = teeKeys.find(k => layout.tees[k]?.teeId === round.teeId);
+                if (matchedById) teeName = matchedById;
+            }
+            if (!teeName && teeKeys.length === 1) {
+                teeName = teeKeys[0];
+            }
+        }
         const tee = (layout && layout.tees && teeName) ? layout.tees[teeName] : null;
 
         setVal('holes', segment);
@@ -1799,11 +1872,10 @@ class App {
         setVal('round-tee-set', teeName);
 
         // 7. RENDER SCORECARD (Immediate & Deterministic)
-        this.isRegeneratingScorecard = true;
-        this.generateDetailedScorecard(segment, tee ? tee.holes : null);
-
-        // Also call the standard tee change handler to ensure all other side effects (like dropdowns) are synced
-        this.handleTeeChangeRoundModal();
+        if (isDetailed) {
+            this.isRegeneratingScorecard = true;
+            this.generateDetailedScorecard(segment, tee ? tee.holes : null);
+        }
 
         // 8. POPULATE EXTRAS
         const isLegacyDoubledEntry = round.course && round.course.includes('(9 Holes x2)');
@@ -1948,7 +2020,7 @@ class App {
         document.body.style.overflow = ''; // Restore scrolling
     }
 
-    handleCourseChangeRoundModal() {
+    handleCourseChangeRoundModal(skipAutoSelect = false) {
         const courseInput = document.getElementById('course');
         const teeSelect = document.getElementById('round-tee-set');
         if (!courseInput || !teeSelect) return;
@@ -1958,12 +2030,17 @@ class App {
 
         teeSelect.innerHTML = '<option value="">Select Tee Set</option>';
         if (layout && layout.tees) {
-            Object.keys(layout.tees).sort().forEach(teeName => {
+            const teeKeys = Object.keys(layout.tees).sort();
+            teeKeys.forEach(teeName => {
                 const opt = document.createElement('option');
                 opt.value = teeName;
                 opt.textContent = teeName;
                 teeSelect.appendChild(opt);
             });
+            if (!skipAutoSelect && teeKeys.length === 1) {
+                teeSelect.value = teeKeys[0];
+                this.handleTeeChangeRoundModal();
+            }
         }
     }
 

@@ -596,7 +596,7 @@
                     </div>
 
                     <div class="form-container">
-                        <form id="add-round-form">
+                        <form id="add-round-form" novalidate>
                             <input type="hidden" id="edit-round-id" name="id">
 
                             <!-- Basic Info Row (Shared between Quick and Detailed) -->
@@ -757,7 +757,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label for="fir">Fairways Hit (FIR)</label>
-                                        <input type="number" id="fir" name="fir" min="0" max="14" value="0">
+                                        <input type="number" id="fir" name="fir" min="0" value="0">
                                     </div>
                                 </div>
 
@@ -1355,7 +1355,7 @@
     </script>
 
     <!-- Make app.js a module to delay execution until the module map above is done, or we can just leave it as standard script and wait for DOMContentLoaded. We will leave it as module so we can use top level await if needed, but standard script is safer for backwards compat inline handlers. -->
-    <script type="module" src="app.js?v=7"></script>
+    <script type="module" src="app.js?v=8"></script>
     <!-- Version: 1.0.4-firebase-fix -->
     <!-- Metric Math Breakdown Modal -->
     <div id="metric-math-modal" class="modal-overlay hidden"
