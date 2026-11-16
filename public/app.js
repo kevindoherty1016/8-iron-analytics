@@ -5749,6 +5749,10 @@ class App {
             const pct = target > 0 ? Math.round((goodShots / target) * 100) : 0;
             return `${goodShots}/${target} (${pct}%)`;
         }
+        if (col === 'winnings') {
+            const win = Number(r.winnings) || 0;
+            return win > 0 ? `$${win % 1 === 0 ? win : win.toFixed(2)}` : '$0';
+        }
         if (col === 'putts') return String(Math.round(Number(r.putts) || 0));
         if (col === 'quota') {
             const qData = this.calculateRoundQuota(r);
@@ -5922,10 +5926,8 @@ class App {
                 const udC = Number(round.upDownChances) || 0;
                 const scramblingPct = udC > 0 ? Math.round((udS / udC) * 100) : 0;
 
-                const goodShots = Number(round.goodShots) || 0;
-                const goodShotsTarget = Number(round.goodShotsTarget) || (round.holes === 9 ? 18 : 36);
-                const goodShotsPct = goodShotsTarget > 0 ? Math.round((goodShots / goodShotsTarget) * 100) : 0;
-                const hasGoodShots = goodShots > 0;
+                const winnings = Number(round.winnings) || 0;
+                const winningsDisplay = winnings > 0 ? `$${winnings % 1 === 0 ? winnings : winnings.toFixed(2)}` : '$0';
 
                 const qData = this.calculateRoundQuota(round);
 
@@ -5944,7 +5946,7 @@ class App {
                     <td>${fir}</td>
                     <td>${gir}</td>
                     <td>${udS}/${udC} <span style="font-size:0.75em;color:var(--text-muted)">(${scramblingPct}%)</span></td>
-                    <td>${hasGoodShots ? `${goodShots}/${goodShotsTarget} <span style="font-size:0.75em;color:var(--primary-green)">(${goodShotsPct}%)</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
+                    <td style="${winnings > 0 ? 'color: var(--primary-green); font-weight: 600;' : 'color: var(--text-muted);'}">${winningsDisplay}</td>
                     <td>${putts}</td>
                     <td>${qData.quotaPoints}/${qData.playerQuota} <span style="font-size:0.75em;color:${qData.quotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444'}">(${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff})</span></td>
                     <td onclick="event.stopPropagation()">

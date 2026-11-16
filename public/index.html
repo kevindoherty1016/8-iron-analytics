@@ -992,8 +992,8 @@
                                         GIR <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="gir" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'gir')" title="Filter GIR">🔻</span></th>
                                     <th id="sort-scrambling" style="cursor: pointer;" onclick="window.app.sortHistory('scrambling')">
                                         Scrambling <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="scrambling" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'scrambling')" title="Filter Scrambling">🔻</span></th>
-                                    <th id="sort-goodShots" style="cursor: pointer;" onclick="window.app.sortHistory('goodShots')">
-                                        Good Shots <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="goodShots" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'goodShots')" title="Filter Good Shots">🔻</span></th>
+                                    <th id="sort-winnings" style="cursor: pointer;" onclick="window.app.sortHistory('winnings')">
+                                        Winnings <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="winnings" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'winnings')" title="Filter Winnings">🔻</span></th>
                                     <th id="sort-putts" style="cursor: pointer;" onclick="window.app.sortHistory('putts')">
                                         Putts <span class="sort-icon" style="font-size:0.8em; color:var(--text-muted);">⇅</span><span class="col-filter-btn" data-col="putts" onclick="event.stopPropagation(); window.app.toggleColumnFilterMenu(event, 'putts')" title="Filter Putts">🔻</span></th>
                                     <th id="sort-quota" style="cursor: pointer;" onclick="window.app.sortHistory('quota')">
@@ -1355,7 +1355,7 @@
     </script>
 
     <!-- Make app.js a module to delay execution until the module map above is done, or we can just leave it as standard script and wait for DOMContentLoaded. We will leave it as module so we can use top level await if needed, but standard script is safer for backwards compat inline handlers. -->
-    <script type="module" src="app.js?v=8"></script>
+    <script type="module" src="app.js?v=9"></script>
     <!-- Version: 1.0.4-firebase-fix -->
     <!-- Metric Math Breakdown Modal -->
     <div id="metric-math-modal" class="modal-overlay hidden"
