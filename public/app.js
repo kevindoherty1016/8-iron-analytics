@@ -1850,12 +1850,12 @@ class App {
         }
 
         const layout = this.courseLayouts.find(c => this.normalizeCourse(c.name) === this.normalizeCourse(round.course));
-        let teeName = round.teeName || '';
+        let teeName = (round.teeName && round.teeName !== 'Default' && round.teeName !== '---') ? round.teeName : '';
         if (layout && layout.tees) {
             const teeKeys = Object.keys(layout.tees);
             if (teeName && !layout.tees[teeName]) {
                 const matchedKey = teeKeys.find(k => k.trim().toLowerCase() === teeName.trim().toLowerCase());
-                if (matchedKey) teeName = matchedKey;
+                teeName = matchedKey || '';
             }
             if (!teeName && round.teeId) {
                 const matchedById = teeKeys.find(k => layout.tees[k]?.teeId === round.teeId);
@@ -1900,8 +1900,8 @@ class App {
         setVal('goodShots', (round.goodShots / divisor) || 0);
         setVal('goodShotsTarget', (round.goodShotsTarget / divisor) || (round.holes === 9 ? 18 : 36));
         setVal('penaltyStrokes', (round.penaltyStrokes / divisor) || 0);
-        setVal('roundCost', round.cost || '');
-        setVal('roundWinnings', round.winnings || '');
+        setVal('roundCost', this.getRoundCost(round) || '');
+        setVal('roundWinnings', this.getRoundWinnings(round) || '');
         setVal('roundEvent', round.event || '');
         setVal('roundGroup', round.group || '');
         setVal('weather', round.weather || '');
@@ -4166,8 +4166,8 @@ class App {
                 return acc + (s * scalingFactor(r));
             }, 0);
 
-            const totalCost = filteredRounds.reduce((acc, r) => acc + (Number(r.cost) || 0), 0);
-            const totalWinnings = filteredRounds.reduce((acc, r) => acc + (Number(r.winnings) || 0), 0);
+            const totalCost = filteredRounds.reduce((acc, r) => acc + this.getRoundCost(r), 0);
+            const totalWinnings = filteredRounds.reduce((acc, r) => acc + this.getRoundWinnings(r), 0);
 
             const goodShotEraStartTs = this.getEST('2026-08-09').ts;
             const goodShotRounds = scoringRounds.filter(r => this.getEST(r.date).ts >= goodShotEraStartTs && (Number(r.goodShots) || 0) > 0);
@@ -5593,8 +5593,8 @@ class App {
             }
             g.penaltyStrokes += (r.penaltyStrokes || 0);
             g.scoreToPar += (r.scoreToPar || 0);
-            g.cost += (r.cost || 0);
-            g.winnings += (r.winnings || 0);
+            g.cost += this.getRoundCost(r);
+            g.winnings += this.getRoundWinnings(r);
             if (r.course && !g.courses.includes(r.course)) {
                 g.courses.push(r.course);
             }
@@ -5727,6 +5727,33 @@ class App {
         this.renderHistory();
     }
 
+    getRoundWinnings(r) {
+        if (!r) return 0;
+        const raw = r.winnings ?? r.roundWinnings ?? r.prize ?? 0;
+        if (typeof raw === 'number') return isNaN(raw) ? 0 : raw;
+        const str = String(raw).trim();
+        const isParenNeg = /^\(.*\)$/.test(str);
+        const cleaned = str.replace(/[^\d.-]/g, '');
+        const val = parseFloat(cleaned) || 0;
+        return (isParenNeg && val > 0) ? -val : val;
+    }
+
+    formatWinningsDisplay(win) {
+        const val = Number(win) || 0;
+        if (val === 0) return '$0';
+        const absVal = Math.abs(val);
+        const formatted = absVal % 1 === 0 ? String(absVal) : absVal.toFixed(2);
+        return val < 0 ? `-$${formatted}` : `$${formatted}`;
+    }
+
+    getRoundCost(r) {
+        if (!r) return 0;
+        const raw = r.cost ?? r.roundCost ?? r.price ?? 0;
+        if (typeof raw === 'number') return isNaN(raw) ? 0 : raw;
+        const cleaned = String(raw).replace(/[^\d.-]/g, '');
+        return parseFloat(cleaned) || 0;
+    }
+
     getRoundColumnValue(r, col) {
         if (!r) return '';
         if (col === 'roundNum') return r.roundNum != null ? `#${String(r.roundNum).padStart(3, '0')}` : '';
@@ -5750,8 +5777,7 @@ class App {
             return `${goodShots}/${target} (${pct}%)`;
         }
         if (col === 'winnings') {
-            const win = Number(r.winnings) || 0;
-            return win > 0 ? `$${win % 1 === 0 ? win : win.toFixed(2)}` : '$0';
+            return this.formatWinningsDisplay(this.getRoundWinnings(r));
         }
         if (col === 'putts') return String(Math.round(Number(r.putts) || 0));
         if (col === 'quota') {
@@ -5885,6 +5911,9 @@ class App {
                         valA = Number(qA.quotaPoints) || 0;
                         valB = Number(qB.quotaPoints) || 0;
                     }
+                } else if (this.historySortCol === 'winnings') {
+                    valA = this.getRoundWinnings(a);
+                    valB = this.getRoundWinnings(b);
                 } else if (this.historySortCol === 'roundNum') {
                     valA = Number(a.roundNum) || 0;
                     valB = Number(b.roundNum) || 0;
@@ -5926,8 +5955,11 @@ class App {
                 const udC = Number(round.upDownChances) || 0;
                 const scramblingPct = udC > 0 ? Math.round((udS / udC) * 100) : 0;
 
-                const winnings = Number(round.winnings) || 0;
-                const winningsDisplay = winnings > 0 ? `$${winnings % 1 === 0 ? winnings : winnings.toFixed(2)}` : '$0';
+                const winnings = this.getRoundWinnings(round);
+                const winningsDisplay = this.formatWinningsDisplay(winnings);
+                const winningsStyle = winnings > 0
+                    ? 'color: var(--primary-green); font-weight: 600;'
+                    : (winnings < 0 ? 'color: #ef4444; font-weight: 600;' : 'color: var(--text-muted);');
 
                 const qData = this.calculateRoundQuota(round);
 
@@ -5946,7 +5978,7 @@ class App {
                     <td>${fir}</td>
                     <td>${gir}</td>
                     <td>${udS}/${udC} <span style="font-size:0.75em;color:var(--text-muted)">(${scramblingPct}%)</span></td>
-                    <td style="${winnings > 0 ? 'color: var(--primary-green); font-weight: 600;' : 'color: var(--text-muted);'}">${winningsDisplay}</td>
+                    <td style="${winningsStyle}">${winningsDisplay}</td>
                     <td>${putts}</td>
                     <td>${qData.quotaPoints}/${qData.playerQuota} <span style="font-size:0.75em;color:${qData.quotaDiff >= 0 ? 'var(--primary-green)' : '#ef4444'}">(${qData.quotaDiff > 0 ? '+' : ''}${qData.quotaDiff})</span></td>
                     <td onclick="event.stopPropagation()">
@@ -6297,14 +6329,14 @@ class App {
                             <span>Penalty Strokes:</span>
                             <span style="font-weight: 600;">${round.penaltyStrokes || 0}</span>
                         </div>
-                        ${(round.cost || round.winnings) ? `
+                        ${(this.getRoundCost(round) || this.getRoundWinnings(round)) ? `
                         <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 2px;">
                             <span>Cost:</span>
-                            <span style="font-weight: 600;">$${(round.cost || 0).toFixed(2)}</span>
+                            <span style="font-weight: 600;">$${this.getRoundCost(round).toFixed(2)}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <span>Winnings:</span>
-                            <span style="font-weight: 600; color: ${(round.winnings || 0) > 0 ? '#10b981' : (round.winnings < 0 ? '#ef4444' : 'inherit')};">$${(round.winnings || 0).toFixed(2)}</span>
+                            <span style="font-weight: 600; color: ${this.getRoundWinnings(round) > 0 ? '#10b981' : (this.getRoundWinnings(round) < 0 ? '#ef4444' : 'inherit')};">${this.formatWinningsDisplay(this.getRoundWinnings(round))}</span>
                         </div>` : ''}
                         ${(round.event || round.group) ? `
                         <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 2px;">
@@ -8871,9 +8903,12 @@ class App {
 
                     const parseCurrency = (val) => {
                         if (val === undefined || val === null || val === "") return 0;
+                        const str = val.toString().trim();
+                        const isParenNeg = /^\(.*\)$/.test(str);
                         // Strip everything except numbers, decimal points, and minus signs
-                        const cleaned = val.toString().replace(/[^\d.-]/g, '');
-                        return parseFloat(cleaned) || 0;
+                        const cleaned = str.replace(/[^\d.-]/g, '');
+                        const num = parseFloat(cleaned) || 0;
+                        return (isParenNeg && num > 0) ? -num : num;
                     };
 
                     const cleanCourseName = (name) => name ? name.toString().toLowerCase().trim().replace(/[^a-z0-9]/g, '') : '';
@@ -8969,8 +9004,8 @@ class App {
                             const v_pars = row['Pars'];
                             const v_bogeys = row['Bogeys'];
                             const v_putter = getRowVal(row, ['putter used', 'putter']);
-                            const v_cost = getRowVal(row, ['cost', 'price', 'round cost']);
-                            const v_winnings = getRowVal(row, ['winnings', 'prize', 'round winnings']);
+                            const v_cost = getRowVal(row, ['cost', 'cost ($)', 'price', 'round cost', 'round cost ($)']);
+                            const v_winnings = getRowVal(row, ['winnings', 'winnings ($)', 'prize', 'round winnings', 'round winnings ($)', 'won', 'money won']);
                             const v_event = getRowVal(row, ['event', 'tournament', 'round event']);
                             const v_group = getRowVal(row, ['group', 'players', 'round group']);
 
@@ -9114,14 +9149,20 @@ class App {
 
                             // Extract round-level fields only if present in the CSV row
                             const v_putter = getVal(['putter used', 'putter']);
-                            const v_cost = getVal(['cost', 'price', 'round cost']);
-                            const v_winnings = getVal(['winnings', 'prize', 'round winnings']);
+                            const v_cost = getVal(['cost', 'cost ($)', 'price', 'round cost', 'round cost ($)']);
+                            const v_winnings = getVal(['winnings', 'winnings ($)', 'prize', 'round winnings', 'round winnings ($)', 'won', 'money won']);
                             const v_event = getVal(['event', 'tournament', 'round event']);
                             const v_group = getVal(['group', 'players', 'round group']);
 
                             if (v_putter !== undefined && v_putter !== "" && roundsMap[key].putter === undefined) roundsMap[key].putter = v_putter;
-                            if (v_cost !== undefined && v_cost !== "" && roundsMap[key].cost === undefined) roundsMap[key].cost = parseCurrency(v_cost);
-                            if (v_winnings !== undefined && v_winnings !== "" && roundsMap[key].winnings === undefined) roundsMap[key].winnings = parseCurrency(v_winnings);
+                            if (v_cost !== undefined && v_cost !== "") {
+                                const parsedCost = parseCurrency(v_cost);
+                                if (roundsMap[key].cost === undefined || parsedCost > 0) roundsMap[key].cost = parsedCost;
+                            }
+                            if (v_winnings !== undefined && v_winnings !== "") {
+                                const parsedWin = parseCurrency(v_winnings);
+                                if (roundsMap[key].winnings === undefined || parsedWin !== 0) roundsMap[key].winnings = parsedWin;
+                            }
                             if (v_event !== undefined && v_event !== "" && roundsMap[key].event === undefined) roundsMap[key].event = v_event;
                             if (v_group !== undefined && v_group !== "" && roundsMap[key].group === undefined) roundsMap[key].group = v_group;
 
@@ -9264,8 +9305,8 @@ class App {
                                     upDownChances: upDownChances >= 0 ? upDownChances : existingRound.upDownChances,
                                     upDownSuccesses: upDownSuccesses >= 0 ? upDownSuccesses : existingRound.upDownSuccesses,
                                     putter: roundObj.putter !== undefined ? roundObj.putter : (existingRound.putter || ''),
-                                    cost: roundObj.cost !== undefined ? roundObj.cost : (existingRound.cost || 0),
-                                    winnings: roundObj.winnings !== undefined ? roundObj.winnings : (existingRound.winnings || 0),
+                                    cost: (roundObj.cost !== undefined && roundObj.cost !== 0) ? roundObj.cost : (existingRound.cost || roundObj.cost || 0),
+                                    winnings: (roundObj.winnings !== undefined && roundObj.winnings !== 0) ? roundObj.winnings : (existingRound.winnings || roundObj.winnings || 0),
                                     teeId: roundObj.teeId !== undefined ? roundObj.teeId : existingRound.teeId,
                                     event: roundObj.event !== undefined ? roundObj.event : (existingRound.event || ''),
                                     group: roundObj.group !== undefined ? roundObj.group : (existingRound.group || ''),
